@@ -1005,16 +1005,37 @@ export default function RevistaLeitura() {
               className="flex items-center justify-between px-4 py-3"
               style={{ backgroundColor: '#1c1915' }}
             >
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => goToPage(paginaAtual - 1)}
-                disabled={paginaAtual === 0}
-                style={{ color: '#f6ba32' }}
-                className="hover:bg-[rgba(246,186,50,0.15)]"
-              >
-                <ChevronLeft className="h-5 w-5 mr-1" /> Anterior
-              </Button>
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => goToPage(paginaAtual - 1)}
+                  disabled={paginaAtual === 0}
+                  style={{ color: '#f6ba32' }}
+                  className="hover:bg-[rgba(246,186,50,0.15)]"
+                >
+                  <ChevronLeft className="h-5 w-5 mr-1" /> Anterior
+                </Button>
+                {sessionWhatsapp && (
+                  <button
+                    onClick={() => setAnotacaoPainelAberto(true)}
+                    style={{
+                      background: anotacoesPagina[paginaAtual] ? "#fffbeb" : "transparent",
+                      border: anotacoesPagina[paginaAtual] ? "1px solid #FFC107" : "1px solid rgba(255,255,255,0.2)",
+                      borderRadius: 6,
+                      padding: "4px 10px",
+                      fontSize: 13,
+                      color: anotacoesPagina[paginaAtual] ? "#92400e" : "rgba(255,255,255,0.6)",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 4,
+                    }}
+                  >
+                    📝 {anotacoesPagina[paginaAtual] ? "Ver nota" : "Anotar"}
+                  </button>
+                )}
+              </div>
               <span className="text-sm" style={{ color: '#f6ba32', opacity: 0.6 }}>
                 Página {paginaAtual + 1} de {totalPages}
               </span>
