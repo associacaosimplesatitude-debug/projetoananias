@@ -155,8 +155,31 @@ export default function RevistaLeitura() {
   const [ranking, setRanking] = useState<any[]>([]);
   const [rankingLoading, setRankingLoading] = useState(false);
 
-  // Points counter (force re-render after quiz)
+  // Points from database
   const [pontosVersion, setPontosVersion] = useState(0);
+  const [pontosDb, setPontosDb] = useState<{ total_pontos: number; total_quizzes: number } | null>(null);
+  const [pontosLoading, setPontosLoading] = useState(false);
+
+  const fetchPontosDb = useCallback(async () => {
+    if (!sessionWhatsapp) return;
+    setPontosLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("buscar-pontos-leitor", {
+        body: { whatsapp: sessionWhatsapp },
+      });
+      if (!error && data) {
+        setPontosDb({ total_pontos: data.total_pontos || 0, total_quizzes: data.total_quizzes || 0 });
+      }
+    } catch {
+      // ignore
+    } finally {
+      setPontosLoading(false);
+    }
+  }, [sessionWhatsapp]);
+
+  useEffect(() => {
+    fetchPontosDb();
+  }, [fetchPontosDb]);
 
   // Tela de conclusão de lição (intercepta navegação se quiz disponível)
   const [telaConclusao, setTelaConclusao] = useState(false);
