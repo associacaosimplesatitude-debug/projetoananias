@@ -5321,6 +5321,54 @@ export type Database = {
           },
         ]
       }
+      revista_anotacoes_publico: {
+        Row: {
+          created_at: string | null
+          id: string
+          licao_id: string | null
+          pagina: number
+          revista_id: string | null
+          texto: string
+          updated_at: string | null
+          whatsapp: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          licao_id?: string | null
+          pagina: number
+          revista_id?: string | null
+          texto: string
+          updated_at?: string | null
+          whatsapp: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          licao_id?: string | null
+          pagina?: number
+          revista_id?: string | null
+          texto?: string
+          updated_at?: string | null
+          whatsapp?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "revista_anotacoes_publico_licao_id_fkey"
+            columns: ["licao_id"]
+            isOneToOne: false
+            referencedRelation: "revista_licoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "revista_anotacoes_publico_revista_id_fkey"
+            columns: ["revista_id"]
+            isOneToOne: false
+            referencedRelation: "revistas_digitais"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       revista_assinaturas: {
         Row: {
           cliente_id: string
