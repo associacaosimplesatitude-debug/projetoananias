@@ -146,9 +146,17 @@ export default function RevistaLeitura() {
 
   // Quiz state
   const [quizDisponivel, setQuizDisponivel] = useState<Record<string, boolean>>({});
+  const [quizNumPerguntas, setQuizNumPerguntas] = useState<Record<string, number>>({});
   const [quizAberto, setQuizAberto] = useState(false);
   const [quizLicaoId, setQuizLicaoId] = useState<string | null>(null);
   const [quizLicaoTitulo, setQuizLicaoTitulo] = useState("");
+
+  // Ranking state
+  const [ranking, setRanking] = useState<any[]>([]);
+  const [rankingLoading, setRankingLoading] = useState(false);
+
+  // Points counter (force re-render after quiz)
+  const [pontosVersion, setPontosVersion] = useState(0);
 
   const fecharOnboarding = (naoMostrarMais: boolean) => {
     if (naoMostrarMais) {
@@ -317,10 +325,21 @@ export default function RevistaLeitura() {
           }).then(({ data: quizData }) => {
             if (quizData?.quiz) {
               setQuizDisponivel((prev) => ({ ...prev, [licao.id]: true }));
+              const numP = Array.isArray(quizData.quiz.perguntas) ? quizData.quiz.perguntas.length : 0;
+              setQuizNumPerguntas((prev) => ({ ...prev, [licao.id]: numP }));
             }
           }).catch(() => {});
         });
       });
+
+    // Fetch ranking
+    setRankingLoading(true);
+    supabase.functions.invoke("buscar-ranking-revista", {
+      body: { revista_id: selectedRevista },
+    }).then(({ data }) => {
+      setRanking(data?.ranking || []);
+      setRankingLoading(false);
+    }).catch(() => setRankingLoading(false));
 
     // Melhoria 1 — check saved progress (banco primeiro, localStorage fallback)
     const progressKey = `revista_progresso_${selectedRevista}`;
@@ -906,6 +925,7 @@ export default function RevistaLeitura() {
             onFechar={() => {
               setQuizAberto(false);
               setQuizLicaoId(null);
+              setPontosVersion((v) => v + 1);
             }}
           />
         )}
@@ -974,6 +994,74 @@ export default function RevistaLeitura() {
             Voltar às revistas
           </Button>
         )}
+
+        {/* Points card */}
+        {!selectedRevista && licencas.length >= 1 && (() => {
+          let totalPontos = 0;
+          let totalQuizFeitos = 0;
+          let totalQuizDisponiveis = 0;
+          // Scan all localStorage for quiz points
+          for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key?.startsWith("quiz_pontos_")) {
+              totalPontos += parseInt(localStorage.getItem(key) || "0", 10);
+              totalQuizFeitos++;
+            }
+          }
+          // Count available quizzes from state
+          totalQuizDisponiveis = Object.keys(quizDisponivel).length;
+          // Use pontosVersion to force recalc
+          void pontosVersion;
+
+          return (
+            <div
+              style={{
+                background: "linear-gradient(135deg, #1B3A5C, #2d5a8e)",
+                borderRadius: 16,
+                padding: "20px 24px",
+                marginBottom: 24,
+                boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 16,
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                <span style={{ fontSize: 40 }}>🏆</span>
+                <div>
+                  <p style={{ color: "#fff", fontSize: 12, textTransform: "uppercase", letterSpacing: 1, margin: 0, opacity: 0.8 }}>
+                    Seus Pontos
+                  </p>
+                  <p style={{ color: "#FFC107", fontSize: 36, fontWeight: 800, margin: 0, lineHeight: 1.1 }}>
+                    {totalPontos}
+                  </p>
+                </div>
+              </div>
+              <div style={{ textAlign: "right" }}>
+                <div style={{
+                  background: "rgba(255,255,255,0.15)",
+                  borderRadius: 20,
+                  height: 8,
+                  width: 120,
+                  overflow: "hidden",
+                  marginBottom: 6,
+                }}>
+                  <div style={{
+                    height: "100%",
+                    width: `${totalQuizDisponiveis > 0 ? (totalQuizFeitos / Math.max(totalQuizDisponiveis, totalQuizFeitos)) * 100 : 0}%`,
+                    background: "#FFC107",
+                    borderRadius: 20,
+                    transition: "width 0.4s ease",
+                  }} />
+                </div>
+                <p style={{ color: "#fff", fontSize: 13, margin: 0, opacity: 0.8 }}>
+                  {totalQuizFeitos} {totalQuizDisponiveis > 0 ? `de ${Math.max(totalQuizDisponiveis, totalQuizFeitos)} ` : ""}quizzes respondidos
+                </p>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Multiple revistas - show grid */}
         {!selectedRevista && licencas.length > 1 && (
@@ -1124,25 +1212,168 @@ export default function RevistaLeitura() {
                   </div>
                 )}
 
-                {licoes.map((licao) => (
-                  <Card
-                    key={licao.id}
-                    className={`cursor-pointer hover:shadow-md transition-shadow ${modoNoturno ? "bg-[#1a1a1a] border-white/10" : ""}`}
-                    onClick={() => abrirLicao(licao)}
-                  >
-                    <CardContent className="p-5 flex items-center justify-between">
-                      <div>
-                        <p className={`text-lg font-semibold ${modoNoturno ? "text-white" : ""}`}>
-                          Lição {licao.numero}
-                        </p>
-                        <p className={`text-base ${modoNoturno ? "text-white/60" : "text-muted-foreground"}`}>
-                          {licao.titulo}
-                        </p>
+                {licoes.map((licao) => {
+                  const temQuiz = quizDisponivel[licao.id];
+                  const jaFez = localStorage.getItem(`quiz_feito_${licao.id}`) === "true";
+                  const pontosFeitos = parseInt(localStorage.getItem(`quiz_pontos_${licao.id}`) || "0", 10);
+                  const numPerguntas = quizNumPerguntas[licao.id] || 3;
+                  // Force recalc
+                  void pontosVersion;
+
+                  return (
+                    <div
+                      key={licao.id}
+                      onClick={() => abrirLicao(licao)}
+                      style={{
+                        cursor: "pointer",
+                        borderRadius: 10,
+                        border: modoNoturno ? "1px solid rgba(255,255,255,0.1)" : "1px solid #e5e7eb",
+                        borderLeft: temQuiz
+                          ? jaFez
+                            ? "3px solid #22c55e"
+                            : "3px solid #FFC107"
+                          : modoNoturno ? "1px solid rgba(255,255,255,0.1)" : "1px solid #e5e7eb",
+                        background: modoNoturno ? "#1a1a1a" : "#fff",
+                        transition: "box-shadow 0.2s ease",
+                        overflow: "hidden",
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.1)")}
+                      onMouseLeave={(e) => (e.currentTarget.style.boxShadow = "none")}
+                    >
+                      <div style={{ padding: "16px 20px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                        <div>
+                          <p style={{ fontSize: 18, fontWeight: 600, margin: 0, color: modoNoturno ? "#fff" : "#111" }}>
+                            Lição {licao.numero}
+                          </p>
+                          <p style={{ fontSize: 16, margin: "4px 0 0", color: modoNoturno ? "rgba(255,255,255,0.6)" : "#6b7280" }}>
+                            {licao.titulo}
+                          </p>
+                        </div>
+                        <BookOpen style={{ width: 20, height: 20, color: modoNoturno ? "rgba(255,255,255,0.4)" : "#9ca3af" }} />
                       </div>
-                      <BookOpen className={`h-5 w-5 ${modoNoturno ? "text-white/40" : "text-muted-foreground"}`} />
-                    </CardContent>
-                  </Card>
-                ))}
+
+                      {/* Quiz status banner */}
+                      {temQuiz && !jaFez && (
+                        <div
+                          style={{
+                            margin: "0 16px 14px",
+                            padding: "8px 12px",
+                            borderRadius: 6,
+                            background: "linear-gradient(135deg, #fffbeb, #fef3c7)",
+                            color: "#92400e",
+                            fontSize: 13,
+                            fontWeight: 500,
+                            animation: "quizBannerIn 0.4s ease",
+                          }}
+                        >
+                          <span style={{ fontWeight: 700, textTransform: "uppercase" }}>⚡ QUIZ DISPONÍVEL</span>
+                          <span style={{ color: "#b45309" }}>  •  {numPerguntas} perguntas  •  +{numPerguntas * 10} pts</span>
+                        </div>
+                      )}
+                      {temQuiz && jaFez && (
+                        <div
+                          style={{
+                            margin: "0 16px 14px",
+                            padding: "8px 12px",
+                            borderRadius: 6,
+                            background: "linear-gradient(135deg, #f0fdf4, #dcfce7)",
+                            color: "#166534",
+                            fontSize: 13,
+                            fontWeight: 500,
+                          }}
+                        >
+                          <span style={{ fontWeight: 700, textTransform: "uppercase" }}>✅ QUIZ CONCLUÍDO</span>
+                          <span style={{ color: "#15803d" }}>  •  Você ganhou {pontosFeitos} pts nesta lição</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+
+                {/* Ranking section */}
+                {(ranking.length > 0 || rankingLoading) && (
+                  <div style={{ marginTop: 24 }}>
+                    <h2 style={{
+                      fontSize: 20, fontWeight: 700, marginBottom: 16,
+                      color: modoNoturno ? "#fff" : "#111",
+                      display: "flex", alignItems: "center", gap: 8,
+                    }}>
+                      🏆 Ranking desta Revista
+                    </h2>
+
+                    {rankingLoading ? (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                        {[1, 2, 3].map((i) => (
+                          <div
+                            key={i}
+                            style={{
+                              height: 52, borderRadius: 10,
+                              background: modoNoturno ? "#222" : "#f3f4f6",
+                              animation: "pulse 1.5s infinite",
+                            }}
+                          />
+                        ))}
+                      </div>
+                    ) : ranking.length === 0 ? (
+                      <p style={{ color: modoNoturno ? "rgba(255,255,255,0.5)" : "#6b7280", textAlign: "center", padding: "20px 0" }}>
+                        Seja o primeiro a completar os quizzes!
+                      </p>
+                    ) : (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                        {ranking.map((r: any) => {
+                          const bgMap: Record<number, string> = {
+                            1: "rgba(255,193,7,0.12)",
+                            2: "rgba(192,192,192,0.12)",
+                            3: "rgba(205,127,50,0.12)",
+                          };
+                          const iconMap: Record<number, string> = { 1: "👑", 2: "🥈", 3: "🥉" };
+
+                          return (
+                            <div
+                              key={r.posicao}
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 12,
+                                padding: "12px 16px",
+                                borderRadius: 10,
+                                background: bgMap[r.posicao] || (modoNoturno ? "#1a1a1a" : "#f9fafb"),
+                                border: r.posicao <= 3
+                                  ? `1px solid ${r.posicao === 1 ? "rgba(255,193,7,0.3)" : r.posicao === 2 ? "rgba(192,192,192,0.3)" : "rgba(205,127,50,0.3)"}`
+                                  : modoNoturno ? "1px solid rgba(255,255,255,0.05)" : "1px solid #e5e7eb",
+                              }}
+                            >
+                              <span style={{
+                                width: 32, height: 32, borderRadius: "50%",
+                                display: "flex", alignItems: "center", justifyContent: "center",
+                                fontWeight: 700, fontSize: r.posicao <= 3 ? 20 : 14,
+                                color: modoNoturno ? "#fff" : "#333",
+                                background: r.posicao <= 3 ? "transparent" : (modoNoturno ? "#333" : "#e5e7eb"),
+                                flexShrink: 0,
+                              }}>
+                                {iconMap[r.posicao] || r.posicao}
+                              </span>
+                              <div style={{ flex: 1 }}>
+                                <p style={{
+                                  margin: 0, fontWeight: 600, fontSize: 15,
+                                  color: modoNoturno ? "#fff" : "#111",
+                                }}>
+                                  {r.nome}
+                                </p>
+                                <p style={{
+                                  margin: 0, fontSize: 13,
+                                  color: modoNoturno ? "rgba(255,255,255,0.5)" : "#6b7280",
+                                }}>
+                                  {r.total_pontos} pts • {r.total_quizzes} quizzes respondidos
+                                </p>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -1332,6 +1563,10 @@ export default function RevistaLeitura() {
           </div>
         </div>
       )}
+      <style>{`
+        @keyframes quizBannerIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+      `}</style>
     </div>
   );
 }

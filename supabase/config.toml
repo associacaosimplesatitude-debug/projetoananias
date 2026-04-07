@@ -308,3 +308,12 @@ verify_jwt = false
 
 [functions.geo-ip]
 verify_jwt = false
+
+[functions.buscar-quiz-licao]
+verify_jwt = false
+
+[functions.salvar-quiz-publico]
+verify_jwt = false
+
+[functions.buscar-ranking-revista]
+verify_jwt = false

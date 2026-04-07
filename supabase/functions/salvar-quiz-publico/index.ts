@@ -79,6 +79,55 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Buscar revista_id da lição para o ranking
+    const { data: licao } = await supabase
+      .from("revista_licoes")
+      .select("revista_id")
+      .eq("id", licao_id)
+      .single();
+
+    if (licao?.revista_id) {
+      // Buscar nome do comprador
+      const { data: licenca } = await supabase
+        .from("revista_licencas_shopify")
+        .select("nome_comprador")
+        .eq("whatsapp", whatsapp)
+        .limit(1)
+        .maybeSingle();
+
+      const nomeComprador = licenca?.nome_comprador || "Leitor";
+
+      // Check if ranking entry exists
+      const { data: existing } = await supabase
+        .from("revista_ranking_publico")
+        .select("id, total_pontos, total_quizzes")
+        .eq("whatsapp", whatsapp)
+        .eq("revista_id", licao.revista_id)
+        .maybeSingle();
+
+      if (existing) {
+        await supabase
+          .from("revista_ranking_publico")
+          .update({
+            total_pontos: existing.total_pontos + pontosGanhos,
+            total_quizzes: existing.total_quizzes + 1,
+            nome_comprador: nomeComprador,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", existing.id);
+      } else {
+        await supabase
+          .from("revista_ranking_publico")
+          .insert({
+            whatsapp,
+            revista_id: licao.revista_id,
+            nome_comprador: nomeComprador,
+            total_pontos: pontosGanhos,
+            total_quizzes: 1,
+          });
+      }
+    }
+
     return new Response(
       JSON.stringify({
         acertos,

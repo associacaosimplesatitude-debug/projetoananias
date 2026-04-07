@@ -5933,6 +5933,44 @@ export type Database = {
           },
         ]
       }
+      revista_ranking_publico: {
+        Row: {
+          id: string
+          nome_comprador: string | null
+          revista_id: string | null
+          total_pontos: number | null
+          total_quizzes: number | null
+          updated_at: string | null
+          whatsapp: string
+        }
+        Insert: {
+          id?: string
+          nome_comprador?: string | null
+          revista_id?: string | null
+          total_pontos?: number | null
+          total_quizzes?: number | null
+          updated_at?: string | null
+          whatsapp: string
+        }
+        Update: {
+          id?: string
+          nome_comprador?: string | null
+          revista_id?: string | null
+          total_pontos?: number | null
+          total_quizzes?: number | null
+          updated_at?: string | null
+          whatsapp?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "revista_ranking_publico_revista_id_fkey"
+            columns: ["revista_id"]
+            isOneToOne: false
+            referencedRelation: "revistas_digitais"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       revistas_digitais: {
         Row: {
           ano_publicacao: number | null
