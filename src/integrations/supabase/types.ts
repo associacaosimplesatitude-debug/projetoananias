@@ -6019,6 +6019,38 @@ export type Database = {
           },
         ]
       }
+      revista_referencias_pagina: {
+        Row: {
+          created_at: string | null
+          id: string
+          licao_id: string | null
+          pagina: number
+          referencias: Json
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          licao_id?: string | null
+          pagina: number
+          referencias?: Json
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          licao_id?: string | null
+          pagina?: number
+          referencias?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "revista_referencias_pagina_licao_id_fkey"
+            columns: ["licao_id"]
+            isOneToOne: false
+            referencedRelation: "revista_licoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       revistas_digitais: {
         Row: {
           ano_publicacao: number | null
