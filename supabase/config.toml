@@ -332,3 +332,12 @@ verify_jwt = false
 
 [functions.buscar-referencias-pagina]
 verify_jwt = false
+
+[functions.buscar-preferencia-versao]
+verify_jwt = false
+
+[functions.salvar-preferencia-versao]
+verify_jwt = false
+
+[functions.buscar-videos-escolha]
+verify_jwt = false
