@@ -58,10 +58,10 @@ export function ReferenciasPanel({ licaoId, pagina, onFechar }: ReferenciasPanel
       if (data?.texto) {
         setVerseTexts((prev) => ({ ...prev, [ref]: data.texto }));
       } else {
-        setVerseTexts((prev) => ({ ...prev, [ref]: "Texto não disponível. Consulte sua Bíblia." }));
+        setVerseTexts((prev) => ({ ...prev, [ref]: `Não foi possível carregar este versículo.\nReferência: ${ref}` }));
       }
     } catch {
-      setVerseTexts((prev) => ({ ...prev, [ref]: "Erro ao carregar. Consulte sua Bíblia." }));
+      setVerseTexts((prev) => ({ ...prev, [ref]: `Não foi possível carregar este versículo.\nReferência: ${ref}` }));
     } finally {
       setLoadingVerse(null);
     }
