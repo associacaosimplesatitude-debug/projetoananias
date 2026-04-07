@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Plus, Search, Filter, Users, CreditCard, TrendingUp, Send, Ban, ShoppingCart, Trophy } from "lucide-react";
+import { Plus, Search, Filter, Users, CreditCard, TrendingUp, Send, Ban, ShoppingCart, Trophy, Monitor, WifiOff, BookOpen } from "lucide-react";
 import { format } from "date-fns";
 
 // === UTILS ===
@@ -376,6 +376,32 @@ function ShopifyTab() {
     },
   });
 
+  const { data: versionCounts } = useQuery({
+    queryKey: ["admin-revista-version-counts"],
+    queryFn: async () => {
+      const [cgRes, leitorRes, livrosRes] = await Promise.all([
+        supabase
+          .from("revista_licencas_shopify" as any)
+          .select("id", { count: "exact", head: true })
+          .eq("ativo", true)
+          .or("versao_preferida.eq.cg_digital,versao_preferida.is.null"),
+        supabase
+          .from("revista_licencas_shopify" as any)
+          .select("id", { count: "exact", head: true })
+          .eq("ativo", true)
+          .eq("versao_preferida", "leitor_cg"),
+        supabase.rpc("execute_readonly_query", {
+          sql_query: `SELECT COUNT(*)::int as total FROM revista_licencas_shopify rls INNER JOIN revistas_digitais rd ON rd.id = rls.revista_id WHERE rls.ativo = true AND rd.tipo_conteudo = 'livro_digital'`,
+        }),
+      ]);
+      return {
+        cgDigital: cgRes.count ?? 0,
+        leitorCg: leitorRes.count ?? 0,
+        livros: (livrosRes.data as any)?.[0]?.total ?? 0,
+      };
+    },
+  });
+
   const { data: revistas = [] } = useQuery({
     queryKey: ["revistas-digitais-select"],
     queryFn: async () => {
@@ -466,7 +492,7 @@ function ShopifyTab() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 flex-1">
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
@@ -485,6 +511,39 @@ function ShopifyTab() {
                 <div>
                   <p className="text-2xl font-bold">{licencas.filter(l => l.ativo).length}</p>
                   <p className="text-sm text-muted-foreground">Ativas</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3">
+                <Monitor className="h-8 w-8 text-primary" />
+                <div>
+                  <p className="text-2xl font-bold">{versionCounts?.cgDigital ?? "—"}</p>
+                  <p className="text-sm text-muted-foreground">CG Digital</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3">
+                <WifiOff className="h-8 w-8 text-primary" />
+                <div>
+                  <p className="text-2xl font-bold">{versionCounts?.leitorCg ?? "—"}</p>
+                  <p className="text-sm text-muted-foreground">Leitor CG</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3">
+                <BookOpen className="h-8 w-8 text-primary" />
+                <div>
+                  <p className="text-2xl font-bold">{versionCounts?.livros ?? "—"}</p>
+                  <p className="text-sm text-muted-foreground">Livros</p>
                 </div>
               </div>
             </CardContent>
