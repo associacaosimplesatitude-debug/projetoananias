@@ -791,19 +791,38 @@ export default function RevistaLeitura() {
                 Página {paginaAtual + 1} de {totalPages}
               </span>
               {isLastPage ? (
-                isLastLicao ? (
-                  <span className="text-sm font-medium flex items-center gap-1" style={{ color: '#f6ba32' }}>
-                    <PartyPopper className="h-4 w-4" /> Concluída!
-                  </span>
-                ) : (
-                  <Button
-                    size="sm"
-                    onClick={irProximaLicao}
-                    style={{ backgroundColor: '#f6ba32', color: '#1c1915' }}
-                  >
-                    Próxima lição <ChevronRight className="h-5 w-5 ml-1" />
-                  </Button>
-                )
+                <div className="flex items-center gap-2">
+                  {/* Quiz button on last page */}
+                  {licaoAberta && quizDisponivel[licaoAberta.id] && (
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        setQuizLicaoId(licaoAberta.id);
+                        setQuizLicaoTitulo(licaoAberta.titulo || `Lição ${licaoAberta.numero}`);
+                        setQuizAberto(true);
+                      }}
+                      style={{
+                        backgroundColor: localStorage.getItem(`quiz_feito_${licaoAberta.id}`) ? '#22c55e' : '#FFC107',
+                        color: '#1c1915',
+                      }}
+                    >
+                      {localStorage.getItem(`quiz_feito_${licaoAberta.id}`) ? '✅ Quiz respondido' : '📝 Fazer Quiz'}
+                    </Button>
+                  )}
+                  {isLastLicao ? (
+                    <span className="text-sm font-medium flex items-center gap-1" style={{ color: '#f6ba32' }}>
+                      <PartyPopper className="h-4 w-4" /> Concluída!
+                    </span>
+                  ) : (
+                    <Button
+                      size="sm"
+                      onClick={irProximaLicao}
+                      style={{ backgroundColor: '#f6ba32', color: '#1c1915' }}
+                    >
+                      Próxima lição <ChevronRight className="h-5 w-5 ml-1" />
+                    </Button>
+                  )}
+                </div>
               ) : (
                 <Button
                   variant="ghost"
