@@ -844,7 +844,8 @@ export default function RevistaLeitura() {
             onFechar={() => {
               setQuizAberto(false);
               setQuizLicaoId(null);
-              setPontosVersion((v) => v + 1);
+               setPontosVersion((v) => v + 1);
+               fetchPontosDb();
               const feito = localStorage.getItem(`quiz_feito_${licaoAberta.id}`) === "true";
               if (feito) {
                 const pts = parseInt(localStorage.getItem(`quiz_pontos_${licaoAberta.id}`) || "0", 10);
@@ -1102,7 +1103,8 @@ export default function RevistaLeitura() {
             onFechar={() => {
               setQuizAberto(false);
               setQuizLicaoId(null);
-              setPontosVersion((v) => v + 1);
+               setPontosVersion((v) => v + 1);
+               fetchPontosDb();
             }}
           />
         )}
