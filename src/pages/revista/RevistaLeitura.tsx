@@ -529,6 +529,17 @@ export default function RevistaLeitura() {
       }).catch(() => {});
     }
 
+    // Load references for this lesson
+    supabase.functions.invoke("buscar-referencias-pagina", {
+      body: { licao_id: licao.id },
+    }).then(({ data }) => {
+      if (data?.paginas && Array.isArray(data.paginas)) {
+        const map: Record<number, boolean> = {};
+        data.paginas.forEach((p: any) => { map[p.pagina] = true; });
+        setReferenciasDisponiveis(map);
+      }
+    }).catch(() => {});
+
     // Melhoria 1 — save on open
     if (progressKey) {
       localStorage.setItem(progressKey, JSON.stringify({
