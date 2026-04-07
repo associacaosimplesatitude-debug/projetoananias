@@ -93,7 +93,8 @@ export default function LeitorAcesso() {
         const newToken = persistRevistaToken(data.token);
         if (!newToken) { setError("Ocorreu um erro. Tente novamente."); return; }
         saveRevistaSession(newToken, data.licencas);
-        navigate("/leitor/leitura", { replace: true });
+        const destino = data.versao_preferida === "cg_digital" ? "/revista/leitura" : "/leitor/leitura";
+        navigate(destino, { replace: true });
         return;
       }
 
@@ -160,7 +161,8 @@ export default function LeitorAcesso() {
       const newToken = persistRevistaToken(data.token);
       if (!newToken) { setError("Ocorreu um erro. Tente novamente."); return; }
       saveRevistaSession(newToken, data.licencas);
-      navigate("/leitor/leitura", { replace: true });
+      const destino = data.versao_preferida === "cg_digital" ? "/revista/leitura" : "/leitor/leitura";
+      navigate(destino, { replace: true });
     } catch {
       setError("Ocorreu um erro. Tente novamente.");
     } finally {

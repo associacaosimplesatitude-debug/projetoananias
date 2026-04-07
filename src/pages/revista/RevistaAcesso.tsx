@@ -82,7 +82,8 @@ export default function RevistaAcesso() {
           return;
         }
         saveRevistaSession(newToken, data.licencas);
-        navigate("/revista/leitura", { replace: true });
+        const destino = data.versao_preferida === "leitor_cg" ? "/leitor/leitura" : "/revista/leitura";
+        navigate(destino, { replace: true });
         return;
       }
 
@@ -166,7 +167,8 @@ export default function RevistaAcesso() {
       }
 
       saveRevistaSession(newToken, data.licencas);
-      navigate("/revista/leitura", { replace: true });
+      const destino = data.versao_preferida === "leitor_cg" ? "/leitor/leitura" : "/revista/leitura";
+      navigate(destino, { replace: true });
     } catch {
       setError("Ocorreu um erro. Tente novamente.");
     } finally {

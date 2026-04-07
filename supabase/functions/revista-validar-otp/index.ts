@@ -63,6 +63,7 @@ serve(async (req) => {
         revista_id,
         nome_comprador,
         expira_em,
+        versao_preferida,
         revistas_digitais (
           id,
           titulo,
@@ -104,8 +105,10 @@ serve(async (req) => {
       })
     );
 
+    const versaoPreferida = licencas?.[0]?.versao_preferida || "cg_digital";
+
     return new Response(
-      JSON.stringify({ sucesso: true, token, licencas }),
+      JSON.stringify({ sucesso: true, token, licencas, versao_preferida: versaoPreferida }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       }
