@@ -1161,6 +1161,29 @@ export default function RevistaLeitura() {
             }}
           />
         )}
+
+        {/* Annotation panel */}
+        {anotacaoPainelAberto && licaoAberta && sessionWhatsapp && selectedRevista && (
+          <AnotacaoPanel
+            whatsapp={sessionWhatsapp}
+            revistaId={selectedRevista}
+            licaoId={licaoAberta.id}
+            pagina={paginaAtual}
+            anotacaoExistente={anotacoesPagina[paginaAtual] || null}
+            onSalvar={(texto) => {
+              setAnotacoesPagina((prev) => ({ ...prev, [paginaAtual]: texto }));
+              setAnotacoesLicaoMap((prev) => ({ ...prev, [licaoAberta.id]: true }));
+            }}
+            onExcluir={() => {
+              setAnotacoesPagina((prev) => {
+                const next = { ...prev };
+                delete next[paginaAtual];
+                return next;
+              });
+            }}
+            onFechar={() => setAnotacaoPainelAberto(false)}
+          />
+        )}
       </div>
     );
   }
