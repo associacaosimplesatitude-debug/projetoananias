@@ -36,6 +36,7 @@ export default function RevistaAcesso() {
   const [error, setError] = useState("");
   const [otp, setOtp] = useState(["", "", "", ""]);
   const [resendTimer, setResendTimer] = useState(0);
+  const [otpMotivo, setOtpMotivo] = useState<"primeiro_acesso" | "prazo_expirado">("primeiro_acesso");
   const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   // Check existing session BEFORE rendering
@@ -87,6 +88,7 @@ export default function RevistaAcesso() {
 
       // Handle OTP sent
       if (data?.status === "otp_enviado" || data?.sucesso) {
+        setOtpMotivo(data?.motivo === "prazo_expirado" ? "prazo_expirado" : "primeiro_acesso");
         setStep("codigo");
         setResendTimer(60);
         setOtp(["", "", "", ""]);
@@ -230,18 +232,30 @@ export default function RevistaAcesso() {
                 {loading ? (
                   <Loader2 className="h-5 w-5 animate-spin mr-2" />
                 ) : null}
-                Enviar código pelo WhatsApp
+                Acessar minha biblioteca
               </Button>
             </div>
           )}
 
           {step === "codigo" && (
             <div className="space-y-5">
-              <p className="text-lg text-muted-foreground text-center">
-                Enviamos 4 números para o seu WhatsApp.
-                <br />
-                Abra o WhatsApp e digite o código aqui:
-              </p>
+              {otpMotivo === "prazo_expirado" && (
+                <div className="bg-amber-50 border border-amber-300 rounded-lg p-4 text-center">
+                  <p className="text-base font-semibold text-amber-800">
+                    Seu acesso expirou após 30 dias de inatividade.
+                  </p>
+                  <p className="text-sm text-amber-700 mt-1">
+                    Digite o código enviado para o seu WhatsApp para renovar o acesso.
+                  </p>
+                </div>
+              )}
+              {otpMotivo === "primeiro_acesso" && (
+                <p className="text-lg text-muted-foreground text-center">
+                  Enviamos 4 números para o seu WhatsApp.
+                  <br />
+                  Abra o WhatsApp e digite o código aqui:
+                </p>
+              )}
               <div className="flex justify-center gap-3">
                 {otp.map((digit, i) => (
                   <input

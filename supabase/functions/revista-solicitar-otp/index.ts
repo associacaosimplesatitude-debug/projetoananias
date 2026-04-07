@@ -103,6 +103,7 @@ serve(async (req) => {
     }
 
     // PRECISA DE OTP — primeira vez ou prazo expirado
+    const motivo = temPrimeiroAcesso ? "prazo_expirado" : "primeiro_acesso";
     // Gerar código de 4 dígitos
     const codigo = String(Math.floor(1000 + Math.random() * 9000));
     const expiraEm = new Date(Date.now() + 10 * 60 * 1000).toISOString();
@@ -241,7 +242,7 @@ serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ status: "otp_enviado", sucesso: true }),
+      JSON.stringify({ status: "otp_enviado", motivo, sucesso: true }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       }
