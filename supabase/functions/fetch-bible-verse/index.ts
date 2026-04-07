@@ -87,6 +87,12 @@ function normalizeKey(s: string): string {
 }
 
 function resolveBookName(book: string): string | null {
+  const lower = book.toLowerCase().trim();
+  
+  // Special case: "jó" (with accent) → Job, "jo" (without) → João
+  if (lower === "jó") return "jó";
+  if (lower === "jo") return "joão";
+  
   const key = normalizeKey(book);
   return bookMapping[key] || null;
 }
