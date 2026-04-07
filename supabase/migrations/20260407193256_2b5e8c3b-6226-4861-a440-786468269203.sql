@@ -1,0 +1,1 @@
+DELETE FROM revista_ranking_publico WHERE whatsapp = '11947141878';
