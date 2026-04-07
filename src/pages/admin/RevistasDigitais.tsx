@@ -11,7 +11,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Plus, BookOpen, Pencil, Image, Trash2, Upload, Eye, Save, ArrowLeft, GripVertical, ImagePlus, FileText, Loader2, ImageIcon } from "lucide-react";
+import { Plus, BookOpen, Pencil, Image, Trash2, Upload, Eye, Save, ArrowLeft, GripVertical, ImagePlus, FileText, Loader2, ImageIcon, Bot, CheckCircle, PencilLine } from "lucide-react";
+import QuizEditor from "@/components/revista/QuizEditor";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import * as pdfjsLib from "pdfjs-dist";
@@ -69,6 +70,8 @@ export default function RevistasDigitais() {
   // Drag state for lesson pages
   const [draggingPageIdx, setDraggingPageIdx] = useState<{ licaoId: string; idx: number } | null>(null);
   const [uploadingPdf, setUploadingPdf] = useState<string | null>(null);
+  const [generatingQuiz, setGeneratingQuiz] = useState<string | null>(null);
+  const [editingQuizLicao, setEditingQuizLicao] = useState<{ id: string; titulo: string } | null>(null);
   
   const [uploadingPdfGlobal, setUploadingPdfGlobal] = useState(false);
   const [pdfProgress, setPdfProgress] = useState("");
@@ -111,6 +114,43 @@ export default function RevistasDigitais() {
     },
     enabled: !!managingLicoes,
   });
+
+  // Quiz status per lição
+  const { data: quizMap, refetch: refetchQuiz } = useQuery({
+    queryKey: ["revista-licao-quiz", managingLicoes?.id],
+    queryFn: async () => {
+      if (!managingLicoes || !licoes?.length) return {};
+      const ids = licoes.map((l) => l.id);
+      const { data } = await supabase
+        .from("revista_licao_quiz")
+        .select("licao_id")
+        .in("licao_id", ids);
+      const map: Record<string, boolean> = {};
+      (data || []).forEach((q: any) => { map[q.licao_id] = true; });
+      return map;
+    },
+    enabled: !!managingLicoes && !!licoes?.length,
+  });
+
+  const handleGenerateQuiz = async (licaoId: string) => {
+    setGeneratingQuiz(licaoId);
+    try {
+      const { data, error } = await supabase.functions.invoke("gerar-quiz-revista", {
+        body: { licao_id: licaoId },
+      });
+      if (error) throw error;
+      if (data?.error) {
+        toast.error(data.error);
+      } else {
+        toast.success("Quiz gerado com sucesso!");
+        refetchQuiz();
+      }
+    } catch (e: any) {
+      toast.error(e.message || "Erro ao gerar quiz");
+    } finally {
+      setGeneratingQuiz(null);
+    }
+  };
 
   // Upload capa to storage
   const uploadCapa = async (file: File) => {
@@ -598,6 +638,38 @@ export default function RevistasDigitais() {
                   </div>
 
                   <div className="flex flex-col gap-2">
+                    {/* Quiz buttons */}
+                    {licao.paginas.length > 0 && (
+                      quizMap?.[licao.id] ? (
+                        <>
+                          <Badge className="bg-green-600 text-white text-[10px] gap-1 justify-center">
+                            <CheckCircle className="h-3 w-3" /> Quiz gerado
+                          </Badge>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="gap-1 text-xs"
+                            onClick={() => setEditingQuizLicao({ id: licao.id, titulo: `Lição ${licao.numero} — ${licao.titulo || ""}` })}
+                          >
+                            <PencilLine className="h-3 w-3" /> Ver/Editar Quiz
+                          </Button>
+                        </>
+                      ) : (
+                        <Button
+                          size="sm"
+                          className="gap-1 text-xs text-black"
+                          style={{ backgroundColor: "#FFC107" }}
+                          disabled={generatingQuiz === licao.id}
+                          onClick={() => handleGenerateQuiz(licao.id)}
+                        >
+                          {generatingQuiz === licao.id ? (
+                            <><Loader2 className="h-3 w-3 animate-spin" /> Analisando...</>
+                          ) : (
+                            <><Bot className="h-3 w-3" /> Gerar Quiz</>
+                          )}
+                        </Button>
+                      )
+                    )}
                     <Button
                       size="sm"
                       variant="outline"
@@ -649,6 +721,17 @@ export default function RevistasDigitais() {
             Adicionar lição
           </Button>
         </div>
+
+        {editingQuizLicao && (
+          <QuizEditor
+            licaoId={editingQuizLicao.id}
+            licaoTitulo={editingQuizLicao.titulo}
+            onFechar={() => {
+              setEditingQuizLicao(null);
+              refetchQuiz();
+            }}
+          />
+        )}
       </div>
     );
   }

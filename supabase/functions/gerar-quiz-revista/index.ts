@@ -30,7 +30,6 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Get lesson pages
     const { data: licao, error: licaoError } = await supabase
       .from("revista_licoes")
       .select("id, numero, titulo, paginas, revista_id")
@@ -60,7 +59,6 @@ serve(async (req) => {
       });
     }
 
-    // Build image content for the AI - send image URLs
     const imageContents = paginas.slice(0, 8).map((url: string) => ({
       type: "image_url" as const,
       image_url: { url },
@@ -77,14 +75,14 @@ serve(async (req) => {
         messages: [
           {
             role: "system",
-            content: `Você é um especialista em educação bíblica. Analise as imagens de uma lição de Escola Bíblica Dominical e crie exatamente 5 perguntas de múltipla escolha baseadas no conteúdo visual.`,
+            content: `Você é um especialista em educação bíblica. Analise as imagens de uma lição de Escola Bíblica Dominical e crie exatamente 3 perguntas de múltipla escolha baseadas no conteúdo visual. Identifique a pergunta de fixação que já está impressa no final da lição nas imagens e use-a como uma das 3 perguntas. Gere mais 2 perguntas de múltipla escolha com base no conteúdo da lição.`,
           },
           {
             role: "user",
             content: [
               {
                 type: "text",
-                text: `Analise estas páginas da Lição ${licao.numero} "${licao.titulo || ""}" e crie 5 perguntas de múltipla escolha com 3 alternativas (A, B, C) cada. As perguntas devem testar o conhecimento do aluno sobre o conteúdo bíblico apresentado na lição.`,
+                text: `Analise estas páginas da Lição ${licao.numero} "${licao.titulo || ""}" e crie 3 perguntas de múltipla escolha com 3 alternativas (A, B, C) cada. Uma das perguntas deve ser a pergunta de fixação que aparece impressa nas páginas da lição. As outras 2 devem testar o conhecimento do aluno sobre o conteúdo bíblico apresentado.`,
               },
               ...imageContents,
             ],
@@ -95,7 +93,7 @@ serve(async (req) => {
             type: "function",
             function: {
               name: "criar_quiz",
-              description: "Cria um quiz com 5 perguntas de múltipla escolha baseadas na lição bíblica",
+              description: "Cria um quiz com 3 perguntas de múltipla escolha baseadas na lição bíblica",
               parameters: {
                 type: "object",
                 properties: {
@@ -104,7 +102,7 @@ serve(async (req) => {
                     items: {
                       type: "object",
                       properties: {
-                        ordem: { type: "number", description: "Número da pergunta (1-5)" },
+                        ordem: { type: "number", description: "Número da pergunta (1-3)" },
                         pergunta: { type: "string", description: "Texto da pergunta" },
                         opcao_a: { type: "string", description: "Alternativa A" },
                         opcao_b: { type: "string", description: "Alternativa B" },
@@ -159,7 +157,6 @@ serve(async (req) => {
     const quizData = JSON.parse(toolCall.function.arguments);
     const perguntas = quizData.perguntas;
 
-    // Upsert quiz
     const { data: existingQuiz } = await supabase
       .from("revista_licao_quiz")
       .select("id")
