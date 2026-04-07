@@ -18,6 +18,7 @@ import {
   REVISTA_KEYS,
 } from "@/lib/revistaSession";
 import logoCentralGospel from "@/assets/logo_central_gospel.png";
+import { RevistaQuizPublico } from "@/components/revista/RevistaQuizPublico";
 
 interface RevistaDigital {
   id: string;
