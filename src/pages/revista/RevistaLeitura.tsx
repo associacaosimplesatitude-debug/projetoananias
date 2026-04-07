@@ -120,9 +120,16 @@ export default function RevistaLeitura() {
   const [modoLeitura, setModoLeitura] = useState<"setas" | "rolagem">("setas");
   const [zoomed, setZoomed] = useState(false);
   const touchStartX = useRef(0);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Melhoria 1 — Lembrar onde parou
   const [progressoSalvo, setProgressoSalvo] = useState<ProgressoSalvo | null>(null);
+
+  // WhatsApp do leitor para sync com banco
+  const sessionWhatsapp = useMemo(() => {
+    const session = getValidRevistaSession();
+    return typeof session?.decoded?.whatsapp === "string" ? session.decoded.whatsapp : undefined;
+  }, []);
 
   // Melhoria 2 — Modo noturno
   const [modoNoturno, setModoNoturno] = useState(false);
@@ -296,17 +303,36 @@ export default function RevistaLeitura() {
         setLoadingLicoes(false);
       });
 
-    // Melhoria 1 — check saved progress
+    // Melhoria 1 — check saved progress (banco primeiro, localStorage fallback)
     const progressKey = `revista_progresso_${selectedRevista}`;
-    const salvo = localStorage.getItem(progressKey);
-    if (salvo) {
-      try {
-        setProgressoSalvo(JSON.parse(salvo));
-      } catch {
-        setProgressoSalvo(null);
-      }
+    const localSalvo = localStorage.getItem(progressKey);
+    let localParsed: ProgressoSalvo | null = null;
+    if (localSalvo) {
+      try { localParsed = JSON.parse(localSalvo); } catch { /* ignore */ }
+    }
+
+    if (sessionWhatsapp) {
+      supabase.functions.invoke("carregar-progresso-revista", {
+        body: { whatsapp: sessionWhatsapp, revista_id: selectedRevista },
+      }).then(({ data }) => {
+        const p = data?.progresso;
+        if (p && p.licao_id) {
+          const prog: ProgressoSalvo = {
+            licaoId: p.licao_id,
+            licaoNumero: p.licao_numero,
+            licaoTitulo: p.licao_titulo,
+            pagina: p.pagina_atual ?? 0,
+          };
+          setProgressoSalvo(prog);
+          localStorage.setItem(progressKey, JSON.stringify(prog));
+        } else {
+          setProgressoSalvo(localParsed);
+        }
+      }).catch(() => {
+        setProgressoSalvo(localParsed);
+      });
     } else {
-      setProgressoSalvo(null);
+      setProgressoSalvo(localParsed);
     }
   }, [selectedRevista]);
 
@@ -331,13 +357,32 @@ export default function RevistaLeitura() {
   // Save progress on page change
   useEffect(() => {
     if (!licaoAberta || !progressKey) return;
-    localStorage.setItem(progressKey, JSON.stringify({
+    const progressData = {
       licaoId: licaoAberta.id,
       licaoNumero: licaoAberta.numero,
       licaoTitulo: licaoAberta.titulo,
       pagina: paginaAtual,
-    }));
-  }, [licaoAberta, paginaAtual, progressKey]);
+    };
+    localStorage.setItem(progressKey, JSON.stringify(progressData));
+
+    // Sync com banco com debounce de 3s
+    if (sessionWhatsapp && selectedRevista) {
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = setTimeout(() => {
+        supabase.functions.invoke("salvar-progresso-revista", {
+          body: {
+            whatsapp: sessionWhatsapp,
+            revista_id: selectedRevista,
+            licao_id: licaoAberta.id,
+            licao_numero: licaoAberta.numero,
+            licao_titulo: licaoAberta.titulo,
+            pagina_atual: paginaAtual,
+            concluida: false,
+          },
+        }).catch(() => {});
+      }, 3000);
+    }
+  }, [licaoAberta, paginaAtual, progressKey, sessionWhatsapp, selectedRevista]);
 
   // Keyboard navigation
   useEffect(() => {
@@ -383,6 +428,21 @@ export default function RevistaLeitura() {
         licaoTitulo: licao.titulo,
         pagina: 0,
       }));
+    }
+
+    // Sync com banco em background
+    if (sessionWhatsapp && selectedRevista) {
+      supabase.functions.invoke("salvar-progresso-revista", {
+        body: {
+          whatsapp: sessionWhatsapp,
+          revista_id: selectedRevista,
+          licao_id: licao.id,
+          licao_numero: licao.numero,
+          licao_titulo: licao.titulo,
+          pagina_atual: 0,
+          concluida: false,
+        },
+      }).catch(() => {});
     }
 
     // Melhoria 3 — keyboard hint
