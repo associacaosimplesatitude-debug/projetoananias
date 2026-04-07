@@ -513,6 +513,8 @@ export default function RevistaLeitura() {
     setConclusaoQuizRespondido(false);
     setAnotacoesPagina({});
     setAnotacaoPainelAberto(false);
+    setReferenciasDisponiveis({});
+    setReferenciasPainelAberto(false);
 
     // Load annotations for this lesson
     if (sessionWhatsapp) {
