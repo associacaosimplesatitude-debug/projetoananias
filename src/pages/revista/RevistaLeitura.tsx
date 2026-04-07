@@ -464,6 +464,8 @@ export default function RevistaLeitura() {
     setPaginaAtual(0);
     setModoLeitura("setas");
     setZoomed(false);
+    setTelaConclusao(false);
+    setConclusaoQuizRespondido(false);
 
     // Melhoria 1 — save on open
     if (progressKey) {
