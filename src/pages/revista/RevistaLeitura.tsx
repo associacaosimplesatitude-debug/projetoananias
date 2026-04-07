@@ -161,6 +161,11 @@ export default function RevistaLeitura() {
   const [pontosDb, setPontosDb] = useState<{ total_pontos: number; total_quizzes: number } | null>(null);
   const [pontosLoading, setPontosLoading] = useState(false);
 
+  // Annotation state
+  const [anotacoesPagina, setAnotacoesPagina] = useState<Record<number, string>>({});
+  const [anotacaoPainelAberto, setAnotacaoPainelAberto] = useState(false);
+  const [anotacoesLicaoMap, setAnotacoesLicaoMap] = useState<Record<string, boolean>>({});
+
   const fetchPontosDb = useCallback(async () => {
     if (!sessionWhatsapp) return;
     setPontosLoading(true);
