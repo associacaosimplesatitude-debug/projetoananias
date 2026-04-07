@@ -250,6 +250,7 @@ const App = () => (
         <Toaster />
         <Sonner />
         <PwaInstallBanner />
+        <SwUpdater />
         <BrowserRouter>
           <AuthProvider>
             <ImpersonationProvider>
