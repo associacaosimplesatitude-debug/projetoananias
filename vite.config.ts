@@ -31,17 +31,12 @@ export default defineConfig(({ mode }) => ({
         start_url: "/login/ebd",
         icons: [
           {
-            src: "/icons/cg-digital-192.png",
-            sizes: "192x192",
-            type: "image/png",
-          },
-          {
-            src: "/icons/cg-digital-512.png",
+            src: "/icons/icone-central.png",
             sizes: "512x512",
             type: "image/png",
           },
           {
-            src: "/icons/cg-digital-512.png",
+            src: "/icons/icone-central.png",
             sizes: "512x512",
             type: "image/png",
             purpose: "maskable",
