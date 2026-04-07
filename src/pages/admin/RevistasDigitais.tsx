@@ -57,6 +57,10 @@ export default function RevistasDigitais() {
   const [anoPublicacao, setAnoPublicacao] = useState(new Date().getFullYear());
   const [statusPublicacao, setStatusPublicacao] = useState("rascunho");
   const [tipoConteudo, setTipoConteudo] = useState("revista");
+  const [videoCelularCgDigital, setVideoCelularCgDigital] = useState("");
+  const [videoDesktopCgDigital, setVideoDesktopCgDigital] = useState("");
+  const [videoCelularLeitor, setVideoCelularLeitor] = useState("");
+  const [videoDesktopLeitor, setVideoDesktopLeitor] = useState("");
 
   // Capa upload
   const [capaUrl, setCapaUrl] = useState("");
@@ -238,6 +242,10 @@ export default function RevistasDigitais() {
         status_publicacao: statusPublicacao,
         tipo_conteudo: tipoConteudo,
         leitura_continua: isLivro,
+        video_celular_cg_digital: videoCelularCgDigital || null,
+        video_desktop_cg_digital: videoDesktopCgDigital || null,
+        video_celular_leitor: videoCelularLeitor || null,
+        video_desktop_leitor: videoDesktopLeitor || null,
       };
       if (editingRevista) {
         const { error } = await supabase.from("revistas_digitais").update(payload).eq("id", editingRevista.id);
@@ -340,6 +348,10 @@ export default function RevistasDigitais() {
     setStatusPublicacao("rascunho");
     setTipoConteudo("revista");
     setPdfFileInfo(null);
+    setVideoCelularCgDigital("");
+    setVideoDesktopCgDigital("");
+    setVideoCelularLeitor("");
+    setVideoDesktopLeitor("");
   };
 
   const openEdit = (r: Revista) => {
@@ -354,6 +366,10 @@ export default function RevistasDigitais() {
     setAnoPublicacao(r.ano_publicacao || new Date().getFullYear());
     setStatusPublicacao(r.status_publicacao || "rascunho");
     setTipoConteudo((r as any).tipo_conteudo || "revista");
+    setVideoCelularCgDigital((r as any).video_celular_cg_digital || "");
+    setVideoDesktopCgDigital((r as any).video_desktop_cg_digital || "");
+    setVideoCelularLeitor((r as any).video_celular_leitor || "");
+    setVideoDesktopLeitor((r as any).video_desktop_leitor || "");
     setShowForm(true);
   };
 
