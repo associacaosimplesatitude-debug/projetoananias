@@ -722,6 +722,19 @@ export default function RevistasDigitais() {
           </Button>
         </div>
       </div>
+
+
+        {editingQuizLicao && (
+          <QuizEditor
+            licaoId={editingQuizLicao.id}
+            licaoTitulo={editingQuizLicao.titulo}
+            onFechar={() => {
+              setEditingQuizLicao(null);
+              refetchQuiz();
+            }}
+          />
+        )}
+      </div>
     );
   }
 
