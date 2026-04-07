@@ -12,8 +12,10 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import {
-  getRevistaTokenExpiresAt,
+  getValidRevistaSession,
+  clearRevistaSession,
   parseRevistaToken,
+  REVISTA_KEYS,
 } from "@/lib/revistaSession";
 import logoCentralGospel from "@/assets/logo_central_gospel.png";
 
