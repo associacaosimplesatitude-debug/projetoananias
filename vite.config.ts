@@ -24,11 +24,11 @@ export default defineConfig(({ mode }) => ({
         short_name: "CG Digital",
         description: "Sistema de gestão Central Gospel",
         theme_color: "#1B3A5C",
-        background_color: "#1B3A5C",
+        background_color: "#000000",
         display: "standalone",
         orientation: "portrait",
         scope: "/",
-        start_url: "/login/ebd",
+        start_url: "/revista/acesso",
         icons: [
           {
             src: "/icons/icone-central.png",
