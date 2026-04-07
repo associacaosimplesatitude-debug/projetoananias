@@ -8,6 +8,7 @@ import { DomainBrandingProvider } from "@/contexts/DomainBrandingContext";
 import { ImpersonationProvider } from "@/contexts/ImpersonationContext";
 import { ConditionalNavigation } from "@/components/layout/ConditionalNavigation";
 import { PaymentBanner } from "@/components/layout/PaymentBanner";
+import { PwaInstallBanner } from "@/components/PwaInstallBanner";
 import { EBDTrimesterBanner } from "@/components/ebd/EBDTrimesterBanner";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import ModuleProtectedRoute from "@/components/ModuleProtectedRoute";
@@ -230,6 +231,7 @@ const App = () => (
       <DomainBrandingProvider>
         <Toaster />
         <Sonner />
+        <PwaInstallBanner />
         <BrowserRouter>
           <AuthProvider>
             <ImpersonationProvider>
