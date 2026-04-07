@@ -320,3 +320,9 @@ verify_jwt = false
 
 [functions.buscar-pontos-leitor]
 verify_jwt = false
+
+[functions.salvar-anotacao-revista]
+verify_jwt = false
+
+[functions.buscar-anotacoes-licao]
+verify_jwt = false
