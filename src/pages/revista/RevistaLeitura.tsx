@@ -155,8 +155,31 @@ export default function RevistaLeitura() {
   const [ranking, setRanking] = useState<any[]>([]);
   const [rankingLoading, setRankingLoading] = useState(false);
 
-  // Points counter (force re-render after quiz)
+  // Points from database
   const [pontosVersion, setPontosVersion] = useState(0);
+  const [pontosDb, setPontosDb] = useState<{ total_pontos: number; total_quizzes: number } | null>(null);
+  const [pontosLoading, setPontosLoading] = useState(false);
+
+  const fetchPontosDb = useCallback(async () => {
+    if (!sessionWhatsapp) return;
+    setPontosLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("buscar-pontos-leitor", {
+        body: { whatsapp: sessionWhatsapp },
+      });
+      if (!error && data) {
+        setPontosDb({ total_pontos: data.total_pontos || 0, total_quizzes: data.total_quizzes || 0 });
+      }
+    } catch {
+      // ignore
+    } finally {
+      setPontosLoading(false);
+    }
+  }, [sessionWhatsapp]);
+
+  useEffect(() => {
+    fetchPontosDb();
+  }, [fetchPontosDb]);
 
   // Tela de conclusão de lição (intercepta navegação se quiz disponível)
   const [telaConclusao, setTelaConclusao] = useState(false);
@@ -821,7 +844,8 @@ export default function RevistaLeitura() {
             onFechar={() => {
               setQuizAberto(false);
               setQuizLicaoId(null);
-              setPontosVersion((v) => v + 1);
+               setPontosVersion((v) => v + 1);
+               fetchPontosDb();
               const feito = localStorage.getItem(`quiz_feito_${licaoAberta.id}`) === "true";
               if (feito) {
                 const pts = parseInt(localStorage.getItem(`quiz_pontos_${licaoAberta.id}`) || "0", 10);
@@ -1079,7 +1103,8 @@ export default function RevistaLeitura() {
             onFechar={() => {
               setQuizAberto(false);
               setQuizLicaoId(null);
-              setPontosVersion((v) => v + 1);
+               setPontosVersion((v) => v + 1);
+               fetchPontosDb();
             }}
           />
         )}
@@ -1151,20 +1176,9 @@ export default function RevistaLeitura() {
 
         {/* Points card */}
         {!selectedRevista && licencas.length >= 1 && (() => {
-          let totalPontos = 0;
-          let totalQuizFeitos = 0;
-          let totalQuizDisponiveis = 0;
-          // Scan all localStorage for quiz points
-          for (let i = 0; i < localStorage.length; i++) {
-            const key = localStorage.key(i);
-            if (key?.startsWith("quiz_pontos_")) {
-              totalPontos += parseInt(localStorage.getItem(key) || "0", 10);
-              totalQuizFeitos++;
-            }
-          }
-          // Count available quizzes from state
-          totalQuizDisponiveis = Object.keys(quizDisponivel).length;
-          // Use pontosVersion to force recalc
+          const totalPontos = pontosDb?.total_pontos ?? 0;
+          const totalQuizFeitos = pontosDb?.total_quizzes ?? 0;
+          const totalQuizDisponiveis = Object.keys(quizDisponivel).length;
           void pontosVersion;
 
           return (
@@ -1187,9 +1201,13 @@ export default function RevistaLeitura() {
                   <p style={{ color: "#fff", fontSize: 12, textTransform: "uppercase", letterSpacing: 1, margin: 0, opacity: 0.8 }}>
                     Seus Pontos
                   </p>
-                  <p style={{ color: "#FFC107", fontSize: 36, fontWeight: 800, margin: 0, lineHeight: 1.1 }}>
-                    {totalPontos}
-                  </p>
+                  {pontosLoading ? (
+                    <div style={{ width: 60, height: 36, background: "rgba(255,255,255,0.15)", borderRadius: 8, animation: "pulse 1.5s infinite" }} />
+                  ) : (
+                    <p style={{ color: "#FFC107", fontSize: 36, fontWeight: 800, margin: 0, lineHeight: 1.1 }}>
+                      {totalPontos}
+                    </p>
+                  )}
                 </div>
               </div>
               <div style={{ textAlign: "right" }}>

@@ -317,3 +317,6 @@ verify_jwt = false
 
 [functions.buscar-ranking-revista]
 verify_jwt = false
+
+[functions.buscar-pontos-leitor]
+verify_jwt = false
