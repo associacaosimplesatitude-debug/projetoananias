@@ -94,6 +94,7 @@ export function RevistaQuizPublico({ licaoId, licaoTitulo, whatsapp, onFechar }:
 
       // Marcar no localStorage
       localStorage.setItem(`quiz_feito_${licaoId}`, "true");
+      localStorage.setItem(`quiz_pontos_${licaoId}`, String(data.pontos_ganhos));
     } catch {
       setFase("quiz");
     }
