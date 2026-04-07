@@ -693,6 +693,150 @@ export default function RevistaLeitura() {
     );
   }
 
+  // ─── TELA DE CONCLUSÃO DA LIÇÃO ────────────────────────────
+  if (licaoAberta && telaConclusao) {
+    const numP = quizNumPerguntas[licaoAberta.id] || 3;
+    const pontosMax = numP * 10;
+
+    return (
+      <div
+        style={{
+          position: "fixed", inset: 0, zIndex: 50,
+          background: "#fff",
+          display: "flex", flexDirection: "column",
+          overflow: "auto",
+        }}
+      >
+        <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+          <div style={{ maxWidth: 480, width: "100%", textAlign: "center" }}>
+            {/* Celebration */}
+            <div style={{ fontSize: 64, marginBottom: 8 }}>🎉</div>
+            <h1 style={{ fontSize: 24, fontWeight: 700, color: "#1B3A5C", margin: "0 0 8px" }}>
+              Lição concluída!
+            </h1>
+            <p style={{ color: "#6b7280", fontSize: 16, margin: "0 0 32px" }}>
+              {licaoAberta.titulo || `Lição ${licaoAberta.numero}`}
+            </p>
+
+            {/* Quiz card or result */}
+            {conclusaoQuizRespondido ? (
+              <div style={{
+                background: "linear-gradient(135deg, #f0fdf4, #dcfce7)",
+                border: "2px solid #22c55e",
+                borderRadius: 16, padding: 24, marginBottom: 24, textAlign: "center",
+              }}>
+                <div style={{ fontSize: 32, marginBottom: 8 }}>✅</div>
+                <p style={{ fontWeight: 700, fontSize: 18, color: "#166534", margin: "0 0 4px" }}>
+                  Você acertou {conclusaoAcertos} de {conclusaoTotal}
+                </p>
+                <p style={{ color: "#22c55e", fontWeight: 700, fontSize: 20, margin: 0 }}>
+                  +{conclusaoPontos} pontos
+                </p>
+              </div>
+            ) : (
+              <div style={{
+                background: "linear-gradient(135deg, #fffbeb, #fef3c7)",
+                border: "2px solid #FFC107",
+                borderRadius: 16, padding: 24, marginBottom: 24,
+              }}>
+                <div style={{ fontSize: 32, marginBottom: 8 }}>⚡</div>
+                <p style={{ fontWeight: 700, fontSize: 18, color: "#92400e", margin: "0 0 6px" }}>
+                  Teste seus conhecimentos
+                </p>
+                <p style={{ color: "#6b7280", fontSize: 14, margin: "0 0 12px" }}>
+                  Responda o quiz desta lição e ganhe pontos!
+                </p>
+                <p style={{ color: "#FFC107", fontWeight: 700, fontSize: 15, margin: "0 0 20px" }}>
+                  {numP} perguntas • +{pontosMax} pontos
+                </p>
+                <button
+                  onClick={() => {
+                    setQuizLicaoId(licaoAberta.id);
+                    setQuizLicaoTitulo(licaoAberta.titulo || `Lição ${licaoAberta.numero}`);
+                    setQuizAberto(true);
+                  }}
+                  style={{
+                    width: "100%", padding: 16, border: "none",
+                    borderRadius: 12, background: "#FFC107", color: "#1c1915",
+                    fontWeight: 700, fontSize: 18, cursor: "pointer",
+                    animation: "quizPulse 2s ease-in-out infinite",
+                  }}
+                >
+                  Fazer Quiz →
+                </button>
+              </div>
+            )}
+
+            {/* Secondary action */}
+            {conclusaoQuizRespondido ? (
+              <button
+                onClick={() => {
+                  setTelaConclusao(false);
+                  setConclusaoQuizRespondido(false);
+                  if (isLastLicao) {
+                    fecharLeitor();
+                  } else {
+                    irProximaLicao();
+                  }
+                }}
+                style={{
+                  width: "100%", padding: 14, border: "none",
+                  borderRadius: 12, background: "#22c55e", color: "#fff",
+                  fontWeight: 700, fontSize: 16, cursor: "pointer",
+                }}
+              >
+                {isLastLicao ? "🏆 Concluir revista" : "Ir para próxima lição →"}
+              </button>
+            ) : (
+              <button
+                onClick={() => {
+                  setTelaConclusao(false);
+                  setConclusaoQuizRespondido(false);
+                  if (isLastLicao) {
+                    fecharLeitor();
+                  } else {
+                    irProximaLicao();
+                  }
+                }}
+                style={{
+                  background: "none", border: "none", cursor: "pointer",
+                  color: "#9ca3af", fontSize: 15, padding: "12px 0",
+                  textDecoration: "underline",
+                }}
+              >
+                {isLastLicao ? "Concluir revista sem quiz" : "Pular e ir para próxima lição →"}
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Quiz overlay */}
+        {quizAberto && quizLicaoId && sessionWhatsapp && (
+          <RevistaQuizPublico
+            licaoId={quizLicaoId}
+            licaoTitulo={quizLicaoTitulo}
+            whatsapp={sessionWhatsapp}
+            onFechar={() => {
+              setQuizAberto(false);
+              setQuizLicaoId(null);
+              setPontosVersion((v) => v + 1);
+              const feito = localStorage.getItem(`quiz_feito_${licaoAberta.id}`) === "true";
+              if (feito) {
+                const pts = parseInt(localStorage.getItem(`quiz_pontos_${licaoAberta.id}`) || "0", 10);
+                setConclusaoQuizRespondido(true);
+                setConclusaoPontos(pts);
+                setConclusaoAcertos(Math.round(pts / 10));
+                setConclusaoTotal(quizNumPerguntas[licaoAberta.id] || 3);
+              }
+            }}
+          />
+        )}
+
+        <style>{`@keyframes quizPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.02); box-shadow: 0 0 20px rgba(255,193,7,0.4); } }`}</style>
+      </div>
+    );
+  }
+
   // ─── READER VIEW ────────────────────────────────────────────
   if (licaoAberta) {
     return (
