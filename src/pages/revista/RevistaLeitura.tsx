@@ -325,10 +325,21 @@ export default function RevistaLeitura() {
           }).then(({ data: quizData }) => {
             if (quizData?.quiz) {
               setQuizDisponivel((prev) => ({ ...prev, [licao.id]: true }));
+              const numP = Array.isArray(quizData.quiz.perguntas) ? quizData.quiz.perguntas.length : 0;
+              setQuizNumPerguntas((prev) => ({ ...prev, [licao.id]: numP }));
             }
           }).catch(() => {});
         });
       });
+
+    // Fetch ranking
+    setRankingLoading(true);
+    supabase.functions.invoke("buscar-ranking-revista", {
+      body: { revista_id: selectedRevista },
+    }).then(({ data }) => {
+      setRanking(data?.ranking || []);
+      setRankingLoading(false);
+    }).catch(() => setRankingLoading(false));
 
     // Melhoria 1 — check saved progress (banco primeiro, localStorage fallback)
     const progressKey = `revista_progresso_${selectedRevista}`;
