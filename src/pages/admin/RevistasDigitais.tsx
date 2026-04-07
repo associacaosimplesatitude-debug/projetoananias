@@ -721,8 +721,6 @@ export default function RevistasDigitais() {
             Adicionar lição
           </Button>
         </div>
-      </div>
-
 
         {editingQuizLicao && (
           <QuizEditor
