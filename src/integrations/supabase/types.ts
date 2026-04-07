@@ -5644,6 +5644,7 @@ export type Database = {
           revista_id: string | null
           shopify_order_id: string | null
           shopify_order_number: string | null
+          ultimo_acesso_em: string | null
           updated_at: string | null
           whatsapp: string
         }
@@ -5658,6 +5659,7 @@ export type Database = {
           revista_id?: string | null
           shopify_order_id?: string | null
           shopify_order_number?: string | null
+          ultimo_acesso_em?: string | null
           updated_at?: string | null
           whatsapp: string
         }
@@ -5672,6 +5674,7 @@ export type Database = {
           revista_id?: string | null
           shopify_order_id?: string | null
           shopify_order_number?: string | null
+          ultimo_acesso_em?: string | null
           updated_at?: string | null
           whatsapp?: string
         }
