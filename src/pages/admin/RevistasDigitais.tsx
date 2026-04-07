@@ -731,7 +731,7 @@ export default function RevistasDigitais() {
                           )}
                         </Button>
                       )
-                    )
+                    )}
                     <Button
                       size="sm"
                       variant="outline"
