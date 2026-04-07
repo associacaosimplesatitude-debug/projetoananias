@@ -153,6 +153,10 @@ import PagamentoRevistaPublico from "./pages/ebd/PagamentoRevistaPublico";
 import RevistaAcesso from "./pages/revista/RevistaAcesso";
 import RevistaLeitura from "./pages/revista/RevistaLeitura";
 
+// Leitor CG
+import LeitorAcesso from "./pages/leitor/LeitorAcesso";
+import LeitorLeitura from "./pages/leitor/LeitorLeitura";
+
 // Aluno Module Pages
 import AlunoHome from "./pages/ebd/aluno/AlunoHome";
 import AlunoTurma from "./pages/ebd/aluno/AlunoTurma";
