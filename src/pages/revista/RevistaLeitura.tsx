@@ -365,6 +365,17 @@ export default function RevistaLeitura() {
               setQuizNumPerguntas((prev) => ({ ...prev, [licao.id]: numP }));
             }
           }).catch(() => {});
+
+          // Check if lesson has annotations (for list icon)
+          if (sessionWhatsapp) {
+            supabase.functions.invoke("buscar-anotacoes-licao", {
+              body: { whatsapp: sessionWhatsapp, licao_id: licao.id },
+            }).then(({ data: anotData }) => {
+              if (anotData?.anotacoes && anotData.anotacoes.length > 0) {
+                setAnotacoesLicaoMap((prev) => ({ ...prev, [licao.id]: true }));
+              }
+            }).catch(() => {});
+          }
         });
       });
 
