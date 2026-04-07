@@ -236,23 +236,14 @@ export default function RevistaLeitura() {
 
   // Auth check
   useEffect(() => {
-    const token = localStorage.getItem("revista_token");
-    if (!token) {
+    const session = getValidRevistaSession();
+    if (!session) {
+      clearRevistaSession();
       navigate("/revista/acesso", { replace: true });
       return;
     }
 
-    const decoded = parseRevistaToken(token);
-    const expiresAt = getRevistaTokenExpiresAt(decoded);
-
-    if (!decoded || !expiresAt || expiresAt <= Date.now()) {
-      localStorage.removeItem("revista_token");
-      localStorage.removeItem("revista_licencas");
-      navigate("/revista/acesso", { replace: true });
-      return;
-    }
-
-    const stored = localStorage.getItem("revista_licencas");
+    const stored = localStorage.getItem(REVISTA_KEYS.LICENCAS);
     if (stored) {
       const parsed = JSON.parse(stored) as Licenca[];
       setLicencas(parsed);
