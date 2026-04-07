@@ -223,7 +223,25 @@ import GoogleRecargas from "./pages/admin/GoogleRecargas";
 // Public Pages
 import PropostaDigital from "./pages/PropostaDigital";
 import EBDLandingRedirect from "./components/EBDLandingRedirect";
+import { useRegisterSW } from 'virtual:pwa-register/react';
+
 const queryClient = new QueryClient();
+
+const SwUpdater = () => {
+  useRegisterSW({
+    onRegisteredSW(_swUrl, r) {
+      if (r) {
+        setInterval(async () => {
+          await r.update();
+        }, 60 * 1000);
+      }
+    },
+    onNeedRefresh() {
+      window.location.reload();
+    },
+  });
+  return null;
+};
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
