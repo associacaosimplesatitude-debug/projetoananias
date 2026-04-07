@@ -20,6 +20,7 @@ import {
 import logoCentralGospel from "@/assets/logo_central_gospel.png";
 import { RevistaQuizPublico } from "@/components/revista/RevistaQuizPublico";
 import { AnotacaoPanel } from "@/components/revista/AnotacaoPanel";
+import { ReferenciasPanel } from "@/components/revista/ReferenciasPanel";
 
 interface RevistaDigital {
   id: string;
@@ -164,6 +165,10 @@ export default function RevistaLeitura() {
   // Annotation state
   const [anotacoesPagina, setAnotacoesPagina] = useState<Record<number, string>>({});
   const [anotacaoPainelAberto, setAnotacaoPainelAberto] = useState(false);
+
+  // References state
+  const [referenciasDisponiveis, setReferenciasDisponiveis] = useState<Record<number, boolean>>({});
+  const [referenciasPainelAberto, setReferenciasPainelAberto] = useState(false);
   const [anotacoesLicaoMap, setAnotacoesLicaoMap] = useState<Record<string, boolean>>({});
 
   const fetchPontosDb = useCallback(async () => {
