@@ -995,6 +995,74 @@ export default function RevistaLeitura() {
           </Button>
         )}
 
+        {/* Points card */}
+        {!selectedRevista && licencas.length >= 1 && (() => {
+          let totalPontos = 0;
+          let totalQuizFeitos = 0;
+          let totalQuizDisponiveis = 0;
+          // Scan all localStorage for quiz points
+          for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key?.startsWith("quiz_pontos_")) {
+              totalPontos += parseInt(localStorage.getItem(key) || "0", 10);
+              totalQuizFeitos++;
+            }
+          }
+          // Count available quizzes from state
+          totalQuizDisponiveis = Object.keys(quizDisponivel).length;
+          // Use pontosVersion to force recalc
+          void pontosVersion;
+
+          return (
+            <div
+              style={{
+                background: "linear-gradient(135deg, #1B3A5C, #2d5a8e)",
+                borderRadius: 16,
+                padding: "20px 24px",
+                marginBottom: 24,
+                boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 16,
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                <span style={{ fontSize: 40 }}>🏆</span>
+                <div>
+                  <p style={{ color: "#fff", fontSize: 12, textTransform: "uppercase", letterSpacing: 1, margin: 0, opacity: 0.8 }}>
+                    Seus Pontos
+                  </p>
+                  <p style={{ color: "#FFC107", fontSize: 36, fontWeight: 800, margin: 0, lineHeight: 1.1 }}>
+                    {totalPontos}
+                  </p>
+                </div>
+              </div>
+              <div style={{ textAlign: "right" }}>
+                <div style={{
+                  background: "rgba(255,255,255,0.15)",
+                  borderRadius: 20,
+                  height: 8,
+                  width: 120,
+                  overflow: "hidden",
+                  marginBottom: 6,
+                }}>
+                  <div style={{
+                    height: "100%",
+                    width: `${totalQuizDisponiveis > 0 ? (totalQuizFeitos / Math.max(totalQuizDisponiveis, totalQuizFeitos)) * 100 : 0}%`,
+                    background: "#FFC107",
+                    borderRadius: 20,
+                    transition: "width 0.4s ease",
+                  }} />
+                </div>
+                <p style={{ color: "#fff", fontSize: 13, margin: 0, opacity: 0.8 }}>
+                  {totalQuizFeitos} {totalQuizDisponiveis > 0 ? `de ${Math.max(totalQuizDisponiveis, totalQuizFeitos)} ` : ""}quizzes respondidos
+                </p>
+              </div>
+            </div>
+          );
+        })()}
+
         {/* Multiple revistas - show grid */}
         {!selectedRevista && licencas.length > 1 && (
           <div className="space-y-6">
