@@ -1176,20 +1176,9 @@ export default function RevistaLeitura() {
 
         {/* Points card */}
         {!selectedRevista && licencas.length >= 1 && (() => {
-          let totalPontos = 0;
-          let totalQuizFeitos = 0;
-          let totalQuizDisponiveis = 0;
-          // Scan all localStorage for quiz points
-          for (let i = 0; i < localStorage.length; i++) {
-            const key = localStorage.key(i);
-            if (key?.startsWith("quiz_pontos_")) {
-              totalPontos += parseInt(localStorage.getItem(key) || "0", 10);
-              totalQuizFeitos++;
-            }
-          }
-          // Count available quizzes from state
-          totalQuizDisponiveis = Object.keys(quizDisponivel).length;
-          // Use pontosVersion to force recalc
+          const totalPontos = pontosDb?.total_pontos ?? 0;
+          const totalQuizFeitos = pontosDb?.total_quizzes ?? 0;
+          const totalQuizDisponiveis = Object.keys(quizDisponivel).length;
           void pontosVersion;
 
           return (
