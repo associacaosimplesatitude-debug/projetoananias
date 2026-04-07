@@ -914,6 +914,32 @@ export default function RevistasDigitais() {
                   </div>
                 )}
               </div>
+
+              {/* Vídeos da página de escolha */}
+              {editingRevista && (
+                <div className="space-y-3 border-t pt-3 mt-2" style={{ borderColor: "#e5e7eb" }}>
+                  <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Vídeos da página de escolha</Label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-xs">Celular — CG Digital</Label>
+                      <Input value={videoCelularCgDigital} onChange={(e) => setVideoCelularCgDigital(e.target.value)} placeholder="Link Pandavideo" className="text-xs" />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Computador — CG Digital</Label>
+                      <Input value={videoDesktopCgDigital} onChange={(e) => setVideoDesktopCgDigital(e.target.value)} placeholder="Link Pandavideo" className="text-xs" />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Celular — Leitor CG</Label>
+                      <Input value={videoCelularLeitor} onChange={(e) => setVideoCelularLeitor(e.target.value)} placeholder="Link Pandavideo" className="text-xs" />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Computador — Leitor CG</Label>
+                      <Input value={videoDesktopLeitor} onChange={(e) => setVideoDesktopLeitor(e.target.value)} placeholder="Link Pandavideo" className="text-xs" />
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <Button
                 onClick={() => saveMutation.mutate()}
                 disabled={!titulo || saveMutation.isPending || (!editingRevista && tipoConteudo !== 'livro_digital' && (!totalLicoes || Number(totalLicoes) < 1))}
