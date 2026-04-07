@@ -1,0 +1,29 @@
+{
+  "name": "Leitor CG",
+  "short_name": "Leitor CG",
+  "description": "Acesse suas revistas da Central Gospel",
+  "theme_color": "#000000",
+  "background_color": "#000000",
+  "display": "standalone",
+  "orientation": "portrait",
+  "scope": "/leitor/",
+  "start_url": "/leitor/acesso",
+  "icons": [
+    {
+      "src": "/icons/leitor-cg-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/leitor-cg-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/leitor-cg-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
