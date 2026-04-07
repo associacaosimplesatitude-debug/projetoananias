@@ -112,8 +112,8 @@ export default function EscolhaVersao() {
         {/* Header */}
         <div className="text-center space-y-3">
           <img
-            src="/icons/cg-digital-192.png"
-            alt="CG Digital"
+            src="/icons/logo-cg.png"
+            alt="Central Gospel"
             className="w-[72px] h-[72px] mx-auto"
             style={{ borderRadius: 14 }}
           />
