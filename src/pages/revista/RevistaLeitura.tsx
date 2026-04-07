@@ -311,8 +311,7 @@ export default function RevistaLeitura() {
   }, [selectedRevista]);
 
   const handleLogout = () => {
-    localStorage.removeItem("revista_token");
-    localStorage.removeItem("revista_licencas");
+    clearRevistaSession();
     setModoKindle(false);
     navigate("/revista/acesso", { replace: true });
   };
