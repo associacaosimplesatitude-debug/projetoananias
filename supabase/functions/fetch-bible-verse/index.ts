@@ -25,7 +25,7 @@ const bookMapping: Record<string, string> = {
   "ed": "esdras", "esdras": "esdras",
   "ne": "neemias", "neemias": "neemias",
   "et": "ester", "ester": "ester",
-  "jo": "jó",
+  "jo": "jó",  // Only exact "jó" with accent matches Job; see special handling below
   "sl": "salmos", "salmos": "salmos", "salmo": "salmos",
   "pv": "provérbios", "proverbios": "provérbios",
   "ec": "eclesiastes", "eclesiastes": "eclesiastes",
