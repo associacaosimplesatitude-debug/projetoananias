@@ -5882,6 +5882,57 @@ export type Database = {
           },
         ]
       }
+      revista_quiz_respostas_publico: {
+        Row: {
+          acertos: number | null
+          created_at: string | null
+          id: string
+          licao_id: string | null
+          pontos_ganhos: number | null
+          quiz_id: string | null
+          respostas: Json
+          total_perguntas: number | null
+          whatsapp: string
+        }
+        Insert: {
+          acertos?: number | null
+          created_at?: string | null
+          id?: string
+          licao_id?: string | null
+          pontos_ganhos?: number | null
+          quiz_id?: string | null
+          respostas?: Json
+          total_perguntas?: number | null
+          whatsapp: string
+        }
+        Update: {
+          acertos?: number | null
+          created_at?: string | null
+          id?: string
+          licao_id?: string | null
+          pontos_ganhos?: number | null
+          quiz_id?: string | null
+          respostas?: Json
+          total_perguntas?: number | null
+          whatsapp?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "revista_quiz_respostas_publico_licao_id_fkey"
+            columns: ["licao_id"]
+            isOneToOne: false
+            referencedRelation: "revista_licoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "revista_quiz_respostas_publico_quiz_id_fkey"
+            columns: ["quiz_id"]
+            isOneToOne: false
+            referencedRelation: "revista_licao_quiz"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       revistas_digitais: {
         Row: {
           ano_publicacao: number | null

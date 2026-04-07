@@ -18,6 +18,7 @@ import {
   REVISTA_KEYS,
 } from "@/lib/revistaSession";
 import logoCentralGospel from "@/assets/logo_central_gospel.png";
+import { RevistaQuizPublico } from "@/components/revista/RevistaQuizPublico";
 
 interface RevistaDigital {
   id: string;
@@ -142,6 +143,12 @@ export default function RevistaLeitura() {
 
   // Onboarding modal
   const [mostrarOnboarding, setMostrarOnboarding] = useState(false);
+
+  // Quiz state
+  const [quizDisponivel, setQuizDisponivel] = useState<Record<string, boolean>>({});
+  const [quizAberto, setQuizAberto] = useState(false);
+  const [quizLicaoId, setQuizLicaoId] = useState<string | null>(null);
+  const [quizLicaoTitulo, setQuizLicaoTitulo] = useState("");
 
   const fecharOnboarding = (naoMostrarMais: boolean) => {
     if (naoMostrarMais) {
@@ -299,8 +306,20 @@ export default function RevistaLeitura() {
       .eq("revista_id", selectedRevista)
       .order("numero", { ascending: true })
       .then(({ data }) => {
-        setLicoes((data as any) || []);
+        const licoesData = (data as any) || [];
+        setLicoes(licoesData);
         setLoadingLicoes(false);
+
+        // Check quiz availability for all lessons
+        licoesData.forEach((licao: Licao) => {
+          supabase.functions.invoke("buscar-quiz-licao", {
+            body: { licao_id: licao.id },
+          }).then(({ data: quizData }) => {
+            if (quizData?.quiz) {
+              setQuizDisponivel((prev) => ({ ...prev, [licao.id]: true }));
+            }
+          }).catch(() => {});
+        });
       });
 
     // Melhoria 1 — check saved progress (banco primeiro, localStorage fallback)
@@ -772,19 +791,38 @@ export default function RevistaLeitura() {
                 Página {paginaAtual + 1} de {totalPages}
               </span>
               {isLastPage ? (
-                isLastLicao ? (
-                  <span className="text-sm font-medium flex items-center gap-1" style={{ color: '#f6ba32' }}>
-                    <PartyPopper className="h-4 w-4" /> Concluída!
-                  </span>
-                ) : (
-                  <Button
-                    size="sm"
-                    onClick={irProximaLicao}
-                    style={{ backgroundColor: '#f6ba32', color: '#1c1915' }}
-                  >
-                    Próxima lição <ChevronRight className="h-5 w-5 ml-1" />
-                  </Button>
-                )
+                <div className="flex items-center gap-2">
+                  {/* Quiz button on last page */}
+                  {licaoAberta && quizDisponivel[licaoAberta.id] && (
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        setQuizLicaoId(licaoAberta.id);
+                        setQuizLicaoTitulo(licaoAberta.titulo || `Lição ${licaoAberta.numero}`);
+                        setQuizAberto(true);
+                      }}
+                      style={{
+                        backgroundColor: localStorage.getItem(`quiz_feito_${licaoAberta.id}`) ? '#22c55e' : '#FFC107',
+                        color: '#1c1915',
+                      }}
+                    >
+                      {localStorage.getItem(`quiz_feito_${licaoAberta.id}`) ? '✅ Quiz respondido' : '📝 Fazer Quiz'}
+                    </Button>
+                  )}
+                  {isLastLicao ? (
+                    <span className="text-sm font-medium flex items-center gap-1" style={{ color: '#f6ba32' }}>
+                      <PartyPopper className="h-4 w-4" /> Concluída!
+                    </span>
+                  ) : (
+                    <Button
+                      size="sm"
+                      onClick={irProximaLicao}
+                      style={{ backgroundColor: '#f6ba32', color: '#1c1915' }}
+                    >
+                      Próxima lição <ChevronRight className="h-5 w-5 ml-1" />
+                    </Button>
+                  )}
+                </div>
               ) : (
                 <Button
                   variant="ghost"
@@ -814,7 +852,29 @@ export default function RevistaLeitura() {
                 </div>
               ))}
               {/* End-of-lesson action */}
-              <div className="py-8 text-center">
+              <div className="py-8 text-center space-y-4">
+                {/* Quiz button in scroll mode */}
+                {licaoAberta && quizDisponivel[licaoAberta.id] && (
+                  <button
+                    onClick={() => {
+                      setQuizLicaoId(licaoAberta.id);
+                      setQuizLicaoTitulo(licaoAberta.titulo || `Lição ${licaoAberta.numero}`);
+                      setQuizAberto(true);
+                    }}
+                    style={{
+                      background: localStorage.getItem(`quiz_feito_${licaoAberta.id}`) ? '#22c55e' : '#FFC107',
+                      color: '#1c1915',
+                      border: 'none',
+                      borderRadius: 10,
+                      padding: '14px 28px',
+                      fontWeight: 700,
+                      fontSize: 16,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {localStorage.getItem(`quiz_feito_${licaoAberta.id}`) ? '✅ Quiz respondido' : '📝 Fazer Quiz desta Lição'}
+                  </button>
+                )}
                 {isLastLicao ? (
                   <p className="text-white font-medium flex items-center justify-center gap-2">
                     <PartyPopper className="h-5 w-5" style={{ color: '#f6ba32' }} />
@@ -836,6 +896,19 @@ export default function RevistaLeitura() {
 
         {/* Keyframe for hint animation */}
         <style>{`@keyframes fadeInOut { 0% { opacity: 0; } 20% { opacity: 1; } 80% { opacity: 1; } 100% { opacity: 0; } }`}</style>
+
+        {/* Quiz modal overlay */}
+        {quizAberto && quizLicaoId && sessionWhatsapp && (
+          <RevistaQuizPublico
+            licaoId={quizLicaoId}
+            licaoTitulo={quizLicaoTitulo}
+            whatsapp={sessionWhatsapp}
+            onFechar={() => {
+              setQuizAberto(false);
+              setQuizLicaoId(null);
+            }}
+          />
+        )}
       </div>
     );
   }
