@@ -1201,9 +1201,13 @@ export default function RevistaLeitura() {
                   <p style={{ color: "#fff", fontSize: 12, textTransform: "uppercase", letterSpacing: 1, margin: 0, opacity: 0.8 }}>
                     Seus Pontos
                   </p>
-                  <p style={{ color: "#FFC107", fontSize: 36, fontWeight: 800, margin: 0, lineHeight: 1.1 }}>
-                    {totalPontos}
-                  </p>
+                  {pontosLoading ? (
+                    <div style={{ width: 60, height: 36, background: "rgba(255,255,255,0.15)", borderRadius: 8, animation: "pulse 1.5s infinite" }} />
+                  ) : (
+                    <p style={{ color: "#FFC107", fontSize: 36, fontWeight: 800, margin: 0, lineHeight: 1.1 }}>
+                      {totalPontos}
+                    </p>
+                  )}
                 </div>
               </div>
               <div style={{ textAlign: "right" }}>
