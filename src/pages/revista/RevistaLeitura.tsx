@@ -495,6 +495,21 @@ export default function RevistaLeitura() {
     setZoomed(false);
     setTelaConclusao(false);
     setConclusaoQuizRespondido(false);
+    setAnotacoesPagina({});
+    setAnotacaoPainelAberto(false);
+
+    // Load annotations for this lesson
+    if (sessionWhatsapp) {
+      supabase.functions.invoke("buscar-anotacoes-licao", {
+        body: { whatsapp: sessionWhatsapp, licao_id: licao.id },
+      }).then(({ data }) => {
+        if (data?.anotacoes) {
+          const map: Record<number, string> = {};
+          data.anotacoes.forEach((a: any) => { map[a.pagina] = a.texto; });
+          setAnotacoesPagina(map);
+        }
+      }).catch(() => {});
+    }
 
     // Melhoria 1 — save on open
     if (progressKey) {
