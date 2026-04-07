@@ -6,6 +6,11 @@ export interface RevistaTokenPayload {
   [key: string]: unknown;
 }
 
+export const REVISTA_KEYS = {
+  TOKEN: "revista_token",
+  LICENCAS: "revista_licencas",
+} as const;
+
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
 export function parseRevistaToken(token: string): RevistaTokenPayload | null {
@@ -42,4 +47,31 @@ export function persistRevistaToken(rawToken: string) {
   delete nextPayload.exp;
 
   return btoa(JSON.stringify(nextPayload));
+}
+
+/** Returns a valid session or null */
+export function getValidRevistaSession(): { token: string; decoded: RevistaTokenPayload } | null {
+  const token = localStorage.getItem(REVISTA_KEYS.TOKEN);
+  if (!token) return null;
+
+  const decoded = parseRevistaToken(token);
+  const expiresAt = getRevistaTokenExpiresAt(decoded);
+
+  if (!decoded || !expiresAt || expiresAt <= Date.now()) {
+    return null;
+  }
+
+  return { token, decoded };
+}
+
+/** Save token + licences to localStorage */
+export function saveRevistaSession(token: string, licencas: unknown) {
+  localStorage.setItem(REVISTA_KEYS.TOKEN, token);
+  localStorage.setItem(REVISTA_KEYS.LICENCAS, JSON.stringify(licencas));
+}
+
+/** Clear all revista session data from localStorage */
+export function clearRevistaSession() {
+  localStorage.removeItem(REVISTA_KEYS.TOKEN);
+  localStorage.removeItem(REVISTA_KEYS.LICENCAS);
 }

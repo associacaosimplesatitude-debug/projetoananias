@@ -78,13 +78,22 @@ serve(async (req) => {
       .eq("whatsapp", numeroLimpo)
       .eq("ativo", true);
 
+    const agora = new Date().toISOString();
+
     // Registrar primeiro acesso (apenas se ainda não tiver)
     await supabaseAdmin
       .from("revista_licencas_shopify")
-      .update({ primeiro_acesso_em: new Date().toISOString() })
+      .update({ primeiro_acesso_em: agora })
       .eq("whatsapp", numeroLimpo)
       .eq("ativo", true)
       .is("primeiro_acesso_em", null);
+
+    // Atualizar ultimo_acesso_em para TODAS as licenças ativas
+    await supabaseAdmin
+      .from("revista_licencas_shopify")
+      .update({ ultimo_acesso_em: agora })
+      .eq("whatsapp", numeroLimpo)
+      .eq("ativo", true);
 
     // Gerar token de sessão (válido por 24h)
     const token = btoa(
