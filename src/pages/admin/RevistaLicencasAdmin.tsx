@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Plus, Search, Filter, Users, CreditCard, TrendingUp, Send, Ban, ShoppingCart } from "lucide-react";
+import { Plus, Search, Filter, Users, CreditCard, TrendingUp, Send, Ban, ShoppingCart, Trophy } from "lucide-react";
 import { format } from "date-fns";
 
 // === UTILS ===
@@ -621,6 +621,179 @@ function ShopifyTab() {
   );
 }
 
+// === QUIZ RESPOSTAS TAB ===
+type RankingRow = {
+  id: string;
+  whatsapp: string;
+  revista_id: string | null;
+  nome_comprador: string | null;
+  total_pontos: number;
+  total_quizzes: number;
+  updated_at: string;
+  revista_titulo?: string | null;
+  nome_licenca?: string | null;
+};
+
+function QuizRespostasTab() {
+  const [search, setSearch] = useState("");
+  const [filterRevista, setFilterRevista] = useState("all");
+
+  const { data: rankings = [], isLoading } = useQuery({
+    queryKey: ["admin-quiz-respostas"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("revista_ranking_publico")
+        .select("*")
+        .order("total_pontos", { ascending: false });
+      if (error) throw error;
+      const rows = (data || []) as any[];
+
+      // Fetch revista titles
+      const revistaIds = [...new Set(rows.map(r => r.revista_id).filter(Boolean))];
+      let revistasMap: Record<string, string> = {};
+      if (revistaIds.length > 0) {
+        const { data: revs } = await supabase
+          .from("revistas_digitais")
+          .select("id, titulo")
+          .in("id", revistaIds);
+        if (revs) revs.forEach((r: any) => { revistasMap[r.id] = r.titulo; });
+      }
+
+      // Fetch buyer names from licencas
+      const whatsapps = [...new Set(rows.map(r => r.whatsapp).filter(Boolean))];
+      let nomesMap: Record<string, string> = {};
+      if (whatsapps.length > 0) {
+        const { data: lics } = await supabase
+          .from("revista_licencas_shopify")
+          .select("whatsapp, nome_comprador")
+          .in("whatsapp", whatsapps);
+        if (lics) lics.forEach((l: any) => {
+          if (l.nome_comprador && !nomesMap[l.whatsapp]) nomesMap[l.whatsapp] = l.nome_comprador;
+        });
+      }
+
+      return rows.map(r => ({
+        ...r,
+        revista_titulo: r.revista_id ? revistasMap[r.revista_id] || null : null,
+        nome_licenca: nomesMap[r.whatsapp] || r.nome_comprador || null,
+      })) as RankingRow[];
+    },
+  });
+
+  const revistasDistintas = [...new Set(rankings.map(r => r.revista_titulo).filter(Boolean))] as string[];
+
+  const filtered = rankings.filter((r) => {
+    if (filterRevista !== "all" && r.revista_titulo !== filterRevista) return false;
+    if (!search) return true;
+    const s = search.toLowerCase();
+    return (
+      r.nome_licenca?.toLowerCase().includes(s) ||
+      r.nome_comprador?.toLowerCase().includes(s) ||
+      r.whatsapp?.includes(s) ||
+      r.revista_titulo?.toLowerCase().includes(s)
+    );
+  });
+
+  const totalAlunos = new Set(rankings.map(r => r.whatsapp)).size;
+  const totalQuizzes = rankings.reduce((sum, r) => sum + r.total_quizzes, 0);
+  const mediaPontos = totalAlunos > 0
+    ? Math.round(rankings.reduce((sum, r) => sum + r.total_pontos, 0) / totalAlunos)
+    : 0;
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <Users className="h-8 w-8 text-primary" />
+              <div>
+                <p className="text-2xl font-bold">{totalAlunos}</p>
+                <p className="text-sm text-muted-foreground">Alunos que responderam</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <Trophy className="h-8 w-8 text-primary" />
+              <div>
+                <p className="text-2xl font-bold">{totalQuizzes}</p>
+                <p className="text-sm text-muted-foreground">Quizzes respondidos</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <TrendingUp className="h-8 w-8 text-primary" />
+              <div>
+                <p className="text-2xl font-bold">{mediaPontos}</p>
+                <p className="text-sm text-muted-foreground">Média de pontos por aluno</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="flex flex-wrap gap-3">
+        <div className="relative flex-1 min-w-[200px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input placeholder="Buscar por nome, WhatsApp ou revista..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+        </div>
+        <Select value={filterRevista} onValueChange={setFilterRevista}>
+          <SelectTrigger className="w-[220px]"><Filter className="h-4 w-4 mr-2" /><SelectValue placeholder="Revista" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todas as revistas</SelectItem>
+            {revistasDistintas.map((r) => (
+              <SelectItem key={r} value={r}>{r}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <Card>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Nome</TableHead>
+                <TableHead>WhatsApp</TableHead>
+                <TableHead>Revista</TableHead>
+                <TableHead>Total de Pontos</TableHead>
+                <TableHead>Quizzes Respondidos</TableHead>
+                <TableHead>Última Atualização</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isLoading ? (
+                <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Carregando...</TableCell></TableRow>
+              ) : filtered.length === 0 ? (
+                <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Nenhuma resposta encontrada</TableCell></TableRow>
+              ) : (
+                filtered.map((r) => (
+                  <TableRow key={r.id}>
+                    <TableCell className="font-medium">{r.nome_licenca || r.nome_comprador || "—"}</TableCell>
+                    <TableCell>{r.whatsapp}</TableCell>
+                    <TableCell>{r.revista_titulo || "—"}</TableCell>
+                    <TableCell>
+                      <Badge variant="default" className="font-mono">{r.total_pontos} pts</Badge>
+                    </TableCell>
+                    <TableCell>{r.total_quizzes}</TableCell>
+                    <TableCell>{r.updated_at ? format(new Date(r.updated_at), "dd/MM/yyyy HH:mm") : "—"}</TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 // === MAIN COMPONENT ===
 export default function RevistaLicencasAdmin() {
   return (
@@ -640,12 +813,19 @@ export default function RevistaLicencasAdmin() {
             <ShoppingCart className="h-4 w-4 mr-2" />
             Vendas Shopify
           </TabsTrigger>
+          <TabsTrigger value="quiz">
+            <Trophy className="h-4 w-4 mr-2" />
+            Respostas Quiz
+          </TabsTrigger>
         </TabsList>
         <TabsContent value="superintendente">
           <SuperintendentTab />
         </TabsContent>
         <TabsContent value="shopify">
           <ShopifyTab />
+        </TabsContent>
+        <TabsContent value="quiz">
+          <QuizRespostasTab />
         </TabsContent>
       </Tabs>
     </div>
