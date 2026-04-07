@@ -281,6 +281,8 @@ const App = () => (
               <Route path="/politica-de-privacidade" element={<PoliticaPrivacidade />} />
               <Route path="/revista/acesso" element={<RevistaAcesso />} />
               <Route path="/revista/leitura" element={<RevistaLeitura />} />
+              <Route path="/leitor/acesso" element={<LeitorAcesso />} />
+              <Route path="/leitor/leitura" element={<LeitorLeitura />} />
             <Route
               path="/*"
               element={
