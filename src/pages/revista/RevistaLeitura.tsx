@@ -306,8 +306,20 @@ export default function RevistaLeitura() {
       .eq("revista_id", selectedRevista)
       .order("numero", { ascending: true })
       .then(({ data }) => {
-        setLicoes((data as any) || []);
+        const licoesData = (data as any) || [];
+        setLicoes(licoesData);
         setLoadingLicoes(false);
+
+        // Check quiz availability for all lessons
+        licoesData.forEach((licao: Licao) => {
+          supabase.functions.invoke("buscar-quiz-licao", {
+            body: { licao_id: licao.id },
+          }).then(({ data: quizData }) => {
+            if (quizData?.quiz) {
+              setQuizDisponivel((prev) => ({ ...prev, [licao.id]: true }));
+            }
+          }).catch(() => {});
+        });
       });
 
     // Melhoria 1 — check saved progress (banco primeiro, localStorage fallback)
