@@ -57,6 +57,10 @@ export default function RevistasDigitais() {
   const [anoPublicacao, setAnoPublicacao] = useState(new Date().getFullYear());
   const [statusPublicacao, setStatusPublicacao] = useState("rascunho");
   const [tipoConteudo, setTipoConteudo] = useState("revista");
+  const [videoCelularCgDigital, setVideoCelularCgDigital] = useState("");
+  const [videoDesktopCgDigital, setVideoDesktopCgDigital] = useState("");
+  const [videoCelularLeitor, setVideoCelularLeitor] = useState("");
+  const [videoDesktopLeitor, setVideoDesktopLeitor] = useState("");
 
   // Capa upload
   const [capaUrl, setCapaUrl] = useState("");
@@ -238,6 +242,10 @@ export default function RevistasDigitais() {
         status_publicacao: statusPublicacao,
         tipo_conteudo: tipoConteudo,
         leitura_continua: isLivro,
+        video_celular_cg_digital: videoCelularCgDigital || null,
+        video_desktop_cg_digital: videoDesktopCgDigital || null,
+        video_celular_leitor: videoCelularLeitor || null,
+        video_desktop_leitor: videoDesktopLeitor || null,
       };
       if (editingRevista) {
         const { error } = await supabase.from("revistas_digitais").update(payload).eq("id", editingRevista.id);
@@ -340,6 +348,10 @@ export default function RevistasDigitais() {
     setStatusPublicacao("rascunho");
     setTipoConteudo("revista");
     setPdfFileInfo(null);
+    setVideoCelularCgDigital("");
+    setVideoDesktopCgDigital("");
+    setVideoCelularLeitor("");
+    setVideoDesktopLeitor("");
   };
 
   const openEdit = (r: Revista) => {
@@ -354,6 +366,10 @@ export default function RevistasDigitais() {
     setAnoPublicacao(r.ano_publicacao || new Date().getFullYear());
     setStatusPublicacao(r.status_publicacao || "rascunho");
     setTipoConteudo((r as any).tipo_conteudo || "revista");
+    setVideoCelularCgDigital((r as any).video_celular_cg_digital || "");
+    setVideoDesktopCgDigital((r as any).video_desktop_cg_digital || "");
+    setVideoCelularLeitor((r as any).video_celular_leitor || "");
+    setVideoDesktopLeitor((r as any).video_desktop_leitor || "");
     setShowForm(true);
   };
 
@@ -898,6 +914,32 @@ export default function RevistasDigitais() {
                   </div>
                 )}
               </div>
+
+              {/* Vídeos da página de escolha */}
+              {editingRevista && (
+                <div className="space-y-3 border-t pt-3 mt-2" style={{ borderColor: "#e5e7eb" }}>
+                  <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Vídeos da página de escolha</Label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-xs">Celular — CG Digital</Label>
+                      <Input value={videoCelularCgDigital} onChange={(e) => setVideoCelularCgDigital(e.target.value)} placeholder="Link Pandavideo" className="text-xs" />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Computador — CG Digital</Label>
+                      <Input value={videoDesktopCgDigital} onChange={(e) => setVideoDesktopCgDigital(e.target.value)} placeholder="Link Pandavideo" className="text-xs" />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Celular — Leitor CG</Label>
+                      <Input value={videoCelularLeitor} onChange={(e) => setVideoCelularLeitor(e.target.value)} placeholder="Link Pandavideo" className="text-xs" />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Computador — Leitor CG</Label>
+                      <Input value={videoDesktopLeitor} onChange={(e) => setVideoDesktopLeitor(e.target.value)} placeholder="Link Pandavideo" className="text-xs" />
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <Button
                 onClick={() => saveMutation.mutate()}
                 disabled={!titulo || saveMutation.isPending || (!editingRevista && tipoConteudo !== 'livro_digital' && (!totalLicoes || Number(totalLicoes) < 1))}

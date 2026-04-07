@@ -25,6 +25,12 @@ interface Licao {
   paginas: string[];
 }
 
+const CACHE_NAME = "leitor-cg-v1";
+
+function getCacheKey(revistaId: string) {
+  return `leitor_cache_completo_${revistaId}`;
+}
+
 export default function LeitorLeitura() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
@@ -34,6 +40,10 @@ export default function LeitorLeitura() {
   const [loadingPages, setLoadingPages] = useState(false);
   const [scrollProgress, setScrollProgress] = useState(0);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  // Cache state
+  const [caching, setCaching] = useState(false);
+  const [cacheProgress, setCacheProgress] = useState({ current: 0, total: 0, revistaIdx: 0, totalRevistas: 0, revistaName: "" });
 
   useLeitorManifest();
 
@@ -46,11 +56,12 @@ export default function LeitorLeitura() {
     }
 
     // Load revistas from localStorage
+    let mapped: Revista[] = [];
     try {
       const stored = localStorage.getItem(REVISTA_KEYS.LICENCAS);
       if (stored) {
         const licencas = JSON.parse(stored);
-        const mapped: Revista[] = licencas
+        mapped = licencas
           .filter((l: any) => l.revistas_digitais || l.revista_id)
           .map((l: any) => {
             const r = l.revistas_digitais || {};
@@ -62,17 +73,87 @@ export default function LeitorLeitura() {
               tipo_conteudo: r.tipo_conteudo,
             };
           });
-        // Dedupe by id
         const unique = mapped.filter(
           (r, i, arr) => arr.findIndex((x) => x.id === r.id) === i
         );
+        mapped = unique;
         setRevistas(unique);
       }
     } catch {
       // ignore
     }
-    setLoading(false);
+
+    // Check if all revistas are cached
+    const allCached = mapped.length > 0 && mapped.every((r) => localStorage.getItem(getCacheKey(r.id)));
+    if (allCached) {
+      setLoading(false);
+    } else if (mapped.length > 0) {
+      // Start caching
+      cacheAllRevistas(mapped).then(() => setLoading(false));
+    } else {
+      setLoading(false);
+    }
   }, [navigate]);
+
+  const cacheAllRevistas = async (revistasToCache: Revista[]) => {
+    setCaching(true);
+    const uncached = revistasToCache.filter((r) => !localStorage.getItem(getCacheKey(r.id)));
+    if (uncached.length === 0) { setCaching(false); return; }
+
+    let cache: Cache | null = null;
+    try {
+      cache = await caches.open(CACHE_NAME);
+    } catch {
+      // Cache API not available
+      setCaching(false);
+      return;
+    }
+
+    for (let ri = 0; ri < uncached.length; ri++) {
+      const revista = uncached[ri];
+      setCacheProgress({ current: 0, total: 0, revistaIdx: ri + 1, totalRevistas: uncached.length, revistaName: revista.titulo });
+
+      try {
+        const { data: licoes } = await supabase
+          .from("revista_licoes")
+          .select("numero, paginas")
+          .eq("revista_id", revista.id)
+          .order("numero", { ascending: true });
+
+        const allUrls: string[] = [];
+        if (licoes) {
+          for (const l of licoes as { numero: number; paginas: string[] }[]) {
+            if (l.paginas && Array.isArray(l.paginas)) {
+              allUrls.push(...l.paginas);
+            }
+          }
+        }
+
+        setCacheProgress((p) => ({ ...p, total: allUrls.length }));
+
+        for (let i = 0; i < allUrls.length; i++) {
+          setCacheProgress((p) => ({ ...p, current: i + 1 }));
+          try {
+            const cached = await cache!.match(allUrls[i]);
+            if (!cached) {
+              const response = await fetch(allUrls[i]);
+              if (response.ok) {
+                await cache!.put(allUrls[i], response);
+              }
+            }
+          } catch {
+            // skip individual image errors
+          }
+        }
+
+        localStorage.setItem(getCacheKey(revista.id), "true");
+      } catch {
+        // skip revista errors
+      }
+    }
+
+    setCaching(false);
+  };
 
   // Load all pages when a revista is selected
   const loadAllPages = useCallback(async (revistaId: string) => {
@@ -137,10 +218,50 @@ export default function LeitorLeitura() {
     return () => container.removeEventListener("scroll", handleScroll);
   }, [selectedRevista, allPages]);
 
-  if (loading) {
+  // CACHE LOADING SCREEN
+  if (loading || caching) {
+    const pct = cacheProgress.total > 0 ? Math.round((cacheProgress.current / cacheProgress.total) * 100) : 0;
+    const licaoNum = cacheProgress.total > 0 ? Math.ceil((cacheProgress.current / cacheProgress.total) * 13) : 0;
+
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "#000" }}>
-        <Loader2 className="h-8 w-8 animate-spin text-white/50" />
+      <div className="min-h-screen flex flex-col items-center justify-center px-6" style={{ backgroundColor: "#000" }}>
+        <img src="/icons/leitor-cg-192.png" alt="Leitor CG" className="w-16 h-16 mb-6" />
+        
+        {caching ? (
+          <div className="w-full max-w-sm space-y-4 text-center">
+            <p className="text-[10px] uppercase tracking-[3px]" style={{ color: "#555" }}>
+              PREPARANDO SEU ACESSO
+            </p>
+            <h2 className="text-white text-lg font-semibold">Carregando sua revista</h2>
+            
+            {cacheProgress.totalRevistas > 1 && (
+              <p className="text-sm" style={{ color: "#9ca3af" }}>
+                Revista {cacheProgress.revistaIdx} de {cacheProgress.totalRevistas}
+              </p>
+            )}
+            <p className="font-bold text-sm" style={{ color: "#FFC107" }}>
+              {cacheProgress.revistaName}
+            </p>
+
+            <div className="w-full rounded-full h-1.5" style={{ backgroundColor: "#1a1a1a" }}>
+              <div
+                className="h-full rounded-full transition-all duration-200"
+                style={{ width: `${pct}%`, backgroundColor: "#FFC107" }}
+              />
+            </div>
+
+            <div className="flex justify-between text-xs" style={{ color: "#6b7280" }}>
+              <span>{pct}%</span>
+              <span>{cacheProgress.current} de {cacheProgress.total} páginas</span>
+            </div>
+
+            <p className="text-[11px] mt-4" style={{ color: "#1f2937" }}>
+              Após o carregamento sua revista ficará disponível sem internet
+            </p>
+          </div>
+        ) : (
+          <Loader2 className="h-8 w-8 animate-spin text-white/50" />
+        )}
       </div>
     );
   }

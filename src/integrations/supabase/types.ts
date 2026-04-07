@@ -5694,6 +5694,7 @@ export type Database = {
           shopify_order_number: string | null
           ultimo_acesso_em: string | null
           updated_at: string | null
+          versao_preferida: string | null
           whatsapp: string
         }
         Insert: {
@@ -5709,6 +5710,7 @@ export type Database = {
           shopify_order_number?: string | null
           ultimo_acesso_em?: string | null
           updated_at?: string | null
+          versao_preferida?: string | null
           whatsapp: string
         }
         Update: {
@@ -5724,6 +5726,7 @@ export type Database = {
           shopify_order_number?: string | null
           ultimo_acesso_em?: string | null
           updated_at?: string | null
+          versao_preferida?: string | null
           whatsapp?: string
         }
         Relationships: [
@@ -6068,6 +6071,10 @@ export type Database = {
           titulo: string
           total_licoes: number | null
           trimestre: string | null
+          video_celular_cg_digital: string | null
+          video_celular_leitor: string | null
+          video_desktop_cg_digital: string | null
+          video_desktop_leitor: string | null
         }
         Insert: {
           ano_publicacao?: number | null
@@ -6085,6 +6092,10 @@ export type Database = {
           titulo: string
           total_licoes?: number | null
           trimestre?: string | null
+          video_celular_cg_digital?: string | null
+          video_celular_leitor?: string | null
+          video_desktop_cg_digital?: string | null
+          video_desktop_leitor?: string | null
         }
         Update: {
           ano_publicacao?: number | null
@@ -6102,6 +6113,10 @@ export type Database = {
           titulo?: string
           total_licoes?: number | null
           trimestre?: string | null
+          video_celular_cg_digital?: string | null
+          video_celular_leitor?: string | null
+          video_desktop_cg_digital?: string | null
+          video_desktop_leitor?: string | null
         }
         Relationships: []
       }
