@@ -115,6 +115,43 @@ export default function RevistasDigitais() {
     enabled: !!managingLicoes,
   });
 
+  // Quiz status per lição
+  const { data: quizMap, refetch: refetchQuiz } = useQuery({
+    queryKey: ["revista-licao-quiz", managingLicoes?.id],
+    queryFn: async () => {
+      if (!managingLicoes || !licoes?.length) return {};
+      const ids = licoes.map((l) => l.id);
+      const { data } = await supabase
+        .from("revista_licao_quiz")
+        .select("licao_id")
+        .in("licao_id", ids);
+      const map: Record<string, boolean> = {};
+      (data || []).forEach((q: any) => { map[q.licao_id] = true; });
+      return map;
+    },
+    enabled: !!managingLicoes && !!licoes?.length,
+  });
+
+  const handleGenerateQuiz = async (licaoId: string) => {
+    setGeneratingQuiz(licaoId);
+    try {
+      const { data, error } = await supabase.functions.invoke("gerar-quiz-revista", {
+        body: { licao_id: licaoId },
+      });
+      if (error) throw error;
+      if (data?.error) {
+        toast.error(data.error);
+      } else {
+        toast.success("Quiz gerado com sucesso!");
+        refetchQuiz();
+      }
+    } catch (e: any) {
+      toast.error(e.message || "Erro ao gerar quiz");
+    } finally {
+      setGeneratingQuiz(null);
+    }
+  };
+
   // Upload capa to storage
   const uploadCapa = async (file: File) => {
     setUploadingCapa(true);
