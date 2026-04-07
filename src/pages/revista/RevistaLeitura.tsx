@@ -896,6 +896,19 @@ export default function RevistaLeitura() {
 
         {/* Keyframe for hint animation */}
         <style>{`@keyframes fadeInOut { 0% { opacity: 0; } 20% { opacity: 1; } 80% { opacity: 1; } 100% { opacity: 0; } }`}</style>
+
+        {/* Quiz modal overlay */}
+        {quizAberto && quizLicaoId && sessionWhatsapp && (
+          <RevistaQuizPublico
+            licaoId={quizLicaoId}
+            licaoTitulo={quizLicaoTitulo}
+            whatsapp={sessionWhatsapp}
+            onFechar={() => {
+              setQuizAberto(false);
+              setQuizLicaoId(null);
+            }}
+          />
+        )}
       </div>
     );
   }
