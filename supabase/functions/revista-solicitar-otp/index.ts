@@ -7,6 +7,8 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -40,14 +42,17 @@ serve(async (req) => {
     // Verificar se número tem licença ativa
     const { data } = await supabaseAdmin
       .from("revista_licencas_shopify")
-      .select("id, nome_comprador, email")
+      .select(`
+        id, nome_comprador, email, primeiro_acesso_em, ultimo_acesso_em,
+        revista_id,
+        revistas_digitais (
+          id, titulo, capa_url, total_licoes, tipo, pdf_url, leitura_continua, tipo_conteudo
+        )
+      `)
       .eq("whatsapp", numeroLimpo)
-      .eq("ativo", true)
-      .limit(1);
+      .eq("ativo", true);
 
-    const licenca = data?.[0] || null;
-
-    if (!licenca) {
+    if (!data || data.length === 0) {
       return new Response(
         JSON.stringify({ erro: "numero_nao_encontrado" }),
         {
@@ -57,6 +62,47 @@ serve(async (req) => {
       );
     }
 
+    // Verificar se pode ter acesso direto (sem OTP)
+    // Condição: primeiro_acesso_em preenchido E ultimo_acesso_em dentro de 30 dias
+    const primeiraLicenca = data[0];
+    const temPrimeiroAcesso = !!primeiraLicenca.primeiro_acesso_em;
+    const ultimoAcesso = primeiraLicenca.ultimo_acesso_em
+      ? new Date(primeiraLicenca.ultimo_acesso_em).getTime()
+      : null;
+    const dentroDosPrazoDias =
+      ultimoAcesso !== null && (Date.now() - ultimoAcesso) < THIRTY_DAYS_MS;
+
+    if (temPrimeiroAcesso && dentroDosPrazoDias) {
+      // ACESSO DIRETO — sem OTP
+      // Atualizar ultimo_acesso_em
+      await supabaseAdmin
+        .from("revista_licencas_shopify")
+        .update({ ultimo_acesso_em: new Date().toISOString() })
+        .eq("whatsapp", numeroLimpo)
+        .eq("ativo", true);
+
+      // Gerar token
+      const token = btoa(
+        JSON.stringify({
+          whatsapp: numeroLimpo,
+          exp: Date.now() + 86400000,
+          licencas: data.map((l: any) => l.revista_id),
+        })
+      );
+
+      return new Response(
+        JSON.stringify({
+          status: "acesso_direto",
+          token,
+          licencas: data,
+        }),
+        {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    // PRECISA DE OTP — primeira vez ou prazo expirado
     // Gerar código de 4 dígitos
     const codigo = String(Math.floor(1000 + Math.random() * 9000));
     const expiraEm = new Date(Date.now() + 10 * 60 * 1000).toISOString();
@@ -149,7 +195,8 @@ serve(async (req) => {
     }
 
     // ── Fallback: enviar código também por email via Resend (se disponível) ──
-    if (licenca.email) {
+    const licencaComEmail = data.find((l: any) => l.email);
+    if (licencaComEmail?.email) {
       try {
         const resendApiKey = Deno.env.get("RESEND_API_KEY");
         if (resendApiKey) {
@@ -161,11 +208,11 @@ serve(async (req) => {
             },
             body: JSON.stringify({
               from: "Gestão EBD <relatorios@painel.editoracentralgospel.com.br>",
-              to: [licenca.email],
+              to: [licencaComEmail.email],
               subject: "Seu código de acesso à revista",
               html: `
                 <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px">
-                  <h2 style="color:#1B3A5C">Olá, ${licenca.nome_comprador || "leitor"}!</h2>
+                  <h2 style="color:#1B3A5C">Olá, ${primeiraLicenca.nome_comprador || "leitor"}!</h2>
                   <p style="font-size:16px">Seu código de acesso à revista é:</p>
                   <div style="font-size:48px;font-weight:bold;text-align:center;
                               letter-spacing:12px;color:#1B3A5C;padding:24px 0">
@@ -183,19 +230,18 @@ serve(async (req) => {
           if (!emailRes.ok) {
             console.error("Resend email error:", JSON.stringify(emailData));
           } else {
-            console.log("OTP email sent to:", licenca.email);
+            console.log("OTP email sent to:", licencaComEmail.email);
           }
         } else {
           console.warn("RESEND_API_KEY not configured, skipping email fallback");
         }
       } catch (emailErr) {
         console.error("Email fallback error:", emailErr);
-        // Não bloqueia — WhatsApp já foi enviado com sucesso
       }
     }
 
     return new Response(
-      JSON.stringify({ sucesso: true }),
+      JSON.stringify({ status: "otp_enviado", sucesso: true }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       }

@@ -1,0 +1,1 @@
+ALTER TABLE public.revista_licencas_shopify ADD COLUMN IF NOT EXISTS ultimo_acesso_em TIMESTAMP WITH TIME ZONE;

@@ -9,6 +9,10 @@ import {
   getRevistaTokenExpiresAt,
   parseRevistaToken,
   persistRevistaToken,
+  REVISTA_KEYS,
+  getValidRevistaSession,
+  clearRevistaSession,
+  saveRevistaSession,
 } from "@/lib/revistaSession";
 import logoCentralGospel from "@/assets/logo_central_gospel.png";
 
@@ -25,6 +29,7 @@ function extractDigits(value: string) {
 
 export default function RevistaAcesso() {
   const navigate = useNavigate();
+  const [checkingSession, setCheckingSession] = useState(true);
   const [step, setStep] = useState<"numero" | "codigo">("numero");
   const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(false);
@@ -33,29 +38,16 @@ export default function RevistaAcesso() {
   const [resendTimer, setResendTimer] = useState(0);
   const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
 
-  // Check existing session
+  // Check existing session BEFORE rendering
   useEffect(() => {
-    const token = localStorage.getItem("revista_token");
-    console.log("[RevistaAcesso] revista_token bruto:", token);
-
-    if (!token) return;
-
-    const decoded = parseRevistaToken(token);
-    console.log("[RevistaAcesso] JSON.parse(atob(token)):", decoded);
-    console.log("[RevistaAcesso] decoded.exp vs Date.now():", decoded?.exp, Date.now());
-    console.log("[RevistaAcesso] decoded.expires_at vs Date.now():", decoded?.expires_at, Date.now());
-
-    const expiresAt = getRevistaTokenExpiresAt(decoded);
-
-    if (expiresAt && expiresAt > Date.now()) {
+    const session = getValidRevistaSession();
+    if (session) {
       navigate("/revista/leitura", { replace: true });
       return;
     }
-
-    if (!decoded || !expiresAt || expiresAt <= Date.now()) {
-      localStorage.removeItem("revista_token");
-      localStorage.removeItem("revista_licencas");
-    }
+    // Session invalid or absent — clear and show form
+    clearRevistaSession();
+    setCheckingSession(false);
   }, [navigate]);
 
   // Resend timer countdown
@@ -80,9 +72,31 @@ export default function RevistaAcesso() {
         { body: { whatsapp: cleanNumber } }
       );
       if (fnError) throw fnError;
+
+      // Handle acesso_direto — enter without OTP
+      if (data?.status === "acesso_direto") {
+        const newToken = persistRevistaToken(data.token);
+        if (!newToken) {
+          setError("Ocorreu um erro. Tente novamente.");
+          return;
+        }
+        saveRevistaSession(newToken, data.licencas);
+        navigate("/revista/leitura", { replace: true });
+        return;
+      }
+
+      // Handle OTP sent
+      if (data?.status === "otp_enviado" || data?.sucesso) {
+        setStep("codigo");
+        setResendTimer(60);
+        setOtp(["", "", "", ""]);
+        setTimeout(() => otpRefs.current[0]?.focus(), 100);
+        return;
+      }
+
       if (data?.erro === "numero_nao_encontrado") {
         setError(
-          "Número não encontrado. Você já realizou a compra da revista? Se precisar de ajuda, entre em contato conosco."
+          "Número não encontrado. Verifique se usou o mesmo número informado na compra."
         );
         return;
       }
@@ -94,16 +108,12 @@ export default function RevistaAcesso() {
         setError("Ocorreu um erro. Tente novamente.");
         return;
       }
-      setStep("codigo");
-      setResendTimer(60);
-      setOtp(["", "", "", ""]);
-      setTimeout(() => otpRefs.current[0]?.focus(), 100);
     } catch {
       setError("Ocorreu um erro. Tente novamente.");
     } finally {
       setLoading(false);
     }
-  }, [cleanNumber]);
+  }, [cleanNumber, navigate]);
 
   const handleOtpChange = (index: number, value: string) => {
     if (!/^\d?$/.test(value)) return;
@@ -153,11 +163,7 @@ export default function RevistaAcesso() {
         return;
       }
 
-      localStorage.setItem("revista_token", newToken);
-      localStorage.setItem(
-        "revista_licencas",
-        JSON.stringify(data.licencas)
-      );
+      saveRevistaSession(newToken, data.licencas);
       navigate("/revista/leitura", { replace: true });
     } catch {
       setError("Ocorreu um erro. Tente novamente.");
@@ -170,6 +176,15 @@ export default function RevistaAcesso() {
     if (resendTimer > 0) return;
     handleSolicitarOtp();
   };
+
+  // Show nothing while checking session
+  if (checkingSession) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-white flex items-center justify-center p-4">
