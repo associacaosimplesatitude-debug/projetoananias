@@ -1161,6 +1161,64 @@ export default function RevistaLeitura() {
           />
         )}
 
+        {/* Floating buttons */}
+        {modoLeitura === "setas" && (
+          <>
+            {/* References floating button */}
+            {referenciasDisponiveis[paginaAtual] && (
+              <button
+                onClick={() => setReferenciasPainelAberto(true)}
+                style={{
+                  position: "fixed",
+                  bottom: 88,
+                  right: 16,
+                  width: 44,
+                  height: 44,
+                  borderRadius: "50%",
+                  background: "rgba(0,0,0,0.4)",
+                  border: "none",
+                  cursor: "pointer",
+                  fontSize: 20,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
+                  zIndex: 40,
+                }}
+              >
+                📖
+              </button>
+            )}
+
+            {/* Annotation floating button */}
+            {sessionWhatsapp && (
+              <button
+                onClick={() => setAnotacaoPainelAberto(true)}
+                style={{
+                  position: "fixed",
+                  bottom: referenciasDisponiveis[paginaAtual] ? 140 : 88,
+                  right: 16,
+                  width: 44,
+                  height: 44,
+                  borderRadius: "50%",
+                  background: anotacoesPagina[paginaAtual] ? "#FFC107" : "rgba(0,0,0,0.4)",
+                  border: "none",
+                  cursor: "pointer",
+                  fontSize: 20,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
+                  zIndex: 40,
+                  color: anotacoesPagina[paginaAtual] ? "#000" : "#fff",
+                }}
+              >
+                📝
+              </button>
+            )}
+          </>
+        )}
+
         {/* Annotation panel */}
         {anotacaoPainelAberto && licaoAberta && sessionWhatsapp && selectedRevista && (
           <AnotacaoPanel
@@ -1181,6 +1239,15 @@ export default function RevistaLeitura() {
               });
             }}
             onFechar={() => setAnotacaoPainelAberto(false)}
+          />
+        )}
+
+        {/* References panel */}
+        {referenciasPainelAberto && licaoAberta && (
+          <ReferenciasPanel
+            licaoId={licaoAberta.id}
+            pagina={paginaAtual}
+            onFechar={() => setReferenciasPainelAberto(false)}
           />
         )}
       </div>
