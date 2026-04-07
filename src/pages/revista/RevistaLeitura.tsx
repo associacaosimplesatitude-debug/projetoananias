@@ -20,6 +20,7 @@ import {
 import logoCentralGospel from "@/assets/logo_central_gospel.png";
 import { RevistaQuizPublico } from "@/components/revista/RevistaQuizPublico";
 import { AnotacaoPanel } from "@/components/revista/AnotacaoPanel";
+import { ReferenciasPanel } from "@/components/revista/ReferenciasPanel";
 
 interface RevistaDigital {
   id: string;
@@ -164,6 +165,10 @@ export default function RevistaLeitura() {
   // Annotation state
   const [anotacoesPagina, setAnotacoesPagina] = useState<Record<number, string>>({});
   const [anotacaoPainelAberto, setAnotacaoPainelAberto] = useState(false);
+
+  // References state
+  const [referenciasDisponiveis, setReferenciasDisponiveis] = useState<Record<number, boolean>>({});
+  const [referenciasPainelAberto, setReferenciasPainelAberto] = useState(false);
   const [anotacoesLicaoMap, setAnotacoesLicaoMap] = useState<Record<string, boolean>>({});
 
   const fetchPontosDb = useCallback(async () => {
@@ -508,6 +513,8 @@ export default function RevistaLeitura() {
     setConclusaoQuizRespondido(false);
     setAnotacoesPagina({});
     setAnotacaoPainelAberto(false);
+    setReferenciasDisponiveis({});
+    setReferenciasPainelAberto(false);
 
     // Load annotations for this lesson
     if (sessionWhatsapp) {
@@ -521,6 +528,17 @@ export default function RevistaLeitura() {
         }
       }).catch(() => {});
     }
+
+    // Load references for this lesson
+    supabase.functions.invoke("buscar-referencias-pagina", {
+      body: { licao_id: licao.id },
+    }).then(({ data }) => {
+      if (data?.paginas && Array.isArray(data.paginas)) {
+        const map: Record<number, boolean> = {};
+        data.paginas.forEach((p: any) => { map[p.pagina] = true; });
+        setReferenciasDisponiveis(map);
+      }
+    }).catch(() => {});
 
     // Melhoria 1 — save on open
     if (progressKey) {
@@ -1016,25 +1034,6 @@ export default function RevistaLeitura() {
                 >
                   <ChevronLeft className="h-5 w-5 mr-1" /> Anterior
                 </Button>
-                {sessionWhatsapp && (
-                  <button
-                    onClick={() => setAnotacaoPainelAberto(true)}
-                    style={{
-                      background: anotacoesPagina[paginaAtual] ? "#fffbeb" : "transparent",
-                      border: anotacoesPagina[paginaAtual] ? "1px solid #FFC107" : "1px solid rgba(255,255,255,0.2)",
-                      borderRadius: 6,
-                      padding: "4px 10px",
-                      fontSize: 13,
-                      color: anotacoesPagina[paginaAtual] ? "#92400e" : "rgba(255,255,255,0.6)",
-                      cursor: "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 4,
-                    }}
-                  >
-                    📝 {anotacoesPagina[paginaAtual] ? "Ver nota" : "Anotar"}
-                  </button>
-                )}
               </div>
               <span className="text-sm" style={{ color: '#f6ba32', opacity: 0.6 }}>
                 Página {paginaAtual + 1} de {totalPages}
@@ -1162,6 +1161,64 @@ export default function RevistaLeitura() {
           />
         )}
 
+        {/* Floating buttons */}
+        {modoLeitura === "setas" && (
+          <>
+            {/* References floating button */}
+            {referenciasDisponiveis[paginaAtual] && (
+              <button
+                onClick={() => setReferenciasPainelAberto(true)}
+                style={{
+                  position: "fixed",
+                  bottom: 88,
+                  right: 16,
+                  width: 44,
+                  height: 44,
+                  borderRadius: "50%",
+                  background: "rgba(0,0,0,0.4)",
+                  border: "none",
+                  cursor: "pointer",
+                  fontSize: 20,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
+                  zIndex: 40,
+                }}
+              >
+                📖
+              </button>
+            )}
+
+            {/* Annotation floating button */}
+            {sessionWhatsapp && (
+              <button
+                onClick={() => setAnotacaoPainelAberto(true)}
+                style={{
+                  position: "fixed",
+                  bottom: referenciasDisponiveis[paginaAtual] ? 140 : 88,
+                  right: 16,
+                  width: 44,
+                  height: 44,
+                  borderRadius: "50%",
+                  background: anotacoesPagina[paginaAtual] ? "#FFC107" : "rgba(0,0,0,0.4)",
+                  border: "none",
+                  cursor: "pointer",
+                  fontSize: 20,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
+                  zIndex: 40,
+                  color: anotacoesPagina[paginaAtual] ? "#000" : "#fff",
+                }}
+              >
+                📝
+              </button>
+            )}
+          </>
+        )}
+
         {/* Annotation panel */}
         {anotacaoPainelAberto && licaoAberta && sessionWhatsapp && selectedRevista && (
           <AnotacaoPanel
@@ -1182,6 +1239,15 @@ export default function RevistaLeitura() {
               });
             }}
             onFechar={() => setAnotacaoPainelAberto(false)}
+          />
+        )}
+
+        {/* References panel */}
+        {referenciasPainelAberto && licaoAberta && (
+          <ReferenciasPanel
+            licaoId={licaoAberta.id}
+            pagina={paginaAtual}
+            onFechar={() => setReferenciasPainelAberto(false)}
           />
         )}
       </div>

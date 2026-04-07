@@ -71,6 +71,7 @@ export default function RevistasDigitais() {
   const [draggingPageIdx, setDraggingPageIdx] = useState<{ licaoId: string; idx: number } | null>(null);
   const [uploadingPdf, setUploadingPdf] = useState<string | null>(null);
   const [generatingQuiz, setGeneratingQuiz] = useState<string | null>(null);
+  const [extractingRefs, setExtractingRefs] = useState<string | null>(null);
   const [editingQuizLicao, setEditingQuizLicao] = useState<{ id: string; titulo: string } | null>(null);
   
   const [uploadingPdfGlobal, setUploadingPdfGlobal] = useState(false);
@@ -132,6 +133,25 @@ export default function RevistasDigitais() {
     enabled: !!managingLicoes && !!licoes?.length,
   });
 
+  // References status per lição
+  const { data: refsMap, refetch: refetchRefs } = useQuery({
+    queryKey: ["revista-licao-refs", managingLicoes?.id],
+    queryFn: async () => {
+      if (!managingLicoes || !licoes?.length) return {};
+      const map: Record<string, boolean> = {};
+      for (const licao of licoes) {
+        const { data } = await supabase
+          .from("revista_referencias_pagina" as any)
+          .select("id")
+          .eq("licao_id", licao.id)
+          .limit(1);
+        if (data && (data as any[]).length > 0) map[licao.id] = true;
+      }
+      return map;
+    },
+    enabled: !!managingLicoes && !!licoes?.length,
+  });
+
   const handleGenerateQuiz = async (licaoId: string) => {
     setGeneratingQuiz(licaoId);
     try {
@@ -149,6 +169,26 @@ export default function RevistasDigitais() {
       toast.error(e.message || "Erro ao gerar quiz");
     } finally {
       setGeneratingQuiz(null);
+    }
+  };
+
+  const handleExtractRefs = async (licaoId: string) => {
+    setExtractingRefs(licaoId);
+    try {
+      const { data, error } = await supabase.functions.invoke("extrair-referencias-pagina", {
+        body: { licao_id: licaoId },
+      });
+      if (error) throw error;
+      if (data?.error) {
+        toast.error(data.error);
+      } else {
+        toast.success(`${data.total_refs} referências extraídas em ${data.total_paginas} páginas`);
+        refetchRefs();
+      }
+    } catch (e: any) {
+      toast.error(e.message || "Erro ao extrair referências");
+    } finally {
+      setExtractingRefs(null);
     }
   };
 
@@ -666,6 +706,28 @@ export default function RevistasDigitais() {
                             <><Loader2 className="h-3 w-3 animate-spin" /> Analisando...</>
                           ) : (
                             <><Bot className="h-3 w-3" /> Gerar Quiz</>
+                          )}
+                        </Button>
+                      )
+                    )}
+                    {/* References button - only show when quiz is generated */}
+                    {licao.paginas.length > 0 && quizMap?.[licao.id] && (
+                      refsMap?.[licao.id] ? (
+                        <Badge className="bg-blue-600 text-white text-[10px] gap-1 justify-center">
+                          <CheckCircle className="h-3 w-3" /> ✅ Referências extraídas
+                        </Badge>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="gap-1 text-xs"
+                          disabled={extractingRefs === licao.id}
+                          onClick={() => handleExtractRefs(licao.id)}
+                        >
+                          {extractingRefs === licao.id ? (
+                            <><Loader2 className="h-3 w-3 animate-spin" /> Analisando páginas...</>
+                          ) : (
+                            <>🔍 Extrair Referências</>
                           )}
                         </Button>
                       )

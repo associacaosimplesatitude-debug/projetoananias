@@ -326,3 +326,9 @@ verify_jwt = false
 
 [functions.buscar-anotacoes-licao]
 verify_jwt = false
+
+[functions.extrair-referencias-pagina]
+verify_jwt = false
+
+[functions.buscar-referencias-pagina]
+verify_jwt = false
