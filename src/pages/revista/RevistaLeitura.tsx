@@ -818,31 +818,34 @@ export default function RevistaLeitura() {
               </span>
               {isLastPage ? (
                 <div className="flex items-center gap-2">
-                  {/* Quiz button on last page */}
-                  {licaoAberta && quizDisponivel[licaoAberta.id] && (
+                  {isLastLicao ? (
                     <Button
                       size="sm"
                       onClick={() => {
-                        setQuizLicaoId(licaoAberta.id);
-                        setQuizLicaoTitulo(licaoAberta.titulo || `Lição ${licaoAberta.numero}`);
-                        setQuizAberto(true);
+                        // Intercept if quiz available and not done
+                        if (licaoAberta && quizDisponivel[licaoAberta.id] && !localStorage.getItem(`quiz_feito_${licaoAberta.id}`)) {
+                          setTelaConclusao(true);
+                          setConclusaoQuizRespondido(false);
+                        } else {
+                          fecharLeitor();
+                        }
                       }}
-                      style={{
-                        backgroundColor: localStorage.getItem(`quiz_feito_${licaoAberta.id}`) ? '#22c55e' : '#FFC107',
-                        color: '#1c1915',
-                      }}
+                      style={{ backgroundColor: '#f6ba32', color: '#1c1915' }}
                     >
-                      {localStorage.getItem(`quiz_feito_${licaoAberta.id}`) ? '✅ Quiz respondido' : '📝 Fazer Quiz'}
+                      <PartyPopper className="h-4 w-4 mr-1" /> Concluir
                     </Button>
-                  )}
-                  {isLastLicao ? (
-                    <span className="text-sm font-medium flex items-center gap-1" style={{ color: '#f6ba32' }}>
-                      <PartyPopper className="h-4 w-4" /> Concluída!
-                    </span>
                   ) : (
                     <Button
                       size="sm"
-                      onClick={irProximaLicao}
+                      onClick={() => {
+                        // Intercept if quiz available and not done
+                        if (licaoAberta && quizDisponivel[licaoAberta.id] && !localStorage.getItem(`quiz_feito_${licaoAberta.id}`)) {
+                          setTelaConclusao(true);
+                          setConclusaoQuizRespondido(false);
+                        } else {
+                          irProximaLicao();
+                        }
+                      }}
                       style={{ backgroundColor: '#f6ba32', color: '#1c1915' }}
                     >
                       Próxima lição <ChevronRight className="h-5 w-5 ml-1" />
@@ -879,37 +882,35 @@ export default function RevistaLeitura() {
               ))}
               {/* End-of-lesson action */}
               <div className="py-8 text-center space-y-4">
-                {/* Quiz button in scroll mode */}
-                {licaoAberta && quizDisponivel[licaoAberta.id] && (
+                {isLastLicao ? (
                   <button
                     onClick={() => {
-                      setQuizLicaoId(licaoAberta.id);
-                      setQuizLicaoTitulo(licaoAberta.titulo || `Lição ${licaoAberta.numero}`);
-                      setQuizAberto(true);
+                      if (licaoAberta && quizDisponivel[licaoAberta.id] && !localStorage.getItem(`quiz_feito_${licaoAberta.id}`)) {
+                        setTelaConclusao(true);
+                        setConclusaoQuizRespondido(false);
+                      } else {
+                        fecharLeitor();
+                      }
                     }}
                     style={{
-                      background: localStorage.getItem(`quiz_feito_${licaoAberta.id}`) ? '#22c55e' : '#FFC107',
-                      color: '#1c1915',
-                      border: 'none',
-                      borderRadius: 10,
-                      padding: '14px 28px',
-                      fontWeight: 700,
-                      fontSize: 16,
-                      cursor: 'pointer',
+                      background: '#f6ba32', color: '#1c1915',
+                      border: 'none', borderRadius: 10,
+                      padding: '14px 28px', fontWeight: 700, fontSize: 16, cursor: 'pointer',
                     }}
                   >
-                    {localStorage.getItem(`quiz_feito_${licaoAberta.id}`) ? '✅ Quiz respondido' : '📝 Fazer Quiz desta Lição'}
+                    🏆 Concluir revista
                   </button>
-                )}
-                {isLastLicao ? (
-                  <p className="text-white font-medium flex items-center justify-center gap-2">
-                    <PartyPopper className="h-5 w-5" style={{ color: '#f6ba32' }} />
-                    Você concluiu a revista!
-                  </p>
                 ) : (
                   <Button
                     size="lg"
-                    onClick={irProximaLicao}
+                    onClick={() => {
+                      if (licaoAberta && quizDisponivel[licaoAberta.id] && !localStorage.getItem(`quiz_feito_${licaoAberta.id}`)) {
+                        setTelaConclusao(true);
+                        setConclusaoQuizRespondido(false);
+                      } else {
+                        irProximaLicao();
+                      }
+                    }}
                     style={{ backgroundColor: '#f6ba32', color: '#1c1915' }}
                   >
                     Próxima lição <ChevronRight className="h-5 w-5 ml-1" />
