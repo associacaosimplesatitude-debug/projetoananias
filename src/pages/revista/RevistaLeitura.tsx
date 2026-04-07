@@ -146,9 +146,17 @@ export default function RevistaLeitura() {
 
   // Quiz state
   const [quizDisponivel, setQuizDisponivel] = useState<Record<string, boolean>>({});
+  const [quizNumPerguntas, setQuizNumPerguntas] = useState<Record<string, number>>({});
   const [quizAberto, setQuizAberto] = useState(false);
   const [quizLicaoId, setQuizLicaoId] = useState<string | null>(null);
   const [quizLicaoTitulo, setQuizLicaoTitulo] = useState("");
+
+  // Ranking state
+  const [ranking, setRanking] = useState<any[]>([]);
+  const [rankingLoading, setRankingLoading] = useState(false);
+
+  // Points counter (force re-render after quiz)
+  const [pontosVersion, setPontosVersion] = useState(0);
 
   const fecharOnboarding = (naoMostrarMais: boolean) => {
     if (naoMostrarMais) {
