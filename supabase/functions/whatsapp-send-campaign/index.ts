@@ -213,6 +213,16 @@ serve(async (req) => {
           switch (key) {
             case "nome_completo": varValues.push(dest.nome || "Cliente"); break;
             case "primeiro_nome": varValues.push((dest.nome || "Cliente").split(" ")[0]); break;
+            case "nome_comprador": varValues.push((dest.nome || "Cliente").split(" ")[0]); break;
+            case "link_escolha": {
+              const whatsappNum = (dest.telefone || "").replace(/\D/g, "");
+              varValues.push(
+                whatsappNum
+                  ? `https://gestaoebd.com.br/escolha?w=${whatsappNum}`
+                  : "https://gestaoebd.com.br/escolha"
+              );
+              break;
+            }
             case "email": varValues.push(dest.email || "-"); break;
             case "cpf": varValues.push(dest.tipo_documento === "cpf" ? "CPF" : "-"); break;
             case "cnpj": varValues.push(dest.tipo_documento === "cnpj" ? "CNPJ" : "-"); break;
