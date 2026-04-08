@@ -237,16 +237,32 @@ serve(async (req) => {
 
         const components: any[] = [];
 
+        const CAMPAIGN_IMAGE_URL = "https://nccyrvfnvjngfyfvgnww.supabase.co/storage/v1/object/public/campaign-assets/campanha_whatsapp_v3.png";
+
         // Add header component if template has IMAGE header
-        if (template?.cabecalho_tipo === "IMAGE" && template?.cabecalho_midia_url) {
+        const usesLinkEscolhaVar = variables.some(
+          (v: string) => v.replace(/\{\{|\}\}/g, "").trim() === "link_escolha"
+        );
+
+        if (template?.cabecalho_tipo === "IMAGE") {
+          const imageUrl = template?.cabecalho_midia_url || (usesLinkEscolhaVar ? CAMPAIGN_IMAGE_URL : null);
+          if (imageUrl) {
+            components.push({
+              type: "header",
+              parameters: [{
+                type: "image",
+                image: { link: imageUrl },
+              }],
+            });
+          }
+        } else if (usesLinkEscolhaVar) {
+          // Force header image for link_escolha campaigns even if cabecalho_tipo not set
           components.push({
             type: "header",
-            parameters: [
-              {
-                type: "image",
-                image: { link: template.cabecalho_midia_url },
-              },
-            ],
+            parameters: [{
+              type: "image",
+              image: { link: CAMPAIGN_IMAGE_URL },
+            }],
           });
         }
 
