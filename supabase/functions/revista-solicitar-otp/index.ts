@@ -187,6 +187,28 @@ serve(async (req) => {
     console.log("Meta WA response status:", waRes.status);
     console.log("Meta WA response body:", JSON.stringify(waData));
 
+    // ── Registrar envio WhatsApp OTP no log ──
+    const waLogStatus = waRes.ok ? "enviado" : "erro";
+    try {
+      await supabaseAdmin.from("whatsapp_mensagens").insert({
+        tipo_mensagem: "revista_otp",
+        telefone_destino: metaPhone,
+        nome_destino: primeiraLicenca.nome_comprador || null,
+        mensagem: "Código OTP enviado (template acesso_revista_otp)",
+        status: waLogStatus,
+        erro_detalhes: waRes.ok ? null : JSON.stringify(waData),
+        payload_enviado: JSON.stringify({
+          messaging_product: "whatsapp",
+          to: metaPhone,
+          type: "template",
+          template: { name: "acesso_revista_otp", language: { code: "pt_BR" } },
+        }),
+        resposta_recebida: JSON.stringify(waData),
+      });
+    } catch (logErr) {
+      console.error("Erro ao registrar log WhatsApp OTP:", logErr);
+    }
+
     if (!waRes.ok) {
       console.error("WhatsApp send error:", JSON.stringify(waData));
       return new Response(
@@ -231,6 +253,22 @@ serve(async (req) => {
             }),
           });
           const emailData = await emailRes.json();
+          const emailLogStatus = emailRes.ok ? "enviado" : "erro";
+
+          // ── Registrar envio Email OTP no log ──
+          try {
+            await supabaseAdmin.from("whatsapp_mensagens").insert({
+              tipo_mensagem: "revista_otp_email",
+              telefone_destino: metaPhone,
+              nome_destino: primeiraLicenca.nome_comprador || null,
+              mensagem: `Código OTP enviado por email para ${licencaComEmail.email}`,
+              status: emailLogStatus,
+              erro_detalhes: emailRes.ok ? null : JSON.stringify(emailData),
+            });
+          } catch (emailLogErr) {
+            console.error("Erro ao registrar log Email OTP:", emailLogErr);
+          }
+
           if (!emailRes.ok) {
             console.error("Resend email error:", JSON.stringify(emailData));
           } else {
