@@ -16,7 +16,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ptBR } from "date-fns/locale";
 import {
   Users, ArrowRight, ArrowLeft, Send, Loader2, Target, MessageSquare,
-  MousePointerClick, Eye, ShoppingCart, DollarSign, Plus, ChevronRight, Trash2, Tag, BarChart3, Rocket
+  MousePointerClick, Eye, ShoppingCart, DollarSign, Plus, ChevronRight, Trash2, Tag, BarChart3, Rocket, FlaskConical
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -372,6 +372,34 @@ export default function WhatsAppCampaigns() {
       setDispatchingId(null);
     },
   });
+
+  // --- Test message state ---
+  const [testModalOpen, setTestModalOpen] = useState(false);
+  const [testNumero, setTestNumero] = useState("");
+  const [testSending, setTestSending] = useState(false);
+
+  const handleSendTest = async () => {
+    const cleaned = testNumero.replace(/\D/g, "");
+    if (!cleaned || cleaned.length < 10) {
+      toast.error("Informe um número válido com DDD");
+      return;
+    }
+    setTestSending(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("testar-campanha-revista", {
+        body: { numero: cleaned },
+      });
+      if (error) throw new Error(error.message);
+      if (data?.error) throw new Error(data.error);
+      toast.success(`Mensagem de teste enviada para ${cleaned}`);
+      setTestModalOpen(false);
+      setTestNumero("");
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao enviar teste");
+    } finally {
+      setTestSending(false);
+    }
+  };
 
   const resetFlow = () => {
     setStep("list");
