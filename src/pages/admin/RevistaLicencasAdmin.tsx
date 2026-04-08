@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Plus, Search, Filter, Users, CreditCard, TrendingUp, Send, Ban, ShoppingCart, Trophy, Monitor, WifiOff, BookOpen } from "lucide-react";
+import { Plus, Search, Filter, Users, CreditCard, TrendingUp, Send, Ban, ShoppingCart, Trophy, Monitor, WifiOff, BookOpen, Mail, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 
 // === UTILS ===
@@ -855,12 +855,81 @@ function QuizRespostasTab() {
 
 // === MAIN COMPONENT ===
 export default function RevistaLicencasAdmin() {
+  const [showCampaignModal, setShowCampaignModal] = useState(false);
+  const [campaignTotal, setCampaignTotal] = useState(0);
+  const [campaignSending, setCampaignSending] = useState(false);
+
+  const handleCampaignClick = async () => {
+    try {
+      const { data, error } = await supabase.functions.invoke("enviar-campanha-revista", {
+        body: { dry_run: true },
+      });
+      if (error) throw error;
+      setCampaignTotal(data.total);
+      setShowCampaignModal(true);
+    } catch (e: any) {
+      toast.error("Erro ao verificar destinatários: " + e.message);
+    }
+  };
+
+  const handleCampaignSend = async () => {
+    setCampaignSending(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("enviar-campanha-revista", {
+        body: { dry_run: false },
+      });
+      if (error) throw error;
+      setShowCampaignModal(false);
+      toast.success(`${data.enviados} emails enviados com sucesso${data.erros > 0 ? ` | ${data.erros} erros` : ""}`);
+    } catch (e: any) {
+      toast.error("Erro ao enviar campanha: " + e.message);
+    } finally {
+      setCampaignSending(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Licenças Revista Virtual</h1>
-        <p className="text-sm text-muted-foreground">Gerencie todas as licenças de revistas digitais</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">Licenças Revista Virtual</h1>
+          <p className="text-sm text-muted-foreground">Gerencie todas as licenças de revistas digitais</p>
+        </div>
+        <Button onClick={handleCampaignClick} variant="outline" className="gap-2">
+          <Mail className="h-4 w-4" />
+          Enviar campanha por email
+        </Button>
       </div>
+
+      <Dialog open={showCampaignModal} onOpenChange={setShowCampaignModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Enviar campanha por email</DialogTitle>
+          </DialogHeader>
+          {campaignSending ? (
+            <div className="flex flex-col items-center gap-3 py-8">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <p className="text-muted-foreground">Enviando emails... aguarde</p>
+            </div>
+          ) : (
+            <>
+              <p className="text-sm text-muted-foreground">
+                Serão enviados emails para <strong>{campaignTotal}</strong> destinatários únicos.
+                <br />Deseja continuar?
+              </p>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setShowCampaignModal(false)}>
+                  Cancelar
+                </Button>
+                <Button onClick={handleCampaignSend} className="gap-2">
+                  <Send className="h-4 w-4" />
+                  Enviar agora
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <Tabs defaultValue="superintendente" className="w-full">
         <TabsList>
