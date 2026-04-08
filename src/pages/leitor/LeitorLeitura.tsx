@@ -404,7 +404,7 @@ export default function LeitorLeitura() {
       <LeitorInstallBanner />
 
       {/* Revistas grid */}
-      <div className="p-3">
+      <div className="p-4">
         {revistas.length === 0 ? (
           <div className="text-center py-20">
             <p className="text-white/50">Nenhuma revista disponível</p>
@@ -412,36 +412,36 @@ export default function LeitorLeitura() {
         ) : (
           <div
             className="max-w-2xl mx-auto"
-            style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}
+            style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "14px" }}
           >
             {revistas.map((r) => (
               <button
                 key={r.id}
                 onClick={() => handleSelectRevista(r)}
-                className="text-left overflow-hidden"
-                style={{ backgroundColor: "#111", borderRadius: "12px" }}
+                className="text-left overflow-hidden transition-transform active:scale-95"
+                style={{ backgroundColor: "#111", borderRadius: "10px" }}
               >
                 {r.capa_url ? (
                   <img
                     src={r.capa_url}
                     alt={r.titulo}
                     className="w-full object-cover"
-                    style={{ aspectRatio: "3/4" }}
+                    style={{ aspectRatio: "3/4", borderRadius: "10px 10px 0 0" }}
                   />
                 ) : (
                   <div
                     className="w-full flex items-center justify-center"
-                    style={{ aspectRatio: "3/4", backgroundColor: "#1a1a1a" }}
+                    style={{ aspectRatio: "3/4", backgroundColor: "#1a1a1a", borderRadius: "10px 10px 0 0" }}
                   >
-                    <span className="text-4xl">📖</span>
+                    <span className="text-3xl">📖</span>
                   </div>
                 )}
                 <p
-                  className="text-white font-medium"
+                  className="text-white/90 font-medium"
                   style={{
-                    padding: "10px 12px",
-                    fontSize: "12px",
-                    lineHeight: "1.4",
+                    padding: "8px 8px",
+                    fontSize: "11px",
+                    lineHeight: "1.3",
                     display: "-webkit-box",
                     WebkitLineClamp: 2,
                     WebkitBoxOrient: "vertical",
