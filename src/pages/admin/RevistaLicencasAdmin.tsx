@@ -56,8 +56,11 @@ type ShopifyLicencaRow = {
   expira_em: string | null;
   created_at: string;
   primeiro_acesso_em: string | null;
-  revistas_digitais?: { titulo: string; capa_url: string | null } | null;
+  versao_preferida: string | null;
+  revistas_digitais?: { titulo: string; capa_url: string | null; tipo_conteudo?: string | null } | null;
 };
+
+type CardFilterType = "vendas" | "ativas" | "cg_digital" | "leitor_cg" | "livros" | null;
 
 // === SUB-COMPONENTS ===
 
