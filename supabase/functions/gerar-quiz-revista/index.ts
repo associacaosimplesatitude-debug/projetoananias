@@ -59,7 +59,8 @@ serve(async (req) => {
       });
     }
 
-    const imageContents = paginas.slice(0, 8).map((url: string) => ({
+    const selectedPages = paginas.length > 3 ? paginas.slice(1, 9) : paginas.slice(0);
+    const imageContents = selectedPages.map((url: string) => ({
       type: "image_url" as const,
       image_url: { url },
     }));
@@ -75,14 +76,24 @@ serve(async (req) => {
         messages: [
           {
             role: "system",
-            content: `Você é um especialista em educação bíblica. Analise as imagens de uma lição de Escola Bíblica Dominical e crie exatamente 3 perguntas de múltipla escolha baseadas no conteúdo visual. Identifique a pergunta de fixação que já está impressa no final da lição nas imagens e use-a como uma das 3 perguntas. Gere mais 2 perguntas de múltipla escolha com base no conteúdo da lição.`,
+            content: `Você é um professor de Escola Bíblica Dominical (EBD). Analise as imagens desta lição e gere exatamente 3 perguntas de múltipla escolha sobre o CONTEÚDO BÍBLICO da lição.
+
+REGRAS OBRIGATÓRIAS:
+- As perguntas devem ser sobre o ensino bíblico, os versículos, os personagens bíblicos ou as aplicações práticas da lição
+- Use a pergunta de fixação que já aparece impressa no final da lição como uma das 3 perguntas
+- PROIBIDO perguntar sobre: autor, editora, faixa etária, número da revista, nome da série, ano, trimestre ou qualquer informação de capa/propaganda
+- IGNORE imagens de capa, contracapa, propaganda, índice, expediente e páginas introdutórias
+- Analise APENAS as páginas com conteúdo bíblico da lição
+- As opções incorretas devem ser plausíveis mas claramente erradas para quem leu a lição
+- Nível de dificuldade: adequado para adultos e jovens da EBD
+- Idioma: português brasileiro`,
           },
           {
             role: "user",
             content: [
               {
                 type: "text",
-                text: `Analise estas páginas da Lição ${licao.numero} "${licao.titulo || ""}" e crie 3 perguntas de múltipla escolha com 3 alternativas (A, B, C) cada. Uma das perguntas deve ser a pergunta de fixação que aparece impressa nas páginas da lição. As outras 2 devem testar o conhecimento do aluno sobre o conteúdo bíblico apresentado.`,
+                text: `Analise estas páginas da Lição ${licao.numero} "${licao.titulo || ""}" e crie 3 perguntas de múltipla escolha com 3 alternativas (A, B, C) cada, focando EXCLUSIVAMENTE no conteúdo bíblico ensinado na lição. Identifique a pergunta de fixação impressa nas páginas e use-a como uma das 3 perguntas.`,
               },
               ...imageContents,
             ],
