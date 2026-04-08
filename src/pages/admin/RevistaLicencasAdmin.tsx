@@ -380,23 +380,19 @@ function ShopifyTab() {
     queryKey: ["admin-revista-version-counts"],
     queryFn: async () => {
       const [cgRes, leitorRes, livrosRes] = await Promise.all([
-        supabase
-          .from("revista_licencas_shopify" as any)
-          .select("id", { count: "exact", head: true })
-          .eq("ativo", true)
-          .or("versao_preferida.eq.cg_digital,versao_preferida.is.null"),
-        supabase
-          .from("revista_licencas_shopify" as any)
-          .select("id", { count: "exact", head: true })
-          .eq("ativo", true)
-          .eq("versao_preferida", "leitor_cg"),
+        supabase.rpc("execute_readonly_query", {
+          sql_query: `SELECT COUNT(*)::int as total FROM revista_licencas_shopify rls INNER JOIN revistas_digitais rd ON rd.id = rls.revista_id WHERE rls.ativo = true AND (rls.versao_preferida = 'cg_digital' OR rls.versao_preferida IS NULL) AND COALESCE(rd.tipo_conteudo, 'revista') != 'livro_digital'`,
+        }),
+        supabase.rpc("execute_readonly_query", {
+          sql_query: `SELECT COUNT(*)::int as total FROM revista_licencas_shopify rls INNER JOIN revistas_digitais rd ON rd.id = rls.revista_id WHERE rls.ativo = true AND rls.versao_preferida = 'leitor_cg' AND COALESCE(rd.tipo_conteudo, 'revista') != 'livro_digital'`,
+        }),
         supabase.rpc("execute_readonly_query", {
           sql_query: `SELECT COUNT(*)::int as total FROM revista_licencas_shopify rls INNER JOIN revistas_digitais rd ON rd.id = rls.revista_id WHERE rls.ativo = true AND rd.tipo_conteudo = 'livro_digital'`,
         }),
       ]);
       return {
-        cgDigital: cgRes.count ?? 0,
-        leitorCg: leitorRes.count ?? 0,
+        cgDigital: (cgRes.data as any)?.[0]?.total ?? 0,
+        leitorCg: (leitorRes.data as any)?.[0]?.total ?? 0,
         livros: (livrosRes.data as any)?.[0]?.total ?? 0,
       };
     },
