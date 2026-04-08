@@ -476,9 +476,35 @@ function ShopifyTab() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const toggleCardFilter = (f: CardFilterType) => {
+    setCardFilter(prev => prev === f ? null : (f === "vendas" || f === "ativas" ? null : f));
+  };
+
+  const cardStyle = (f: CardFilterType) =>
+    cardFilter === f ? "cursor-pointer ring-2 ring-[#FFC107] border-[#FFC107]" : "cursor-pointer hover:shadow-md transition-shadow";
+
   const filtered = licencas.filter((l) => {
     if (filterAtivo === "ativo" && !l.ativo) return false;
     if (filterAtivo === "inativo" && l.ativo) return false;
+
+    if (cardFilter === "cg_digital") {
+      if (!l.ativo) return false;
+      const tipo = l.revistas_digitais?.tipo_conteudo;
+      if (tipo === "livro_digital") return false;
+      if (l.versao_preferida !== "cg_digital" && l.versao_preferida !== null) return false;
+    }
+    if (cardFilter === "leitor_cg") {
+      if (!l.ativo) return false;
+      const tipo = l.revistas_digitais?.tipo_conteudo;
+      if (tipo === "livro_digital") return false;
+      if (l.versao_preferida !== "leitor_cg") return false;
+    }
+    if (cardFilter === "livros") {
+      if (!l.ativo) return false;
+      const tipo = l.revistas_digitais?.tipo_conteudo;
+      if (tipo !== "livro_digital") return false;
+    }
+
     if (!search) return true;
     const s = search.toLowerCase();
     return (
