@@ -82,7 +82,16 @@ Deno.serve(async (req) => {
       });
     }
 
+    const CAMPAIGN_IMAGE_URL = "https://nccyrvfnvjngfyfvgnww.supabase.co/storage/v1/object/public/campaign-assets/campanha_whatsapp_v3.png";
+
     const components = [
+      {
+        type: "header",
+        parameters: [{
+          type: "image",
+          image: { link: CAMPAIGN_IMAGE_URL },
+        }],
+      },
       {
         type: "body",
         parameters: [{ type: "text", text: primeiroNome }],
