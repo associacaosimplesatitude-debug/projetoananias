@@ -653,6 +653,35 @@ export default function WhatsAppCampaigns() {
             })}
           </div>
         )}
+        {/* Test message modal */}
+        <Dialog open={testModalOpen} onOpenChange={setTestModalOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Enviar mensagem de teste</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <div className="space-y-2">
+                <Label htmlFor="test-numero">Número de WhatsApp (com DDD)</Label>
+                <Input
+                  id="test-numero"
+                  placeholder="11999999999"
+                  value={testNumero}
+                  onChange={(e) => setTestNumero(e.target.value.replace(/\D/g, ""))}
+                  maxLength={13}
+                />
+              </div>
+            </div>
+            <DialogFooter className="gap-2">
+              <Button variant="outline" onClick={() => { setTestModalOpen(false); setTestNumero(""); }}>
+                Cancelar
+              </Button>
+              <Button onClick={handleSendTest} disabled={testSending} className="gap-2">
+                {testSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                Enviar teste
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     );
   }
