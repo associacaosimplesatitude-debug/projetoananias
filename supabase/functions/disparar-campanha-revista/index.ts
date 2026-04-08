@@ -59,9 +59,9 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Call whatsapp-send-campaign
+    // Fire and forget: trigger first batch of whatsapp-send-campaign
     const sendUrl = `${supabaseUrl}/functions/v1/whatsapp-send-campaign`;
-    const sendRes = await fetch(sendUrl, {
+    fetch(sendUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -69,19 +69,16 @@ Deno.serve(async (req) => {
         apikey: Deno.env.get("SUPABASE_ANON_KEY")!,
       },
       body: JSON.stringify({ campanha_id }),
-    });
+    }).catch((e) => console.error("Erro ao iniciar primeiro lote:", e));
 
-    const sendData = await sendRes.json();
-
-    if (!sendRes.ok) {
-      return new Response(JSON.stringify({ error: sendData.error || "Erro no envio", details: sendData }), {
-        status: sendRes.status,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
+    // Return immediately - don't wait for completion
     return new Response(
-      JSON.stringify({ ...sendData, total: count || 0, dry_run: false }),
+      JSON.stringify({
+        started: true,
+        total: count || 0,
+        dry_run: false,
+        message: `Disparo iniciado para ${count || 0} destinatários pendentes. O envio será processado em lotes de 50.`,
+      }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error: any) {

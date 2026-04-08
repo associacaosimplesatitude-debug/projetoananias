@@ -7,6 +7,8 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+const BATCH_SIZE = 50;
+
 function calcularDesconto(temDesconto: boolean, percentualAtual: number): number {
   if (!temDesconto) return 20;
   if (percentualAtual < 30) return percentualAtual + 5;
@@ -64,7 +66,7 @@ serve(async (req) => {
       });
     }
 
-    // Update campaign status
+    // Update campaign status to enviando
     await supabase.from("whatsapp_campanhas").update({ status: "enviando" }).eq("id", campanha_id);
 
     // Get WhatsApp credentials from system_settings
@@ -87,12 +89,25 @@ serve(async (req) => {
       });
     }
 
-    // Fetch pending recipients
+    // Fetch ONLY a batch of pending recipients
     const { data: destinatarios } = await supabase
       .from("whatsapp_campanha_destinatarios")
       .select("*")
       .eq("campanha_id", campanha_id)
-      .eq("status_envio", "pendente");
+      .eq("status_envio", "pendente")
+      .limit(BATCH_SIZE);
+
+    const batchCount = (destinatarios || []).length;
+    console.log(`[send-campaign] Lote: ${batchCount} destinatários pendentes (batch_size=${BATCH_SIZE})`);
+
+    if (batchCount === 0) {
+      // No more pending - mark as done
+      await supabase.from("whatsapp_campanhas").update({ status: "enviada" }).eq("id", campanha_id);
+      return new Response(
+        JSON.stringify({ success: true, enviados: 0, erros: 0, batch_done: true, remaining: 0 }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     const template = campanha.whatsapp_templates;
     const templateName = template?.nome;
@@ -112,9 +127,6 @@ serve(async (req) => {
     const usesLinkOferta = hasUrlDinamica || variables.some(
       (v: string) => v.replace(/\{\{|\}\}/g, "").trim() === "link_oferta"
     );
-
-    console.log("[send-campaign] botoes:", JSON.stringify(botoes));
-    console.log("[send-campaign] hasUrlDinamica:", hasUrlDinamica, "usesLinkOferta:", usesLinkOferta);
 
     let enviados = 0;
     let erros = 0;
@@ -266,7 +278,6 @@ serve(async (req) => {
 
         // Add dynamic URL button components - ALWAYS when hasUrlDinamica
         if (hasUrlDinamica) {
-          // For 'utilidade' template or link_escolha, use phone number as suffix
           const usesLinkEscolha = variables.some(
             (v: string) => v.replace(/\{\{|\}\}/g, "").trim() === "link_escolha"
           ) || variables.includes("link_escolha") || templateName === "utilidade";
@@ -291,8 +302,6 @@ serve(async (req) => {
             ...(components.length > 0 ? { components } : {}),
           },
         };
-
-        console.log("[send-campaign] Payload para", phone, ":", JSON.stringify(payload, null, 2));
 
         const res = await fetch(
           `https://graph.facebook.com/v22.0/${phoneNumberId}/messages`,
@@ -343,15 +352,59 @@ serve(async (req) => {
       await new Promise((r) => setTimeout(r, 100));
     }
 
-    // Update campaign counters
+    // Update campaign counters INCREMENTALLY
+    const { data: currentCampanha } = await supabase
+      .from("whatsapp_campanhas")
+      .select("total_enviados, total_erros")
+      .eq("id", campanha_id)
+      .single();
+
+    const newTotalEnviados = (currentCampanha?.total_enviados || 0) + enviados;
+    const newTotalErros = (currentCampanha?.total_erros || 0) + erros;
+
+    // Check remaining pending
+    const { count: remaining } = await supabase
+      .from("whatsapp_campanha_destinatarios")
+      .select("*", { count: "exact", head: true })
+      .eq("campanha_id", campanha_id)
+      .eq("status_envio", "pendente");
+
+    const hasMore = (remaining || 0) > 0;
+
     await supabase.from("whatsapp_campanhas").update({
-      status: "enviada",
-      total_enviados: enviados,
-      total_erros: erros,
+      status: hasMore ? "enviando" : "enviada",
+      total_enviados: newTotalEnviados,
+      total_erros: newTotalErros,
     }).eq("id", campanha_id);
 
+    console.log(`[send-campaign] Lote concluído: +${enviados} enviados, +${erros} erros. Total: ${newTotalEnviados}/${newTotalErros}. Restantes: ${remaining || 0}`);
+
+    // If there are more pending, trigger next batch automatically
+    if (hasMore) {
+      console.log(`[send-campaign] Disparando próximo lote (${remaining} restantes)...`);
+      const nextBatchUrl = `${supabaseUrl}/functions/v1/whatsapp-send-campaign`;
+      // Fire and forget - don't await the response
+      fetch(nextBatchUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: authHeader!,
+          apikey: Deno.env.get("SUPABASE_ANON_KEY")!,
+        },
+        body: JSON.stringify({ campanha_id }),
+      }).catch((e) => console.error("[send-campaign] Erro ao disparar próximo lote:", e));
+    }
+
     return new Response(
-      JSON.stringify({ success: true, enviados, erros }),
+      JSON.stringify({
+        success: true,
+        batch_enviados: enviados,
+        batch_erros: erros,
+        total_enviados: newTotalEnviados,
+        total_erros: newTotalErros,
+        remaining: remaining || 0,
+        batch_done: !hasMore,
+      }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err: any) {
