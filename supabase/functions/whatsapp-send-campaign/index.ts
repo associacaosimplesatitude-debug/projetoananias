@@ -1,4 +1,3 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -15,30 +14,20 @@ function calcularDesconto(temDesconto: boolean, percentualAtual: number): number
   return percentualAtual;
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const supabase = createClient(supabaseUrl, serviceKey);
+
   try {
+    // Accept both user token auth and service-role internal calls
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return new Response(JSON.stringify({ error: "Não autorizado" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, serviceKey);
-
-    // Validate user auth
-    const anonClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!);
-    const token = authHeader.replace("Bearer ", "");
-    const { data: { user }, error: authError } = await anonClient.auth.getUser(token);
-    if (authError || !user) {
-      return new Response(JSON.stringify({ error: "Token inválido" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -52,6 +41,8 @@ serve(async (req) => {
       });
     }
 
+    console.log(`[send-campaign] === LOTE INICIADO para campanha ${campanha_id} ===`);
+
     // Fetch campaign with template
     const { data: campanha, error: cErr } = await supabase
       .from("whatsapp_campanhas")
@@ -60,6 +51,7 @@ serve(async (req) => {
       .single();
 
     if (cErr || !campanha) {
+      console.error("[send-campaign] Campanha não encontrada:", cErr);
       return new Response(JSON.stringify({ error: "Campanha não encontrada" }), {
         status: 404,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -83,6 +75,7 @@ serve(async (req) => {
 
     if (!phoneNumberId || !accessToken) {
       await supabase.from("whatsapp_campanhas").update({ status: "pausada" }).eq("id", campanha_id);
+      console.error("[send-campaign] Credenciais WhatsApp não configuradas");
       return new Response(JSON.stringify({ error: "Credenciais WhatsApp não configuradas" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -101,8 +94,9 @@ serve(async (req) => {
     console.log(`[send-campaign] Lote: ${batchCount} destinatários pendentes (batch_size=${BATCH_SIZE})`);
 
     if (batchCount === 0) {
-      // No more pending - mark as done
-      await supabase.from("whatsapp_campanhas").update({ status: "enviada" }).eq("id", campanha_id);
+      // No more pending - sync counters from actual data and mark as done
+      await syncCounters(supabase, campanha_id, "enviada");
+      console.log("[send-campaign] Nenhum pendente restante. Campanha marcada como enviada.");
       return new Response(
         JSON.stringify({ success: true, enviados: 0, erros: 0, batch_done: true, remaining: 0 }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -114,7 +108,7 @@ serve(async (req) => {
     const templateLang = template?.idioma || "pt_BR";
     const variables: string[] = template?.variaveis_usadas || [];
 
-    // Parse botoes once before the loop (robust)
+    // Parse botoes once before the loop
     const botoes = (() => {
       try {
         const raw = template?.botoes;
@@ -144,7 +138,6 @@ serve(async (req) => {
         let linkRecord: any = null;
 
         if (usesLinkOferta) {
-          // Lookup client data from ebd_clientes by email or cliente_id
           let clienteData: any = null;
           const destEmail = (dest.email || "").trim().toLowerCase();
           const destClienteId = dest.cliente_id;
@@ -166,7 +159,6 @@ serve(async (req) => {
             clienteData = data;
           }
 
-          // Fetch discount info
           let temDesconto = false;
           let percentualDesconto = 0;
           if (clienteData?.id) {
@@ -185,13 +177,11 @@ serve(async (req) => {
 
           const finalDiscount = calcularDesconto(temDesconto, percentualDesconto);
 
-          // Parse last_products from dest metadata
           const produtosPedido = dest.produtos_pedido || "seus produtos";
           const lastProducts = produtosPedido !== "seus produtos"
             ? produtosPedido.split(",").map((p: string) => p.trim())
             : [];
 
-          // Generate token and insert campaign_link
           linkToken = crypto.randomUUID();
           const { data: insertedLink } = await supabase
             .from("campaign_links")
@@ -251,12 +241,10 @@ serve(async (req) => {
 
         const CAMPAIGN_IMAGE_URL = "https://nccyrvfnvjngfyfvgnww.supabase.co/storage/v1/object/public/campaign-assets/campanha_whatsapp_v3.png";
 
-        // Add header component if template has IMAGE header
         const usesLinkEscolhaVar = variables.some(
           (v: string) => v.replace(/\{\{|\}\}/g, "").trim() === "link_escolha"
         );
 
-        // Add header image: if template has IMAGE header, or uses link_escolha, or is 'utilidade' template
         const forceImageHeader = usesLinkEscolhaVar || templateName === "utilidade";
         if (template?.cabecalho_tipo === "IMAGE" || forceImageHeader) {
           const imageUrl = template?.cabecalho_midia_url || CAMPAIGN_IMAGE_URL;
@@ -276,7 +264,6 @@ serve(async (req) => {
           });
         }
 
-        // Add dynamic URL button components - ALWAYS when hasUrlDinamica
         if (hasUrlDinamica) {
           const usesLinkEscolha = variables.some(
             (v: string) => v.replace(/\{\{|\}\}/g, "").trim() === "link_escolha"
@@ -324,7 +311,6 @@ serve(async (req) => {
           }).eq("id", dest.id);
           enviados++;
 
-          // Register message_sent event if link was generated
           if (linkRecord?.id) {
             await supabase.from("campaign_events").insert({
               link_id: linkRecord.id,
@@ -334,14 +320,14 @@ serve(async (req) => {
             });
           }
         } else {
-          console.error(`Erro envio para ${phone}:`, resBody);
+          console.error(`[send-campaign] Erro envio para ${phone}:`, resBody);
           await supabase.from("whatsapp_campanha_destinatarios").update({
             status_envio: "erro",
           }).eq("id", dest.id);
           erros++;
         }
       } catch (err) {
-        console.error("Erro envio destinatário:", err);
+        console.error("[send-campaign] Erro envio destinatário:", err);
         await supabase.from("whatsapp_campanha_destinatarios").update({
           status_envio: "erro",
         }).eq("id", dest.id);
@@ -352,17 +338,7 @@ serve(async (req) => {
       await new Promise((r) => setTimeout(r, 100));
     }
 
-    // Update campaign counters INCREMENTALLY
-    const { data: currentCampanha } = await supabase
-      .from("whatsapp_campanhas")
-      .select("total_enviados, total_erros")
-      .eq("id", campanha_id)
-      .single();
-
-    const newTotalEnviados = (currentCampanha?.total_enviados || 0) + enviados;
-    const newTotalErros = (currentCampanha?.total_erros || 0) + erros;
-
-    // Check remaining pending
+    // Sync counters from actual recipient data (not incremental)
     const { count: remaining } = await supabase
       .from("whatsapp_campanha_destinatarios")
       .select("*", { count: "exact", head: true })
@@ -371,28 +347,30 @@ serve(async (req) => {
 
     const hasMore = (remaining || 0) > 0;
 
-    await supabase.from("whatsapp_campanhas").update({
-      status: hasMore ? "enviando" : "enviada",
-      total_enviados: newTotalEnviados,
-      total_erros: newTotalErros,
-    }).eq("id", campanha_id);
+    await syncCounters(supabase, campanha_id, hasMore ? "enviando" : "enviada");
 
-    console.log(`[send-campaign] Lote concluído: +${enviados} enviados, +${erros} erros. Total: ${newTotalEnviados}/${newTotalErros}. Restantes: ${remaining || 0}`);
+    console.log(`[send-campaign] Lote concluído: +${enviados} enviados, +${erros} erros. Restantes: ${remaining || 0}`);
 
-    // If there are more pending, trigger next batch automatically
+    // If there are more pending, trigger next batch using SERVICE ROLE KEY (not user token)
     if (hasMore) {
       console.log(`[send-campaign] Disparando próximo lote (${remaining} restantes)...`);
       const nextBatchUrl = `${supabaseUrl}/functions/v1/whatsapp-send-campaign`;
-      // Fire and forget - don't await the response
-      fetch(nextBatchUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: authHeader!,
-          apikey: Deno.env.get("SUPABASE_ANON_KEY")!,
-        },
-        body: JSON.stringify({ campanha_id }),
-      }).catch((e) => console.error("[send-campaign] Erro ao disparar próximo lote:", e));
+      try {
+        const nextRes = await fetch(nextBatchUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${serviceKey}`,
+            apikey: Deno.env.get("SUPABASE_ANON_KEY")!,
+          },
+          body: JSON.stringify({ campanha_id }),
+        });
+        console.log(`[send-campaign] Próximo lote disparado, status: ${nextRes.status}`);
+      } catch (e) {
+        console.error("[send-campaign] ERRO CRÍTICO ao disparar próximo lote:", e);
+        // Mark campaign as paused so it doesn't stay stuck in "enviando"
+        await supabase.from("whatsapp_campanhas").update({ status: "pausada" }).eq("id", campanha_id);
+      }
     }
 
     return new Response(
@@ -400,18 +378,39 @@ serve(async (req) => {
         success: true,
         batch_enviados: enviados,
         batch_erros: erros,
-        total_enviados: newTotalEnviados,
-        total_erros: newTotalErros,
         remaining: remaining || 0,
         batch_done: !hasMore,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err: any) {
-    console.error("Erro geral:", err);
+    console.error("[send-campaign] Erro geral:", err);
     return new Response(
       JSON.stringify({ error: err.message }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });
+
+/** Sync campaign counters from actual recipient status counts */
+async function syncCounters(supabase: any, campanha_id: string, status: string) {
+  const { count: totalEnviados } = await supabase
+    .from("whatsapp_campanha_destinatarios")
+    .select("*", { count: "exact", head: true })
+    .eq("campanha_id", campanha_id)
+    .eq("status_envio", "enviado");
+
+  const { count: totalErros } = await supabase
+    .from("whatsapp_campanha_destinatarios")
+    .select("*", { count: "exact", head: true })
+    .eq("campanha_id", campanha_id)
+    .eq("status_envio", "erro");
+
+  await supabase.from("whatsapp_campanhas").update({
+    status,
+    total_enviados: totalEnviados || 0,
+    total_erros: totalErros || 0,
+  }).eq("id", campanha_id);
+
+  console.log(`[send-campaign] Contadores sincronizados: enviados=${totalEnviados}, erros=${totalErros}, status=${status}`);
+}

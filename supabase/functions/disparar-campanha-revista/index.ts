@@ -59,13 +59,14 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Fire and forget: trigger first batch of whatsapp-send-campaign
+    // Trigger first batch using SERVICE ROLE KEY (not user token)
+    // This ensures the chain of batches doesn't break when user token expires
     const sendUrl = `${supabaseUrl}/functions/v1/whatsapp-send-campaign`;
     fetch(sendUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: authHeader,
+        Authorization: `Bearer ${serviceKey}`,
         apikey: Deno.env.get("SUPABASE_ANON_KEY")!,
       },
       body: JSON.stringify({ campanha_id }),
