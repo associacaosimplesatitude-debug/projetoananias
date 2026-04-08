@@ -37,53 +37,126 @@ REGRAS DE RESPOSTA:
 - Máximo 4 linhas por resposta — seja concisa
 - Não responda perguntas fora do contexto de escolha das versões`;
 
+// Try Lovable AI Gateway first, fallback to Anthropic
+async function callLovableAI(messages: any[]) {
+  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+  if (!LOVABLE_API_KEY) {
+    console.log("LOVABLE_API_KEY not available, skipping gateway");
+    return null;
+  }
+
+  const models = ["google/gemini-2.5-flash", "google/gemini-2.5-flash-lite"];
+
+  for (const model of models) {
+    console.log(`Trying Lovable AI with model: ${model}`);
+    try {
+      const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${LOVABLE_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model,
+          messages: [{ role: "system", content: SYSTEM_PROMPT }, ...messages],
+        }),
+      });
+
+      console.log(`Model ${model} response status:`, response.status);
+
+      if (response.status === 429) return { rateLimited: true };
+      if (response.status === 402) return { paymentRequired: true };
+
+      if (response.ok) {
+        const data = await response.json();
+        const reply = data.choices?.[0]?.message?.content;
+        if (reply) return { reply };
+      }
+
+      const errText = await response.text();
+      console.error(`Model ${model} failed:`, response.status, errText);
+    } catch (e) {
+      console.error(`Model ${model} error:`, e);
+    }
+  }
+
+  return null;
+}
+
+async function callAnthropicFallback(messages: any[]) {
+  const apiKey = Deno.env.get("OPENAI_API_KEY");
+  if (!apiKey) {
+    console.log("No fallback API key available");
+    return null;
+  }
+
+  console.log("Falling back to OpenAI API");
+  try {
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        max_tokens: 500,
+        messages: [{ role: "system", content: SYSTEM_PROMPT }, ...messages],
+      }),
+    });
+
+    console.log("OpenAI response status:", response.status);
+
+    if (response.ok) {
+      const data = await response.json();
+      const reply = data.choices?.[0]?.message?.content;
+      if (reply) return { reply };
+    }
+
+    const errText = await response.text();
+    console.error("OpenAI error:", response.status, errText);
+  } catch (e) {
+    console.error("OpenAI fallback error:", e);
+  }
+
+  return null;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
     const { messages } = await req.json();
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          ...messages,
-        ],
-      }),
-    });
+    // Try Lovable AI first
+    const lovableResult = await callLovableAI(messages);
 
-    if (!response.ok) {
-      const status = response.status;
-      if (status === 429) {
-        return new Response(JSON.stringify({ error: "Muitas mensagens enviadas. Aguarde um momento." }), {
-          status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      if (status === 402) {
-        return new Response(JSON.stringify({ error: "Serviço temporariamente indisponível." }), {
-          status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      const t = await response.text();
-      console.error("AI gateway error:", status, t);
-      return new Response(JSON.stringify({ error: "Erro ao processar sua mensagem." }), {
-        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    if (lovableResult?.rateLimited) {
+      return new Response(JSON.stringify({ error: "Muitas mensagens enviadas. Aguarde um momento." }), {
+        status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (lovableResult?.paymentRequired) {
+      return new Response(JSON.stringify({ error: "Serviço temporariamente indisponível." }), {
+        status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (lovableResult?.reply) {
+      return new Response(JSON.stringify({ reply: lovableResult.reply }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const data = await response.json();
-    const reply = data.choices?.[0]?.message?.content || "Desculpe, não consegui processar sua pergunta.";
+    // Fallback to OpenAI
+    const fallbackResult = await callAnthropicFallback(messages);
+    if (fallbackResult?.reply) {
+      return new Response(JSON.stringify({ reply: fallbackResult.reply }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
-    return new Response(JSON.stringify({ reply }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    return new Response(JSON.stringify({ error: "Não foi possível processar sua mensagem." }), {
+      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
     console.error("chat-escolha-versao error:", e);
