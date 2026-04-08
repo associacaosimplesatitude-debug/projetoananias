@@ -103,7 +103,7 @@ Deno.serve(async (req) => {
             sub_type: "url",
             index: 0,
             parameters: [
-              { type: "text", text: linkEscolha },
+              { type: "text", text: rawNumero },
             ],
           },
         ],

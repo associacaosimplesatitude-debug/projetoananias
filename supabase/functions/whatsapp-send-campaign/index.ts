@@ -259,11 +259,18 @@ serve(async (req) => {
 
         // Add dynamic URL button components - ALWAYS when hasUrlDinamica
         if (hasUrlDinamica) {
+          // If template uses link_escolha, send the raw phone number as suffix
+          const usesLinkEscolha = variables.some(
+            (v: string) => v.replace(/\{\{|\}\}/g, "").trim() === "link_escolha"
+          ) || variables.includes("link_escolha");
+          const buttonSuffix = usesLinkEscolha
+            ? (dest.telefone || "").replace(/\D/g, "").replace(/^55/, "")
+            : linkToken;
           components.push({
             type: "button",
             sub_type: "url",
             index: 0,
-            parameters: [{ type: "text", text: linkToken }],
+            parameters: [{ type: "text", text: buttonSuffix || linkToken }],
           });
         }
 
