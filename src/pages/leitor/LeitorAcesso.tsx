@@ -20,29 +20,6 @@ function extractDigits(value: string) {
   return value.replace(/\D/g, "");
 }
 
-function useLeitorManifest() {
-  useEffect(() => {
-    const link =
-      document.querySelector('link[rel="manifest"]') ||
-      document.createElement("link");
-    link.setAttribute("rel", "manifest");
-    const original = link.getAttribute("href");
-    link.setAttribute("href", "/leitor-manifest.json");
-    if (!link.parentNode) document.head.appendChild(link);
-
-    const meta = document.querySelector('meta[name="theme-color"]');
-    const originalColor = meta?.getAttribute("content");
-    meta?.setAttribute("content", "#000000");
-
-    return () => {
-      link.setAttribute("href", original || "/manifest.webmanifest");
-      meta?.setAttribute("content", originalColor || "#1B3A5C");
-    };
-  }, []);
-}
-
-export { useLeitorManifest };
-
 export default function LeitorAcesso() {
   const navigate = useNavigate();
   const [checkingSession, setCheckingSession] = useState(true);
@@ -54,8 +31,6 @@ export default function LeitorAcesso() {
   const [resendTimer, setResendTimer] = useState(0);
   const [otpMotivo, setOtpMotivo] = useState<"primeiro_acesso" | "prazo_expirado">("primeiro_acesso");
   const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
-
-  useLeitorManifest();
 
   useEffect(() => {
     const session = getValidRevistaSession();
@@ -187,11 +162,13 @@ export default function LeitorAcesso() {
     <div className="min-h-screen flex items-center justify-center p-4" style={{ backgroundColor: "#000000" }}>
       <div className="w-full max-w-[400px] space-y-6">
         <div className="text-center space-y-3">
-          <img
-            src="/icons/leitor-cg-192.png"
-            alt="Leitor CG"
-            className="w-20 h-20 mx-auto object-contain"
-          />
+          <div className="w-20 h-20 mx-auto rounded-full overflow-hidden" style={{ backgroundColor: "#000" }}>
+            <img
+              src="/icons/leitor-cg-192.png"
+              alt="Leitor CG"
+              className="w-20 h-20 rounded-full object-contain"
+            />
+          </div>
           <h1 className="text-2xl font-bold text-white">Leitor CG</h1>
           <p className="text-white/50">
             {step === "numero" ? "Acesse sua revista" : "Código enviado!"}

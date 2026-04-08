@@ -31,6 +31,27 @@
     <link rel="apple-touch-icon" href="/icons/icone-central.png">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <!-- Dynamic manifest injection based on route -->
+    <script>
+      (function() {
+        var path = window.location.pathname;
+        var link = document.createElement('link');
+        link.rel = 'manifest';
+        if (path.indexOf('/leitor') === 0) {
+          link.href = '/leitor-manifest.json';
+          var meta = document.querySelector('meta[name="theme-color"]');
+          if (meta) meta.content = '#000000';
+          var title = document.querySelector('meta[name="apple-mobile-web-app-title"]');
+          if (title) title.content = 'Leitor CG';
+          var icon = document.querySelector('link[rel="apple-touch-icon"]');
+          if (icon) icon.href = '/icons/leitor-cg-192.png';
+        } else {
+          link.href = '/manifest.webmanifest';
+        }
+        document.head.appendChild(link);
+      })();
+    </script>
   </head>
 
   <body>
