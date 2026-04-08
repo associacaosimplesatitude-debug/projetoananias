@@ -10,8 +10,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Switch } from "@/components/ui/switch";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Separator } from "@/components/ui/separator";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
-import { Plus, Search, Filter, Users, CreditCard, TrendingUp, Send, Ban, ShoppingCart, Trophy, Monitor, WifiOff, BookOpen, Mail, Loader2 } from "lucide-react";
+import { Plus, Search, Filter, Users, CreditCard, TrendingUp, Send, Ban, ShoppingCart, Trophy, Monitor, WifiOff, BookOpen, Mail, Loader2, CheckCircle2, XCircle, MessageSquare, MailIcon, Clock, User, Phone, AtSign, BookMarked, ShieldCheck, Hash, CalendarDays } from "lucide-react";
 import { format } from "date-fns";
 
 // === UTILS ===
@@ -56,6 +60,7 @@ type ShopifyLicencaRow = {
   expira_em: string | null;
   created_at: string;
   primeiro_acesso_em: string | null;
+  ultimo_acesso_em: string | null;
   versao_preferida: string | null;
   revistas_digitais?: { titulo: string; capa_url: string | null; tipo_conteudo?: string | null } | null;
 };
@@ -356,6 +361,252 @@ function SuperintendentTab() {
   );
 }
 
+// === EDIT DRAWER ===
+function formatWhatsappMask(value: string): string {
+  const digits = value.replace(/\D/g, "");
+  if (digits.length <= 2) return `(${digits}`;
+  if (digits.length <= 7) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7, 11)}`;
+}
+
+function LicencaEditDrawer({ licenca, open, onClose, onSaved }: {
+  licenca: ShopifyLicencaRow | null;
+  open: boolean;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [editNome, setEditNome] = useState("");
+  const [editWhatsapp, setEditWhatsapp] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editAtivo, setEditAtivo] = useState(true);
+
+  const licId = licenca?.id;
+  const [prevId, setPrevId] = useState<string | null>(null);
+  if (licId && licId !== prevId) {
+    setPrevId(licId);
+    setEditNome(licenca?.nome_comprador || "");
+    setEditWhatsapp(formatWhatsappMask(licenca?.whatsapp || ""));
+    setEditEmail(licenca?.email || "");
+    setEditAtivo(licenca?.ativo ?? true);
+  }
+
+  const { data: whatsappLogs = [] } = useQuery({
+    queryKey: ["licenca-whatsapp-logs", licenca?.whatsapp],
+    enabled: !!licenca?.whatsapp && open,
+    queryFn: async () => {
+      const phone = licenca!.whatsapp.replace(/\D/g, "");
+      const { data } = await supabase
+        .from("whatsapp_mensagens")
+        .select("id, created_at, status, tipo_mensagem")
+        .or(`telefone.like.%${phone}%,telefone.like.%${phone.slice(-8)}%`)
+        .order("created_at", { ascending: false })
+        .limit(5);
+      return data || [];
+    },
+  });
+
+  const { data: emailLogs = [] } = useQuery({
+    queryKey: ["licenca-email-logs", licenca?.email],
+    enabled: !!licenca?.email && open,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("ebd_email_logs")
+        .select("id, created_at, status, assunto")
+        .eq("destinatario", licenca!.email!)
+        .order("created_at", { ascending: false })
+        .limit(5);
+      return data || [];
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke(
+        "revista-licencas-shopify-admin",
+        {
+          body: {
+            action: "update",
+            id: licenca!.id,
+            nome_comprador: editNome,
+            whatsapp: editWhatsapp.replace(/\D/g, ""),
+            email: editEmail,
+            ativo: editAtivo,
+          },
+        }
+      );
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+    },
+    onSuccess: () => {
+      toast.success("Licença atualizada");
+      onSaved();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const resendMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { data, error } = await supabase.functions.invoke(
+        "revista-licencas-shopify-admin",
+        { body: { action: "resend", id } }
+      );
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+    },
+    onSuccess: () => toast.success("Acesso reenviado com sucesso"),
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  if (!licenca) return null;
+
+  return (
+    <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
+      <SheetContent className="w-full sm:max-w-lg p-0 flex flex-col">
+        <SheetHeader className="p-6 pb-2">
+          <SheetTitle className="flex items-center gap-2">
+            <User className="h-5 w-5" />
+            Detalhes da Licença
+          </SheetTitle>
+        </SheetHeader>
+        <ScrollArea className="flex-1 px-6 pb-6">
+          <div className="space-y-6">
+            {/* SEÇÃO 1 — Dados editáveis */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Dados do cliente</h3>
+              <div className="space-y-3">
+                <div>
+                  <Label className="flex items-center gap-1.5 mb-1.5"><User className="h-3.5 w-3.5" />Nome completo</Label>
+                  <Input value={editNome} onChange={(e) => setEditNome(e.target.value)} />
+                </div>
+                <div>
+                  <Label className="flex items-center gap-1.5 mb-1.5"><Phone className="h-3.5 w-3.5" />WhatsApp</Label>
+                  <Input value={editWhatsapp} onChange={(e) => setEditWhatsapp(formatWhatsappMask(e.target.value))} placeholder="(11) 98765-4321" maxLength={15} />
+                </div>
+                <div>
+                  <Label className="flex items-center gap-1.5 mb-1.5"><AtSign className="h-3.5 w-3.5" />Email</Label>
+                  <Input type="email" value={editEmail} onChange={(e) => setEditEmail(e.target.value)} />
+                </div>
+                <div>
+                  <Label className="flex items-center gap-1.5 mb-1.5"><BookMarked className="h-3.5 w-3.5" />Revista vinculada</Label>
+                  <Input value={licenca.revistas_digitais?.titulo || "—"} disabled className="bg-muted" />
+                </div>
+                <div className="flex items-center justify-between">
+                  <Label className="flex items-center gap-1.5"><ShieldCheck className="h-3.5 w-3.5" />Status</Label>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-muted-foreground">{editAtivo ? "Ativo" : "Inativo"}</span>
+                    <Switch checked={editAtivo} onCheckedChange={setEditAtivo} />
+                  </div>
+                </div>
+                <Button onClick={() => updateMutation.mutate()} disabled={updateMutation.isPending} className="w-full">
+                  {updateMutation.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Salvando...</> : "Salvar alterações"}
+                </Button>
+              </div>
+            </div>
+
+            <Separator />
+
+            {/* SEÇÃO 2 — Histórico de acessos */}
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Histórico de acessos</h3>
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div className="bg-muted/50 rounded-lg p-3">
+                  <p className="text-muted-foreground text-xs mb-1">Primeiro acesso</p>
+                  <p className="font-medium">{licenca.primeiro_acesso_em ? format(new Date(licenca.primeiro_acesso_em), "dd/MM/yyyy HH:mm") : "Nunca acessou"}</p>
+                </div>
+                <div className="bg-muted/50 rounded-lg p-3">
+                  <p className="text-muted-foreground text-xs mb-1">Último acesso</p>
+                  <p className="font-medium">{licenca.ultimo_acesso_em ? format(new Date(licenca.ultimo_acesso_em), "dd/MM/yyyy HH:mm") : "Nunca acessou"}</p>
+                </div>
+                <div className="bg-muted/50 rounded-lg p-3">
+                  <p className="text-muted-foreground text-xs mb-1">Versão preferida</p>
+                  <Badge variant={licenca.versao_preferida === "leitor_cg" ? "secondary" : "default"}>
+                    {licenca.versao_preferida === "leitor_cg" ? "Leitor CG" : "CG Digital"}
+                  </Badge>
+                </div>
+                <div className="bg-muted/50 rounded-lg p-3">
+                  <p className="text-muted-foreground text-xs mb-1">Pedido Shopify</p>
+                  <p className="font-medium font-mono">{licenca.shopify_order_number ? `#${licenca.shopify_order_number}` : "Manual"}</p>
+                </div>
+                <div className="bg-muted/50 rounded-lg p-3 col-span-2">
+                  <p className="text-muted-foreground text-xs mb-1">Data da compra</p>
+                  <p className="font-medium">{format(new Date(licenca.created_at), "dd/MM/yyyy 'às' HH:mm")}</p>
+                </div>
+              </div>
+            </div>
+
+            <Separator />
+
+            {/* SEÇÃO 3 — Envio de acesso */}
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Envio de acesso</h3>
+              <div className="flex gap-2">
+                <Button variant="outline" className="flex-1 gap-2" onClick={() => resendMutation.mutate(licenca.id)} disabled={!licenca.ativo || resendMutation.isPending}>
+                  {resendMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageSquare className="h-4 w-4" />}
+                  Reenviar via WhatsApp
+                </Button>
+                {licenca.email && (
+                  <Button variant="outline" className="flex-1 gap-2" onClick={() => resendMutation.mutate(licenca.id)} disabled={!licenca.ativo || resendMutation.isPending}>
+                    {resendMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <MailIcon className="h-4 w-4" />}
+                    Reenviar via Email
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            <Separator />
+
+            {/* SEÇÃO 4 — Log de envios */}
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Log de envios</h3>
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5"><MessageSquare className="h-3.5 w-3.5" />WhatsApp</p>
+                {whatsappLogs.length === 0 ? (
+                  <p className="text-xs text-muted-foreground italic pl-5">Nenhum envio registrado</p>
+                ) : (
+                  <div className="space-y-1">
+                    {whatsappLogs.map((log: any) => (
+                      <div key={log.id} className="flex items-center gap-2 text-xs py-1 px-2 rounded bg-muted/30">
+                        {["enviado", "sent", "delivered"].includes(log.status) ? (
+                          <CheckCircle2 className="h-3.5 w-3.5 text-green-500 flex-shrink-0" />
+                        ) : (
+                          <XCircle className="h-3.5 w-3.5 text-destructive flex-shrink-0" />
+                        )}
+                        <span className="text-muted-foreground">{format(new Date(log.created_at), "dd/MM HH:mm")}</span>
+                        <span className="truncate">{log.tipo_mensagem || log.status}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5"><MailIcon className="h-3.5 w-3.5" />Email</p>
+                {emailLogs.length === 0 ? (
+                  <p className="text-xs text-muted-foreground italic pl-5">Nenhum envio registrado</p>
+                ) : (
+                  <div className="space-y-1">
+                    {emailLogs.map((log: any) => (
+                      <div key={log.id} className="flex items-center gap-2 text-xs py-1 px-2 rounded bg-muted/30">
+                        {["enviado", "sent", "delivered"].includes(log.status) ? (
+                          <CheckCircle2 className="h-3.5 w-3.5 text-green-500 flex-shrink-0" />
+                        ) : (
+                          <XCircle className="h-3.5 w-3.5 text-destructive flex-shrink-0" />
+                        )}
+                        <span className="text-muted-foreground">{format(new Date(log.created_at), "dd/MM HH:mm")}</span>
+                        <span className="truncate">{log.assunto || log.status}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </ScrollArea>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+// === SHOPIFY TAB ===
 function ShopifyTab() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
@@ -367,6 +618,7 @@ function ShopifyTab() {
   const [formEmail, setFormEmail] = useState("");
   const [formRevistaId, setFormRevistaId] = useState("");
   const [formExpira, setFormExpira] = useState("");
+  const [selectedLicenca, setSelectedLicenca] = useState<ShopifyLicencaRow | null>(null);
 
   const { data: licencas = [], isLoading } = useQuery({
     queryKey: ["admin-revista-licencas-shopify"],
@@ -618,6 +870,7 @@ function ShopifyTab() {
                 <TableHead>Pedido</TableHead>
                 <TableHead>Data</TableHead>
                 <TableHead>Logou</TableHead>
+                <TableHead>Último acesso</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Ações</TableHead>
               </TableRow>
@@ -630,7 +883,14 @@ function ShopifyTab() {
               ) : (
                 filtered.map((l) => (
                   <TableRow key={l.id}>
-                    <TableCell className="font-medium">{l.nome_comprador || "—"}</TableCell>
+                    <TableCell>
+                      <button
+                        className="font-medium text-primary hover:underline cursor-pointer text-left"
+                        onClick={() => setSelectedLicenca(l)}
+                      >
+                        {l.nome_comprador || "—"}
+                      </button>
+                    </TableCell>
                     <TableCell>{l.whatsapp}</TableCell>
                     <TableCell className="text-sm">{l.email || "—"}</TableCell>
                     <TableCell>{l.revistas_digitais?.titulo || "—"}</TableCell>
@@ -641,6 +901,7 @@ function ShopifyTab() {
                     </TableCell>
                     <TableCell>{format(new Date(l.created_at), "dd/MM/yyyy 'às' HH:mm")}</TableCell>
                     <TableCell className="text-xs">{l.primeiro_acesso_em ? format(new Date(l.primeiro_acesso_em), "dd/MM/yyyy HH:mm") : "—"}</TableCell>
+                    <TableCell className="text-xs">{l.ultimo_acesso_em ? format(new Date(l.ultimo_acesso_em), "dd/MM/yyyy HH:mm") : "—"}</TableCell>
                     <TableCell>
                       <Badge variant={l.ativo ? "default" : "secondary"}>{l.ativo ? "Ativo" : "Inativo"}</Badge>
                     </TableCell>
@@ -675,6 +936,16 @@ function ShopifyTab() {
           </Table>
         </CardContent>
       </Card>
+
+      <LicencaEditDrawer
+        licenca={selectedLicenca}
+        open={!!selectedLicenca}
+        onClose={() => setSelectedLicenca(null)}
+        onSaved={() => {
+          queryClient.invalidateQueries({ queryKey: ["admin-revista-licencas-shopify"] });
+          setSelectedLicenca(null);
+        }}
+      />
 
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
         <DialogContent className="max-w-md">

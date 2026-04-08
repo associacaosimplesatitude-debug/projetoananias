@@ -119,6 +119,22 @@ serve(async (req) => {
       });
     }
 
+    if (action === "update") {
+      const updateData: Record<string, unknown> = { updated_at: new Date().toISOString() };
+      if (params.nome_comprador !== undefined) updateData.nome_comprador = params.nome_comprador;
+      if (params.whatsapp !== undefined) updateData.whatsapp = params.whatsapp.replace(/\D/g, "");
+      if (params.email !== undefined) updateData.email = params.email;
+      if (params.ativo !== undefined) updateData.ativo = params.ativo;
+      const { error } = await supabaseAdmin
+        .from("revista_licencas_shopify")
+        .update(updateData)
+        .eq("id", params.id);
+      if (error) throw error;
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     if (action === "deactivate") {
       const { error } = await supabaseAdmin
         .from("revista_licencas_shopify")
