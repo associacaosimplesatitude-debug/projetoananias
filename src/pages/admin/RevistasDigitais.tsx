@@ -76,6 +76,7 @@ export default function RevistasDigitais() {
   const [uploadingPdf, setUploadingPdf] = useState<string | null>(null);
   const [generatingQuiz, setGeneratingQuiz] = useState<string | null>(null);
   const [extractingRefs, setExtractingRefs] = useState<string | null>(null);
+  const [bulkQuiz, setBulkQuiz] = useState<{ running: boolean; current: number; total: number; errors: number }>({ running: false, current: 0, total: 0, errors: 0 });
   const [editingQuizLicao, setEditingQuizLicao] = useState<{ id: string; titulo: string } | null>(null);
   
   const [uploadingPdfGlobal, setUploadingPdfGlobal] = useState(false);
