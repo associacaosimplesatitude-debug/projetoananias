@@ -385,10 +385,10 @@ function ShopifyTab() {
     queryFn: async () => {
       const [cgRes, leitorRes, livrosRes] = await Promise.all([
         supabase.rpc("execute_readonly_query", {
-          sql_query: `SELECT COUNT(*)::int as total FROM revista_licencas_shopify rls INNER JOIN revistas_digitais rd ON rd.id = rls.revista_id WHERE rls.ativo = true AND (rls.versao_preferida = 'cg_digital' OR rls.versao_preferida IS NULL) AND COALESCE(rd.tipo_conteudo, 'revista') != 'livro_digital'`,
+          sql_query: `SELECT COUNT(DISTINCT whatsapp)::int as total FROM revista_licencas_shopify WHERE ativo = true AND (versao_preferida = 'cg_digital' OR versao_preferida IS NULL)`,
         }),
         supabase.rpc("execute_readonly_query", {
-          sql_query: `SELECT COUNT(*)::int as total FROM revista_licencas_shopify rls INNER JOIN revistas_digitais rd ON rd.id = rls.revista_id WHERE rls.ativo = true AND rls.versao_preferida = 'leitor_cg' AND COALESCE(rd.tipo_conteudo, 'revista') != 'livro_digital'`,
+          sql_query: `SELECT COUNT(DISTINCT whatsapp)::int as total FROM revista_licencas_shopify WHERE ativo = true AND versao_preferida = 'leitor_cg'`,
         }),
         supabase.rpc("execute_readonly_query", {
           sql_query: `SELECT COUNT(*)::int as total FROM revista_licencas_shopify rls INNER JOIN revistas_digitais rd ON rd.id = rls.revista_id WHERE rls.ativo = true AND rd.tipo_conteudo = 'livro_digital'`,
@@ -483,37 +483,47 @@ function ShopifyTab() {
   const cardStyle = (f: CardFilterType) =>
     cardFilter === f ? "cursor-pointer ring-2 ring-[#FFC107] border-[#FFC107]" : "cursor-pointer hover:shadow-md transition-shadow";
 
-  const filtered = licencas.filter((l) => {
-    if (filterAtivo === "ativo" && !l.ativo) return false;
-    if (filterAtivo === "inativo" && l.ativo) return false;
+  const filtered = (() => {
+    let result = licencas.filter((l) => {
+      if (filterAtivo === "ativo" && !l.ativo) return false;
+      if (filterAtivo === "inativo" && l.ativo) return false;
 
-    if (cardFilter === "cg_digital") {
-      if (!l.ativo) return false;
-      const tipo = l.revistas_digitais?.tipo_conteudo;
-      if (tipo === "livro_digital") return false;
-      if (l.versao_preferida !== "cg_digital" && l.versao_preferida !== null) return false;
-    }
-    if (cardFilter === "leitor_cg") {
-      if (!l.ativo) return false;
-      const tipo = l.revistas_digitais?.tipo_conteudo;
-      if (tipo === "livro_digital") return false;
-      if (l.versao_preferida !== "leitor_cg") return false;
-    }
-    if (cardFilter === "livros") {
-      if (!l.ativo) return false;
-      const tipo = l.revistas_digitais?.tipo_conteudo;
-      if (tipo !== "livro_digital") return false;
+      if (cardFilter === "cg_digital") {
+        if (!l.ativo) return false;
+        if (l.versao_preferida !== "cg_digital" && l.versao_preferida !== null) return false;
+      }
+      if (cardFilter === "leitor_cg") {
+        if (!l.ativo) return false;
+        if (l.versao_preferida !== "leitor_cg") return false;
+      }
+      if (cardFilter === "livros") {
+        if (!l.ativo) return false;
+        const tipo = l.revistas_digitais?.tipo_conteudo;
+        if (tipo !== "livro_digital") return false;
+      }
+
+      if (!search) return true;
+      const s = search.toLowerCase();
+      return (
+        l.nome_comprador?.toLowerCase().includes(s) ||
+        l.whatsapp?.includes(s) ||
+        l.email?.toLowerCase().includes(s) ||
+        l.shopify_order_number?.includes(s)
+      );
+    });
+
+    // For version cards, deduplicate by whatsapp (keep most recent)
+    if (cardFilter === "cg_digital" || cardFilter === "leitor_cg") {
+      const seen = new Set<string>();
+      result = result.filter((l) => {
+        if (seen.has(l.whatsapp)) return false;
+        seen.add(l.whatsapp);
+        return true;
+      });
     }
 
-    if (!search) return true;
-    const s = search.toLowerCase();
-    return (
-      l.nome_comprador?.toLowerCase().includes(s) ||
-      l.whatsapp?.includes(s) ||
-      l.email?.toLowerCase().includes(s) ||
-      l.shopify_order_number?.includes(s)
-    );
-  });
+    return result;
+  })();
 
   return (
     <div className="space-y-6">
