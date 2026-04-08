@@ -395,10 +395,12 @@ function LicencaEditDrawer({ licenca, open, onClose, onSaved }: {
     enabled: !!licenca?.whatsapp && open,
     queryFn: async () => {
       const phone = licenca!.whatsapp.replace(/\D/g, "");
+      const phone8 = phone.slice(-8);
+      const phone55 = phone.startsWith("55") ? phone : `55${phone}`;
       const { data } = await supabase
         .from("whatsapp_mensagens")
         .select("id, created_at, status, tipo_mensagem")
-        .or(`telefone.like.%${phone}%,telefone.like.%${phone.slice(-8)}%`)
+        .or(`telefone.like.%${phone}%,telefone.like.%${phone55}%,telefone.like.%${phone8}%`)
         .order("created_at", { ascending: false })
         .limit(5);
       return data || [];
@@ -561,7 +563,12 @@ function LicencaEditDrawer({ licenca, open, onClose, onSaved }: {
               <div className="space-y-2">
                 <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5"><MessageSquare className="h-3.5 w-3.5" />WhatsApp</p>
                 {whatsappLogs.length === 0 ? (
-                  <p className="text-xs text-muted-foreground italic pl-5">Nenhum envio registrado</p>
+                  <div>
+                    <p className="text-xs text-muted-foreground italic pl-5">Nenhum envio registrado</p>
+                    {licenca.primeiro_acesso_em && (
+                      <p className="text-xs text-muted-foreground/70 italic pl-5 mt-1">O cliente pode ter acessado diretamente pelo link</p>
+                    )}
+                  </div>
                 ) : (
                   <div className="space-y-1">
                     {whatsappLogs.map((log: any) => (
@@ -581,7 +588,12 @@ function LicencaEditDrawer({ licenca, open, onClose, onSaved }: {
               <div className="space-y-2">
                 <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5"><MailIcon className="h-3.5 w-3.5" />Email</p>
                 {emailLogs.length === 0 ? (
-                  <p className="text-xs text-muted-foreground italic pl-5">Nenhum envio registrado</p>
+                  <div>
+                    <p className="text-xs text-muted-foreground italic pl-5">Nenhum envio registrado</p>
+                    {licenca.primeiro_acesso_em && (
+                      <p className="text-xs text-muted-foreground/70 italic pl-5 mt-1">O cliente pode ter acessado diretamente pelo link</p>
+                    )}
+                  </div>
                 ) : (
                   <div className="space-y-1">
                     {emailLogs.map((log: any) => (
