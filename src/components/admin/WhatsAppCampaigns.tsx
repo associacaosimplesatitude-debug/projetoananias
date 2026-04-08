@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -15,7 +16,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ptBR } from "date-fns/locale";
 import {
   Users, ArrowRight, ArrowLeft, Send, Loader2, Target, MessageSquare,
-  MousePointerClick, Eye, ShoppingCart, DollarSign, Plus, ChevronRight, Trash2, Tag, BarChart3, Rocket
+  MousePointerClick, Eye, ShoppingCart, DollarSign, Plus, ChevronRight, Trash2, Tag, BarChart3, Rocket, FlaskConical
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -372,6 +373,34 @@ export default function WhatsAppCampaigns() {
     },
   });
 
+  // --- Test message state ---
+  const [testModalOpen, setTestModalOpen] = useState(false);
+  const [testNumero, setTestNumero] = useState("");
+  const [testSending, setTestSending] = useState(false);
+
+  const handleSendTest = async () => {
+    const cleaned = testNumero.replace(/\D/g, "");
+    if (!cleaned || cleaned.length < 10) {
+      toast.error("Informe um número válido com DDD");
+      return;
+    }
+    setTestSending(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("testar-campanha-revista", {
+        body: { numero: cleaned },
+      });
+      if (error) throw new Error(error.message);
+      if (data?.error) throw new Error(data.error);
+      toast.success(`Mensagem de teste enviada para ${cleaned}`);
+      setTestModalOpen(false);
+      setTestNumero("");
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao enviar teste");
+    } finally {
+      setTestSending(false);
+    }
+  };
+
   const resetFlow = () => {
     setStep("list");
     setRecipients([]);
@@ -568,24 +597,37 @@ export default function WhatsAppCampaigns() {
                         </Button>
                       )}
                       {(c.status === "rascunho" || c.status === "ativa") && (
-                        <Button
-                          variant="default"
-                          size="sm"
-                          className="gap-1 text-xs h-8"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setDispatchingId(c.id);
-                            dispatchCampaignMutation.mutate({ campanhaId: c.id, dryRun: true });
-                          }}
-                          disabled={dispatchCampaignMutation.isPending}
-                        >
-                          {dispatchCampaignMutation.isPending && dispatchingId === c.id ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          ) : (
-                            <Rocket className="h-3.5 w-3.5" />
-                          )}
-                          Disparar
-                        </Button>
+                        <>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-1 text-xs h-8"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setTestModalOpen(true);
+                            }}
+                          >
+                            <FlaskConical className="h-3.5 w-3.5" /> Enviar teste
+                          </Button>
+                          <Button
+                            variant="default"
+                            size="sm"
+                            className="gap-1 text-xs h-8"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDispatchingId(c.id);
+                              dispatchCampaignMutation.mutate({ campanhaId: c.id, dryRun: true });
+                            }}
+                            disabled={dispatchCampaignMutation.isPending}
+                          >
+                            {dispatchCampaignMutation.isPending && dispatchingId === c.id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Rocket className="h-3.5 w-3.5" />
+                            )}
+                            Disparar
+                          </Button>
+                        </>
                       )}
                       {c.status === "rascunho" && (
                         <Button
@@ -611,6 +653,35 @@ export default function WhatsAppCampaigns() {
             })}
           </div>
         )}
+        {/* Test message modal */}
+        <Dialog open={testModalOpen} onOpenChange={setTestModalOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Enviar mensagem de teste</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <div className="space-y-2">
+                <Label htmlFor="test-numero">Número de WhatsApp (com DDD)</Label>
+                <Input
+                  id="test-numero"
+                  placeholder="11999999999"
+                  value={testNumero}
+                  onChange={(e) => setTestNumero(e.target.value.replace(/\D/g, ""))}
+                  maxLength={13}
+                />
+              </div>
+            </div>
+            <DialogFooter className="gap-2">
+              <Button variant="outline" onClick={() => { setTestModalOpen(false); setTestNumero(""); }}>
+                Cancelar
+              </Button>
+              <Button onClick={handleSendTest} disabled={testSending} className="gap-2">
+                {testSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                Enviar teste
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     );
   }
