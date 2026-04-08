@@ -360,6 +360,19 @@ export default function LeitorLeitura() {
     );
   }
 
+  // Extract user name from licencas
+  const primeiroNome = (() => {
+    try {
+      const stored = localStorage.getItem(REVISTA_KEYS.LICENCAS);
+      if (stored) {
+        const licencas = JSON.parse(stored);
+        const nomeCompleto = licencas?.[0]?.nome_comprador || "";
+        return nomeCompleto.split(" ")[0] || "";
+      }
+    } catch {}
+    return "";
+  })();
+
   // LIBRARY MODE — 2-column grid with compact cards
   return (
     <div className="min-h-screen" style={{ backgroundColor: "#000" }}>
@@ -369,7 +382,14 @@ export default function LeitorLeitura() {
           <div className="w-8 h-8 rounded-full overflow-hidden" style={{ backgroundColor: "#000" }}>
             <img src="/icons/leitor-cg-192.png" alt="Leitor CG" className="w-8 h-8 rounded-full" />
           </div>
-          <span className="text-white font-bold text-lg">Leitor CG</span>
+          <div>
+            <span className="text-white font-bold text-lg block leading-tight">Leitor CG</span>
+            {primeiroNome && (
+              <span className="text-xs block" style={{ color: "#9ca3af" }}>
+                Olá, {primeiroNome}!
+              </span>
+            )}
+          </div>
         </div>
         <button
           onClick={handleLogout}

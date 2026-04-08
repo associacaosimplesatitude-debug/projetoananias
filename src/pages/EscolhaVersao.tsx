@@ -59,12 +59,17 @@ export default function EscolhaVersao() {
     setSaving(versao);
     try {
       if (whatsapp) {
-        await supabase.functions.invoke("salvar-preferencia-versao", {
+        console.log("[EscolhaVersao] Salvando preferência:", { whatsapp, versao });
+        const { data, error } = await supabase.functions.invoke("salvar-preferencia-versao", {
           body: { whatsapp, versao },
         });
+        console.log("[EscolhaVersao] Resposta:", { data, error });
+        if (error) console.error("[EscolhaVersao] Erro ao salvar:", error);
+      } else {
+        console.warn("[EscolhaVersao] whatsapp vazio, não salvou preferência");
       }
-    } catch {
-      // ignore
+    } catch (err) {
+      console.error("[EscolhaVersao] Erro catch:", err);
     }
     if (versao === "cg_digital") {
       navigate("/revista/acesso", { replace: true });

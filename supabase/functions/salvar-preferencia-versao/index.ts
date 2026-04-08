@@ -24,17 +24,21 @@ Deno.serve(async (req) => {
     }
 
     const phone = normalizePhone(whatsapp);
+    console.log("Atualizando:", phone, "para:", versao);
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    await supabase
+    const { data: updateData, error: updateError, count } = await supabase
       .from("revista_licencas_shopify")
       .update({ versao_preferida: versao })
       .eq("whatsapp", phone)
-      .eq("ativo", true);
+      .eq("ativo", true)
+      .select("id");
+
+    console.log("Resultado update:", { rows: updateData?.length || 0, error: updateError?.message || null });
 
     return new Response(JSON.stringify({ sucesso: true }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
