@@ -597,24 +597,37 @@ export default function WhatsAppCampaigns() {
                         </Button>
                       )}
                       {(c.status === "rascunho" || c.status === "ativa") && (
-                        <Button
-                          variant="default"
-                          size="sm"
-                          className="gap-1 text-xs h-8"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setDispatchingId(c.id);
-                            dispatchCampaignMutation.mutate({ campanhaId: c.id, dryRun: true });
-                          }}
-                          disabled={dispatchCampaignMutation.isPending}
-                        >
-                          {dispatchCampaignMutation.isPending && dispatchingId === c.id ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          ) : (
-                            <Rocket className="h-3.5 w-3.5" />
-                          )}
-                          Disparar
-                        </Button>
+                        <>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-1 text-xs h-8"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setTestModalOpen(true);
+                            }}
+                          >
+                            <FlaskConical className="h-3.5 w-3.5" /> Enviar teste
+                          </Button>
+                          <Button
+                            variant="default"
+                            size="sm"
+                            className="gap-1 text-xs h-8"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDispatchingId(c.id);
+                              dispatchCampaignMutation.mutate({ campanhaId: c.id, dryRun: true });
+                            }}
+                            disabled={dispatchCampaignMutation.isPending}
+                          >
+                            {dispatchCampaignMutation.isPending && dispatchingId === c.id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Rocket className="h-3.5 w-3.5" />
+                            )}
+                            Disparar
+                          </Button>
+                        </>
                       )}
                       {c.status === "rascunho" && (
                         <Button
