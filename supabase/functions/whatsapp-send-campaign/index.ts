@@ -244,24 +244,15 @@ serve(async (req) => {
           (v: string) => v.replace(/\{\{|\}\}/g, "").trim() === "link_escolha"
         );
 
-        if (template?.cabecalho_tipo === "IMAGE") {
-          const imageUrl = template?.cabecalho_midia_url || (usesLinkEscolhaVar ? CAMPAIGN_IMAGE_URL : null);
-          if (imageUrl) {
-            components.push({
-              type: "header",
-              parameters: [{
-                type: "image",
-                image: { link: imageUrl },
-              }],
-            });
-          }
-        } else if (usesLinkEscolhaVar) {
-          // Force header image for link_escolha campaigns even if cabecalho_tipo not set
+        // Add header image: if template has IMAGE header, or uses link_escolha, or is 'utilidade' template
+        const forceImageHeader = usesLinkEscolhaVar || templateName === "utilidade";
+        if (template?.cabecalho_tipo === "IMAGE" || forceImageHeader) {
+          const imageUrl = template?.cabecalho_midia_url || CAMPAIGN_IMAGE_URL;
           components.push({
             type: "header",
             parameters: [{
               type: "image",
-              image: { link: CAMPAIGN_IMAGE_URL },
+              image: { link: imageUrl },
             }],
           });
         }
