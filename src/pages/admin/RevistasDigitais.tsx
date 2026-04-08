@@ -224,6 +224,32 @@ export default function RevistasDigitais() {
     toast.success(`Quiz gerado para ${eligible.length - errors} lições com sucesso${errors > 0 ? ` | ${errors} erros` : ""}`);
   };
 
+  const handleBulkExtractRefs = async () => {
+    if (!licoes?.length) return;
+    const eligible = licoes.filter(l => l.paginas.length > 0);
+    if (eligible.length === 0) { toast.error("Nenhuma lição com páginas"); return; }
+    if (!confirm(`Isso vai extrair/substituir as referências de todas as ${eligible.length} lições. Confirmar?`)) return;
+
+    setBulkRefs({ running: true, current: 0, total: eligible.length, errors: 0 });
+    let errors = 0;
+    for (let i = 0; i < eligible.length; i++) {
+      setBulkRefs(prev => ({ ...prev, current: i + 1 }));
+      setExtractingRefs(eligible[i].id);
+      try {
+        const { data, error } = await supabase.functions.invoke("extrair-referencias-pagina", {
+          body: { licao_id: eligible[i].id },
+        });
+        if (error || data?.error) errors++;
+      } catch {
+        errors++;
+      }
+      setExtractingRefs(null);
+      refetchRefs();
+    }
+    setBulkRefs({ running: false, current: 0, total: 0, errors: 0 });
+    toast.success(`Referências extraídas em ${eligible.length - errors} lições com sucesso${errors > 0 ? ` | ${errors} erros` : ""}`);
+  };
+
   const uploadCapa = async (file: File) => {
     setUploadingCapa(true);
     try {
