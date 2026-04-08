@@ -76,6 +76,7 @@ export default function RevistasDigitais() {
   const [uploadingPdf, setUploadingPdf] = useState<string | null>(null);
   const [generatingQuiz, setGeneratingQuiz] = useState<string | null>(null);
   const [extractingRefs, setExtractingRefs] = useState<string | null>(null);
+  const [bulkQuiz, setBulkQuiz] = useState<{ running: boolean; current: number; total: number; errors: number }>({ running: false, current: 0, total: 0, errors: 0 });
   const [editingQuizLicao, setEditingQuizLicao] = useState<{ id: string; titulo: string } | null>(null);
   
   const [uploadingPdfGlobal, setUploadingPdfGlobal] = useState(false);
@@ -196,7 +197,32 @@ export default function RevistasDigitais() {
     }
   };
 
-  // Upload capa to storage
+  const handleBulkGenerateQuiz = async () => {
+    if (!licoes?.length) return;
+    const eligible = licoes.filter(l => l.paginas.length > 0);
+    if (eligible.length === 0) { toast.error("Nenhuma lição com páginas"); return; }
+    if (!confirm(`Isso vai gerar/substituir o quiz de todas as ${eligible.length} lições. Confirmar?`)) return;
+
+    setBulkQuiz({ running: true, current: 0, total: eligible.length, errors: 0 });
+    let errors = 0;
+    for (let i = 0; i < eligible.length; i++) {
+      setBulkQuiz(prev => ({ ...prev, current: i + 1 }));
+      setGeneratingQuiz(eligible[i].id);
+      try {
+        const { data, error } = await supabase.functions.invoke("gerar-quiz-revista", {
+          body: { licao_id: eligible[i].id },
+        });
+        if (error || data?.error) errors++;
+      } catch {
+        errors++;
+      }
+      setGeneratingQuiz(null);
+      refetchQuiz();
+    }
+    setBulkQuiz({ running: false, current: 0, total: 0, errors: 0 });
+    toast.success(`Quiz gerado para ${eligible.length - errors} lições com sucesso${errors > 0 ? ` | ${errors} erros` : ""}`);
+  };
+
   const uploadCapa = async (file: File) => {
     setUploadingCapa(true);
     try {
@@ -610,6 +636,18 @@ export default function RevistasDigitais() {
             <h2 className="text-2xl font-bold">{managingLicoes.titulo}</h2>
             <p className="text-muted-foreground">Gestão das lições e páginas</p>
           </div>
+          <Button
+            className="gap-2 text-black"
+            style={{ backgroundColor: "#FFC107" }}
+            disabled={bulkQuiz.running}
+            onClick={handleBulkGenerateQuiz}
+          >
+            {bulkQuiz.running ? (
+              <><Loader2 className="h-4 w-4 animate-spin" /> Gerando quiz... Lição {bulkQuiz.current} de {bulkQuiz.total}</>
+            ) : (
+              <>🤖 Gerar Quiz de Todas as Lições</>
+            )}
+          </Button>
         </div>
 
         <div className="space-y-4">
