@@ -7,7 +7,6 @@ import {
   clearRevistaSession,
   REVISTA_KEYS,
 } from "@/lib/revistaSession";
-import { useLeitorManifest } from "./LeitorAcesso";
 import LeitorInstallBanner from "@/components/leitor/LeitorInstallBanner";
 
 interface Revista {
@@ -43,9 +42,13 @@ export default function LeitorLeitura() {
 
   // Cache state
   const [caching, setCaching] = useState(false);
-  const [cacheProgress, setCacheProgress] = useState({ current: 0, total: 0, revistaIdx: 0, totalRevistas: 0, revistaName: "" });
-
-  useLeitorManifest();
+  const [cacheProgress, setCacheProgress] = useState({
+    paginaAtual: 0,
+    totalGeral: 0,
+    revistaIdx: 0,
+    totalRevistas: 0,
+    revistaName: "",
+  });
 
   // Check session
   useEffect(() => {
@@ -88,7 +91,6 @@ export default function LeitorLeitura() {
     if (allCached) {
       setLoading(false);
     } else if (mapped.length > 0) {
-      // Start caching
       cacheAllRevistas(mapped).then(() => setLoading(false));
     } else {
       setLoading(false);
@@ -104,15 +106,15 @@ export default function LeitorLeitura() {
     try {
       cache = await caches.open(CACHE_NAME);
     } catch {
-      // Cache API not available
       setCaching(false);
       return;
     }
 
-    for (let ri = 0; ri < uncached.length; ri++) {
-      const revista = uncached[ri];
-      setCacheProgress({ current: 0, total: 0, revistaIdx: ri + 1, totalRevistas: uncached.length, revistaName: revista.titulo });
+    // Phase 1: Pre-fetch all URLs to calculate totalGeral
+    const revistaUrls: { revista: Revista; urls: string[] }[] = [];
+    let totalGeral = 0;
 
+    for (const revista of uncached) {
       try {
         const { data: licoes } = await supabase
           .from("revista_licoes")
@@ -120,36 +122,58 @@ export default function LeitorLeitura() {
           .eq("revista_id", revista.id)
           .order("numero", { ascending: true });
 
-        const allUrls: string[] = [];
+        const urls: string[] = [];
         if (licoes) {
           for (const l of licoes as { numero: number; paginas: string[] }[]) {
             if (l.paginas && Array.isArray(l.paginas)) {
-              allUrls.push(...l.paginas);
+              urls.push(...l.paginas);
             }
           }
         }
-
-        setCacheProgress((p) => ({ ...p, total: allUrls.length }));
-
-        for (let i = 0; i < allUrls.length; i++) {
-          setCacheProgress((p) => ({ ...p, current: i + 1 }));
-          try {
-            const cached = await cache!.match(allUrls[i]);
-            if (!cached) {
-              const response = await fetch(allUrls[i]);
-              if (response.ok) {
-                await cache!.put(allUrls[i], response);
-              }
-            }
-          } catch {
-            // skip individual image errors
-          }
-        }
-
-        localStorage.setItem(getCacheKey(revista.id), "true");
+        revistaUrls.push({ revista, urls });
+        totalGeral += urls.length;
       } catch {
-        // skip revista errors
+        revistaUrls.push({ revista, urls: [] });
       }
+    }
+
+    // Set initial progress with correct total
+    setCacheProgress({
+      paginaAtual: 0,
+      totalGeral,
+      revistaIdx: 1,
+      totalRevistas: uncached.length,
+      revistaName: uncached[0]?.titulo || "",
+    });
+
+    // Phase 2: Download all pages with global counter
+    let paginaAtual = 0;
+
+    for (let ri = 0; ri < revistaUrls.length; ri++) {
+      const { revista, urls } = revistaUrls[ri];
+      setCacheProgress((p) => ({
+        ...p,
+        revistaIdx: ri + 1,
+        revistaName: revista.titulo,
+      }));
+
+      for (let i = 0; i < urls.length; i++) {
+        paginaAtual++;
+        setCacheProgress((p) => ({ ...p, paginaAtual }));
+        try {
+          const cached = await cache!.match(urls[i]);
+          if (!cached) {
+            const response = await fetch(urls[i]);
+            if (response.ok) {
+              await cache!.put(urls[i], response);
+            }
+          }
+        } catch {
+          // skip individual image errors
+        }
+      }
+
+      localStorage.setItem(getCacheKey(revista.id), "true");
     }
 
     setCaching(false);
@@ -220,12 +244,18 @@ export default function LeitorLeitura() {
 
   // CACHE LOADING SCREEN
   if (loading || caching) {
-    const pct = cacheProgress.total > 0 ? Math.round((cacheProgress.current / cacheProgress.total) * 100) : 0;
-    const licaoNum = cacheProgress.total > 0 ? Math.ceil((cacheProgress.current / cacheProgress.total) * 13) : 0;
+    const pct = cacheProgress.totalGeral > 0
+      ? Math.round((cacheProgress.paginaAtual / cacheProgress.totalGeral) * 100)
+      : 0;
 
     return (
       <div className="min-h-screen flex flex-col items-center justify-center px-6" style={{ backgroundColor: "#000" }}>
-        <img src="/icons/leitor-cg-192.png" alt="Leitor CG" className="w-16 h-16 mb-6" />
+        <div
+          className="w-16 h-16 mb-6 rounded-full overflow-hidden flex items-center justify-center"
+          style={{ backgroundColor: "#000" }}
+        >
+          <img src="/icons/leitor-cg-192.png" alt="Leitor CG" className="w-16 h-16 rounded-full" />
+        </div>
         
         {caching ? (
           <div className="w-full max-w-sm space-y-4 text-center">
@@ -252,7 +282,7 @@ export default function LeitorLeitura() {
 
             <div className="flex justify-between text-xs" style={{ color: "#6b7280" }}>
               <span>{pct}%</span>
-              <span>{cacheProgress.current} de {cacheProgress.total} páginas</span>
+              <span>{cacheProgress.paginaAtual} de {cacheProgress.totalGeral} páginas</span>
             </div>
 
             <p className="text-[11px] mt-4" style={{ color: "#1f2937" }}>
@@ -330,13 +360,15 @@ export default function LeitorLeitura() {
     );
   }
 
-  // LIBRARY MODE
+  // LIBRARY MODE — 2-column grid with compact cards
   return (
     <div className="min-h-screen" style={{ backgroundColor: "#000" }}>
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: "#222" }}>
         <div className="flex items-center gap-2">
-          <img src="/icons/leitor-cg-192.png" alt="Leitor CG" className="w-8 h-8" />
+          <div className="w-8 h-8 rounded-full overflow-hidden" style={{ backgroundColor: "#000" }}>
+            <img src="/icons/leitor-cg-192.png" alt="Leitor CG" className="w-8 h-8 rounded-full" />
+          </div>
           <span className="text-white font-bold text-lg">Leitor CG</span>
         </div>
         <button
@@ -352,33 +384,52 @@ export default function LeitorLeitura() {
       <LeitorInstallBanner />
 
       {/* Revistas grid */}
-      <div className="p-4">
+      <div className="p-3">
         {revistas.length === 0 ? (
           <div className="text-center py-20">
             <p className="text-white/50">Nenhuma revista disponível</p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 max-w-2xl mx-auto">
+          <div
+            className="max-w-2xl mx-auto"
+            style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}
+          >
             {revistas.map((r) => (
               <button
                 key={r.id}
                 onClick={() => handleSelectRevista(r)}
-                className="text-left group"
+                className="text-left overflow-hidden"
+                style={{ backgroundColor: "#111", borderRadius: "12px" }}
               >
-                <div className="aspect-[3/4] rounded-lg overflow-hidden" style={{ backgroundColor: "#1a1a1a" }}>
-                  {r.capa_url ? (
-                    <img
-                      src={r.capa_url}
-                      alt={r.titulo}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <span className="text-white/30 text-4xl">📖</span>
-                    </div>
-                  )}
-                </div>
-                <p className="text-white text-sm mt-2 truncate">{r.titulo}</p>
+                {r.capa_url ? (
+                  <img
+                    src={r.capa_url}
+                    alt={r.titulo}
+                    className="w-full object-cover"
+                    style={{ aspectRatio: "3/4" }}
+                  />
+                ) : (
+                  <div
+                    className="w-full flex items-center justify-center"
+                    style={{ aspectRatio: "3/4", backgroundColor: "#1a1a1a" }}
+                  >
+                    <span className="text-4xl">📖</span>
+                  </div>
+                )}
+                <p
+                  className="text-white font-medium"
+                  style={{
+                    padding: "10px 12px",
+                    fontSize: "12px",
+                    lineHeight: "1.4",
+                    display: "-webkit-box",
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: "vertical",
+                    overflow: "hidden",
+                  }}
+                >
+                  {r.titulo}
+                </p>
               </button>
             ))}
           </div>
