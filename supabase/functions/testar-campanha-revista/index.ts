@@ -82,22 +82,18 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Header image removed — Meta rejects temporary CDN URLs and template
-    // should fall back to its default approved image when header component is omitted.
-
-    // Body with first name
-    components.push({
-      type: "body",
-      parameters: [{ type: "text", text: primeiroNome }],
-    });
-
-    // Button with dynamic URL suffix (just the phone number)
-    components.push({
-      type: "button",
-      sub_type: "url",
-      index: 0,
-      parameters: [{ type: "text", text: rawNumero }],
-    });
+    const components = [
+      {
+        type: "body",
+        parameters: [{ type: "text", text: primeiroNome }],
+      },
+      {
+        type: "button",
+        sub_type: "url",
+        index: 0,
+        parameters: [{ type: "text", text: rawNumero }],
+      },
+    ];
 
     const payload = {
       messaging_product: "whatsapp",
