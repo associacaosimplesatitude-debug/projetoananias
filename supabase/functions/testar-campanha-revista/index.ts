@@ -125,6 +125,7 @@ Deno.serve(async (req) => {
     );
 
     const resBody = await res.json();
+    console.log("[testar-campanha-revista] Meta response:", JSON.stringify(resBody));
 
     if (!res.ok) {
       const errorMsg = resBody?.error?.message || JSON.stringify(resBody);
