@@ -15,7 +15,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ptBR } from "date-fns/locale";
 import {
   Users, ArrowRight, ArrowLeft, Send, Loader2, Target, MessageSquare,
-  MousePointerClick, Eye, ShoppingCart, DollarSign, Plus, ChevronRight, Trash2, Tag, BarChart3
+  MousePointerClick, Eye, ShoppingCart, DollarSign, Plus, ChevronRight, Trash2, Tag, BarChart3, Rocket
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -341,6 +341,37 @@ export default function WhatsAppCampaigns() {
     onError: (err: Error) => toast.error("Erro ao enviar: " + err.message),
   });
 
+  // --- Dispatch campaign (disparar-campanha-revista) ---
+  const [dispatchingId, setDispatchingId] = useState<string | null>(null);
+  const dispatchCampaignMutation = useMutation({
+    mutationFn: async ({ campanhaId, dryRun }: { campanhaId: string; dryRun: boolean }) => {
+      const { data, error } = await supabase.functions.invoke("disparar-campanha-revista", {
+        body: { campanha_id: campanhaId, dry_run: dryRun },
+      });
+      if (error) throw new Error(error.message);
+      if (data?.error) throw new Error(data.error);
+      return data;
+    },
+    onSuccess: (data) => {
+      if (data.dry_run) {
+        const confirmSend = confirm(
+          `Campanha possui ${data.total} destinatários pendentes.\n\nDeseja disparar agora?`
+        );
+        if (confirmSend && dispatchingId) {
+          dispatchCampaignMutation.mutate({ campanhaId: dispatchingId, dryRun: false });
+        }
+      } else {
+        queryClient.invalidateQueries({ queryKey: ["whatsapp-campanhas"] });
+        toast.success(`Campanha disparada! Enviados: ${data.enviados}, Erros: ${data.erros}`);
+        setDispatchingId(null);
+      }
+    },
+    onError: (err: Error) => {
+      toast.error("Erro ao disparar: " + err.message);
+      setDispatchingId(null);
+    },
+  });
+
   const resetFlow = () => {
     setStep("list");
     setRecipients([]);
@@ -534,6 +565,26 @@ export default function WhatsAppCampaigns() {
                           }}
                         >
                           <BarChart3 className="h-3.5 w-3.5" /> Rastreamento
+                        </Button>
+                      )}
+                      {(c.status === "rascunho" || c.status === "ativa") && (
+                        <Button
+                          variant="default"
+                          size="sm"
+                          className="gap-1 text-xs h-8"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDispatchingId(c.id);
+                            dispatchCampaignMutation.mutate({ campanhaId: c.id, dryRun: true });
+                          }}
+                          disabled={dispatchCampaignMutation.isPending}
+                        >
+                          {dispatchCampaignMutation.isPending && dispatchingId === c.id ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Rocket className="h-3.5 w-3.5" />
+                          )}
+                          Disparar
                         </Button>
                       )}
                       {c.status === "rascunho" && (
