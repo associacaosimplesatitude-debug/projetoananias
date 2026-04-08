@@ -870,6 +870,7 @@ function ShopifyTab() {
                 <TableHead>Pedido</TableHead>
                 <TableHead>Data</TableHead>
                 <TableHead>Logou</TableHead>
+                <TableHead>Último acesso</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Ações</TableHead>
               </TableRow>
@@ -882,7 +883,14 @@ function ShopifyTab() {
               ) : (
                 filtered.map((l) => (
                   <TableRow key={l.id}>
-                    <TableCell className="font-medium">{l.nome_comprador || "—"}</TableCell>
+                    <TableCell>
+                      <button
+                        className="font-medium text-primary hover:underline cursor-pointer text-left"
+                        onClick={() => setSelectedLicenca(l)}
+                      >
+                        {l.nome_comprador || "—"}
+                      </button>
+                    </TableCell>
                     <TableCell>{l.whatsapp}</TableCell>
                     <TableCell className="text-sm">{l.email || "—"}</TableCell>
                     <TableCell>{l.revistas_digitais?.titulo || "—"}</TableCell>
@@ -893,6 +901,7 @@ function ShopifyTab() {
                     </TableCell>
                     <TableCell>{format(new Date(l.created_at), "dd/MM/yyyy 'às' HH:mm")}</TableCell>
                     <TableCell className="text-xs">{l.primeiro_acesso_em ? format(new Date(l.primeiro_acesso_em), "dd/MM/yyyy HH:mm") : "—"}</TableCell>
+                    <TableCell className="text-xs">{l.ultimo_acesso_em ? format(new Date(l.ultimo_acesso_em), "dd/MM/yyyy HH:mm") : "—"}</TableCell>
                     <TableCell>
                       <Badge variant={l.ativo ? "default" : "secondary"}>{l.ativo ? "Ativo" : "Inativo"}</Badge>
                     </TableCell>
@@ -927,6 +936,16 @@ function ShopifyTab() {
           </Table>
         </CardContent>
       </Card>
+
+      <LicencaEditDrawer
+        licenca={selectedLicenca}
+        open={!!selectedLicenca}
+        onClose={() => setSelectedLicenca(null)}
+        onSaved={() => {
+          queryClient.invalidateQueries({ queryKey: ["admin-revista-licencas-shopify"] });
+          setSelectedLicenca(null);
+        }}
+      />
 
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
         <DialogContent className="max-w-md">
