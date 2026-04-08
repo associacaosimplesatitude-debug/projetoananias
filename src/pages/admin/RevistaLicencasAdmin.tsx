@@ -395,10 +395,12 @@ function LicencaEditDrawer({ licenca, open, onClose, onSaved }: {
     enabled: !!licenca?.whatsapp && open,
     queryFn: async () => {
       const phone = licenca!.whatsapp.replace(/\D/g, "");
+      const phone8 = phone.slice(-8);
+      const phone55 = phone.startsWith("55") ? phone : `55${phone}`;
       const { data } = await supabase
         .from("whatsapp_mensagens")
         .select("id, created_at, status, tipo_mensagem")
-        .or(`telefone.like.%${phone}%,telefone.like.%${phone.slice(-8)}%`)
+        .or(`telefone.like.%${phone}%,telefone.like.%${phone55}%,telefone.like.%${phone8}%`)
         .order("created_at", { ascending: false })
         .limit(5);
       return data || [];
