@@ -94,7 +94,7 @@ Deno.serve(async (req) => {
         const tplComponents = tplData?.data?.[0]?.components || [];
         const headerComp = tplComponents.find((c: any) => c.type === "HEADER");
         headerImageId = headerComp?.example?.header_handle?.[0] || "";
-        console.log("[testar-campanha-revista] Header handle:", headerImageId);
+        console.log("[testar-campanha-revista] Header handle raw:", headerImageId, "isUrl:", headerImageId?.startsWith?.("http"));
       } catch (e) {
         console.warn("[testar-campanha-revista] Falha ao buscar header handle:", e);
       }
@@ -105,9 +105,15 @@ Deno.serve(async (req) => {
 
     // Header with image (required for this template)
     if (headerImageId) {
+      const isUrl = typeof headerImageId === "string" && headerImageId.startsWith("http");
       components.push({
         type: "header",
-        parameters: [{ type: "image", image: { id: headerImageId } }],
+        parameters: [{
+          type: "image",
+          image: isUrl
+            ? { link: headerImageId }
+            : { id: Number(headerImageId) },
+        }],
       });
     }
 
