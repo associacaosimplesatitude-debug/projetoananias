@@ -1045,10 +1045,13 @@ export default function WhatsAppCampaigns() {
             <Button
               size="sm"
               className="ml-auto gap-2"
-              onClick={() => sendCampaignMutation.mutate(selectedCampaign.id)}
-              disabled={sendCampaignMutation.isPending}
+              onClick={() => {
+                setDispatchingId(selectedCampaign.id);
+                dispatchCampaignMutation.mutate({ campanhaId: selectedCampaign.id, dryRun: true });
+              }}
+              disabled={dispatchCampaignMutation.isPending}
             >
-              {sendCampaignMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              {dispatchCampaignMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               Enviar Campanha
             </Button>
           )}
