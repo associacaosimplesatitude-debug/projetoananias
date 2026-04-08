@@ -92,7 +92,7 @@ serve(async (req) => {
         const to = from + pageSize - 1;
         const { data, error } = await supabaseAdmin
           .from("revista_licencas_shopify")
-          .select("*, revistas_digitais(titulo, capa_url)")
+          .select("*, revistas_digitais(titulo, capa_url, tipo_conteudo)")
           .order("created_at", { ascending: false })
           .range(from, to);
 
