@@ -56,8 +56,11 @@ type ShopifyLicencaRow = {
   expira_em: string | null;
   created_at: string;
   primeiro_acesso_em: string | null;
-  revistas_digitais?: { titulo: string; capa_url: string | null } | null;
+  versao_preferida: string | null;
+  revistas_digitais?: { titulo: string; capa_url: string | null; tipo_conteudo?: string | null } | null;
 };
+
+type CardFilterType = "vendas" | "ativas" | "cg_digital" | "leitor_cg" | "livros" | null;
 
 // === SUB-COMPONENTS ===
 
@@ -357,6 +360,7 @@ function ShopifyTab() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [filterAtivo, setFilterAtivo] = useState("all");
+  const [cardFilter, setCardFilter] = useState<CardFilterType>(null);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [formWhatsapp, setFormWhatsapp] = useState("");
   const [formNome, setFormNome] = useState("");
@@ -472,9 +476,35 @@ function ShopifyTab() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const toggleCardFilter = (f: CardFilterType) => {
+    setCardFilter(prev => prev === f ? null : (f === "vendas" || f === "ativas" ? null : f));
+  };
+
+  const cardStyle = (f: CardFilterType) =>
+    cardFilter === f ? "cursor-pointer ring-2 ring-[#FFC107] border-[#FFC107]" : "cursor-pointer hover:shadow-md transition-shadow";
+
   const filtered = licencas.filter((l) => {
     if (filterAtivo === "ativo" && !l.ativo) return false;
     if (filterAtivo === "inativo" && l.ativo) return false;
+
+    if (cardFilter === "cg_digital") {
+      if (!l.ativo) return false;
+      const tipo = l.revistas_digitais?.tipo_conteudo;
+      if (tipo === "livro_digital") return false;
+      if (l.versao_preferida !== "cg_digital" && l.versao_preferida !== null) return false;
+    }
+    if (cardFilter === "leitor_cg") {
+      if (!l.ativo) return false;
+      const tipo = l.revistas_digitais?.tipo_conteudo;
+      if (tipo === "livro_digital") return false;
+      if (l.versao_preferida !== "leitor_cg") return false;
+    }
+    if (cardFilter === "livros") {
+      if (!l.ativo) return false;
+      const tipo = l.revistas_digitais?.tipo_conteudo;
+      if (tipo !== "livro_digital") return false;
+    }
+
     if (!search) return true;
     const s = search.toLowerCase();
     return (
@@ -489,7 +519,7 @@ function ShopifyTab() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4 flex-1">
-          <Card>
+          <Card className={cardStyle("vendas")} onClick={() => toggleCardFilter("vendas")}>
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
                 <ShoppingCart className="h-8 w-8 text-primary" />
@@ -500,7 +530,7 @@ function ShopifyTab() {
               </div>
             </CardContent>
           </Card>
-          <Card>
+          <Card className={cardStyle("ativas")} onClick={() => toggleCardFilter("ativas")}>
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
                 <TrendingUp className="h-8 w-8 text-primary" />
@@ -511,7 +541,7 @@ function ShopifyTab() {
               </div>
             </CardContent>
           </Card>
-          <Card>
+          <Card className={cardStyle("cg_digital")} onClick={() => toggleCardFilter("cg_digital")}>
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
                 <Monitor className="h-8 w-8 text-primary" />
@@ -522,7 +552,7 @@ function ShopifyTab() {
               </div>
             </CardContent>
           </Card>
-          <Card>
+          <Card className={cardStyle("leitor_cg")} onClick={() => toggleCardFilter("leitor_cg")}>
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
                 <WifiOff className="h-8 w-8 text-primary" />
@@ -533,7 +563,7 @@ function ShopifyTab() {
               </div>
             </CardContent>
           </Card>
-          <Card>
+          <Card className={cardStyle("livros")} onClick={() => toggleCardFilter("livros")}>
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
                 <BookOpen className="h-8 w-8 text-primary" />
