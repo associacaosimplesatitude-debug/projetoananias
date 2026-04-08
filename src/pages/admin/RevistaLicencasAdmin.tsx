@@ -400,7 +400,7 @@ function LicencaEditDrawer({ licenca, open, onClose, onSaved }: {
       const { data } = await supabase
         .from("whatsapp_mensagens")
         .select("id, created_at, status, tipo_mensagem")
-        .or(`telefone.like.%${phone}%,telefone.like.%${phone55}%,telefone.like.%${phone8}%`)
+        .or(`telefone_destino.like.%${phone}%,telefone_destino.like.%${phone55}%,telefone_destino.like.%${phone8}%`)
         .order("created_at", { ascending: false })
         .limit(5);
       return data || [];
