@@ -385,10 +385,10 @@ function ShopifyTab() {
     queryFn: async () => {
       const [cgRes, leitorRes, livrosRes] = await Promise.all([
         supabase.rpc("execute_readonly_query", {
-          sql_query: `SELECT COUNT(*)::int as total FROM revista_licencas_shopify rls INNER JOIN revistas_digitais rd ON rd.id = rls.revista_id WHERE rls.ativo = true AND (rls.versao_preferida = 'cg_digital' OR rls.versao_preferida IS NULL) AND COALESCE(rd.tipo_conteudo, 'revista') != 'livro_digital'`,
+          sql_query: `SELECT COUNT(DISTINCT whatsapp)::int as total FROM revista_licencas_shopify WHERE ativo = true AND (versao_preferida = 'cg_digital' OR versao_preferida IS NULL)`,
         }),
         supabase.rpc("execute_readonly_query", {
-          sql_query: `SELECT COUNT(*)::int as total FROM revista_licencas_shopify rls INNER JOIN revistas_digitais rd ON rd.id = rls.revista_id WHERE rls.ativo = true AND rls.versao_preferida = 'leitor_cg' AND COALESCE(rd.tipo_conteudo, 'revista') != 'livro_digital'`,
+          sql_query: `SELECT COUNT(DISTINCT whatsapp)::int as total FROM revista_licencas_shopify WHERE ativo = true AND versao_preferida = 'leitor_cg'`,
         }),
         supabase.rpc("execute_readonly_query", {
           sql_query: `SELECT COUNT(*)::int as total FROM revista_licencas_shopify rls INNER JOIN revistas_digitais rd ON rd.id = rls.revista_id WHERE rls.ativo = true AND rd.tipo_conteudo = 'livro_digital'`,
