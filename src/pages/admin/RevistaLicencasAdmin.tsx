@@ -519,7 +519,7 @@ function ShopifyTab() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4 flex-1">
-          <Card>
+          <Card className={cardStyle("vendas")} onClick={() => toggleCardFilter("vendas")}>
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
                 <ShoppingCart className="h-8 w-8 text-primary" />
@@ -530,7 +530,7 @@ function ShopifyTab() {
               </div>
             </CardContent>
           </Card>
-          <Card>
+          <Card className={cardStyle("ativas")} onClick={() => toggleCardFilter("ativas")}>
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
                 <TrendingUp className="h-8 w-8 text-primary" />
@@ -541,7 +541,7 @@ function ShopifyTab() {
               </div>
             </CardContent>
           </Card>
-          <Card>
+          <Card className={cardStyle("cg_digital")} onClick={() => toggleCardFilter("cg_digital")}>
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
                 <Monitor className="h-8 w-8 text-primary" />
@@ -552,7 +552,7 @@ function ShopifyTab() {
               </div>
             </CardContent>
           </Card>
-          <Card>
+          <Card className={cardStyle("leitor_cg")} onClick={() => toggleCardFilter("leitor_cg")}>
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
                 <WifiOff className="h-8 w-8 text-primary" />
@@ -563,7 +563,7 @@ function ShopifyTab() {
               </div>
             </CardContent>
           </Card>
-          <Card>
+          <Card className={cardStyle("livros")} onClick={() => toggleCardFilter("livros")}>
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
                 <BookOpen className="h-8 w-8 text-primary" />
