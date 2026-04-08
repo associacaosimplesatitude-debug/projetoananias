@@ -363,8 +363,10 @@ export default function WhatsAppCampaigns() {
         }
       } else {
         queryClient.invalidateQueries({ queryKey: ["whatsapp-campanhas"] });
-        toast.success(`Campanha disparada! Enviados: ${data.enviados}, Erros: ${data.erros}`);
+        toast.success(data.message || `Disparo iniciado! ${data.total} pendentes serão processados em lotes.`);
         setDispatchingId(null);
+        // Start polling for progress
+        startProgressPolling();
       }
     },
     onError: (err: Error) => {
@@ -372,6 +374,24 @@ export default function WhatsAppCampaigns() {
       setDispatchingId(null);
     },
   });
+
+  // --- Progress polling for active campaigns ---
+  const startProgressPolling = () => {
+    const interval = setInterval(() => {
+      queryClient.invalidateQueries({ queryKey: ["whatsapp-campanhas"] });
+    }, 8000);
+    // Stop polling after 40 minutes max
+    setTimeout(() => clearInterval(interval), 40 * 60 * 1000);
+    // Also stop when component unmounts or campaign finishes
+    const checkStop = setInterval(() => {
+      const cached = queryClient.getQueryData<any[]>(["whatsapp-campanhas"]);
+      const anyEnviando = cached?.some((c: any) => c.status === "enviando");
+      if (!anyEnviando) {
+        clearInterval(interval);
+        clearInterval(checkStop);
+      }
+    }, 10000);
+  };
 
   // --- Test message state ---
   const [testModalOpen, setTestModalOpen] = useState(false);
