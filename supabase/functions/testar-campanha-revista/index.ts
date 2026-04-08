@@ -60,11 +60,11 @@ Deno.serve(async (req) => {
     const nomeCompleto = licenca?.nome_comprador || "Teste";
     const primeiroNome = nomeCompleto.split(" ")[0];
 
-    // Fetch WhatsApp credentials
+    // Fetch WhatsApp credentials + business account ID
     const { data: settings } = await supabase
       .from("system_settings")
       .select("key, value")
-      .in("key", ["whatsapp_phone_number_id", "whatsapp_access_token"]);
+      .in("key", ["whatsapp_phone_number_id", "whatsapp_access_token", "whatsapp_business_account_id"]);
 
     const settingsMap: Record<string, string> = {};
     (settings || []).forEach((s: { key: string; value: string }) => {
@@ -73,6 +73,7 @@ Deno.serve(async (req) => {
 
     const phoneNumberId = settingsMap["whatsapp_phone_number_id"];
     const accessToken = settingsMap["whatsapp_access_token"];
+    const businessAccountId = settingsMap["whatsapp_business_account_id"];
 
     if (!phoneNumberId || !accessToken) {
       return new Response(JSON.stringify({ error: "Credenciais WhatsApp não configuradas em Integrações." }), {
@@ -81,8 +82,48 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Fetch header image handle from Meta API
+    let headerImageId = "";
+    if (businessAccountId) {
+      try {
+        const tplRes = await fetch(
+          `https://graph.facebook.com/v22.0/${businessAccountId}/message_templates?name=utilidade&fields=components`,
+          { headers: { Authorization: `Bearer ${accessToken}` } }
+        );
+        const tplData = await tplRes.json();
+        const tplComponents = tplData?.data?.[0]?.components || [];
+        const headerComp = tplComponents.find((c: any) => c.type === "HEADER");
+        headerImageId = headerComp?.example?.header_handle?.[0] || "";
+        console.log("[testar-campanha-revista] Header handle:", headerImageId);
+      } catch (e) {
+        console.warn("[testar-campanha-revista] Falha ao buscar header handle:", e);
+      }
+    }
+
     // Build Meta API payload
-    const linkEscolha = `https://gestaoebd.com.br/escolha?w=${rawNumero}`;
+    const components: any[] = [];
+
+    // Header with image (required for this template)
+    if (headerImageId) {
+      components.push({
+        type: "header",
+        parameters: [{ type: "image", image: { id: headerImageId } }],
+      });
+    }
+
+    // Body with first name
+    components.push({
+      type: "body",
+      parameters: [{ type: "text", text: primeiroNome }],
+    });
+
+    // Button with dynamic URL suffix (just the phone number)
+    components.push({
+      type: "button",
+      sub_type: "url",
+      index: 0,
+      parameters: [{ type: "text", text: rawNumero }],
+    });
 
     const payload = {
       messaging_product: "whatsapp",
@@ -91,22 +132,7 @@ Deno.serve(async (req) => {
       template: {
         name: "utilidade",
         language: { code: "pt_BR" },
-        components: [
-          {
-            type: "body",
-            parameters: [
-              { type: "text", text: primeiroNome },
-            ],
-          },
-          {
-            type: "button",
-            sub_type: "url",
-            index: 0,
-            parameters: [
-              { type: "text", text: rawNumero },
-            ],
-          },
-        ],
+        components,
       },
     };
 
