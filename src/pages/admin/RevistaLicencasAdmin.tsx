@@ -60,6 +60,7 @@ type ShopifyLicencaRow = {
   expira_em: string | null;
   created_at: string;
   primeiro_acesso_em: string | null;
+  ultimo_acesso_em: string | null;
   versao_preferida: string | null;
   revistas_digitais?: { titulo: string; capa_url: string | null; tipo_conteudo?: string | null } | null;
 };
