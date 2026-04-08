@@ -105,15 +105,22 @@ const handler = async (req: Request): Promise<Response> => {
       });
     }
 
-    const { dry_run } = await req.json();
+    const { dry_run, test_email } = await req.json();
 
     // Fetch unique recipients
-    const { data: recipients, error: fetchError } = await supabase
+    let query = supabase
       .from("revista_licencas_shopify")
       .select("email, nome_comprador, whatsapp")
       .eq("ativo", true)
       .not("email", "is", null)
-      .neq("email", "")
+      .neq("email", "");
+
+    // If test_email is provided, filter to only that email
+    if (test_email) {
+      query = query.eq("email", test_email);
+    }
+
+    const { data: recipients, error: fetchError } = await query
       .order("email")
       .order("created_at", { ascending: false });
 
