@@ -603,6 +603,12 @@ export default function WhatsAppCampaigns() {
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
+                      {c.status === "enviando" && (
+                        <div className="flex items-center gap-2 text-xs text-amber-600">
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          <span>Enviando... {c.total_enviados || 0} enviados{c.total_erros > 0 ? `, ${c.total_erros} erros` : ""}</span>
+                        </div>
+                      )}
                       {c.status === "enviada" && (
                         <Button
                           variant="outline"
