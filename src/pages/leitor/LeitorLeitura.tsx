@@ -404,55 +404,8 @@ export default function LeitorLeitura() {
       <LeitorInstallBanner />
 
       {/* Revistas grid */}
-      <div className="p-3">
+      <div className="p-4">
         {revistas.length === 0 ? (
-          <div className="text-center py-20">
-            <p className="text-white/50">Nenhuma revista disponível</p>
-          </div>
-        ) : (
-          <div
-            className="max-w-2xl mx-auto"
-            style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}
-          >
-            {revistas.map((r) => (
-              <button
-                key={r.id}
-                onClick={() => handleSelectRevista(r)}
-                className="text-left overflow-hidden"
-                style={{ backgroundColor: "#111", borderRadius: "12px" }}
-              >
-                {r.capa_url ? (
-                  <img
-                    src={r.capa_url}
-                    alt={r.titulo}
-                    className="w-full object-cover"
-                    style={{ aspectRatio: "3/4" }}
-                  />
-                ) : (
-                  <div
-                    className="w-full flex items-center justify-center"
-                    style={{ aspectRatio: "3/4", backgroundColor: "#1a1a1a" }}
-                  >
-                    <span className="text-4xl">📖</span>
-                  </div>
-                )}
-                <p
-                  className="text-white font-medium"
-                  style={{
-                    padding: "10px 12px",
-                    fontSize: "12px",
-                    lineHeight: "1.4",
-                    display: "-webkit-box",
-                    WebkitLineClamp: 2,
-                    WebkitBoxOrient: "vertical",
-                    overflow: "hidden",
-                  }}
-                >
-                  {r.titulo}
-                </p>
-              </button>
-            ))}
-          </div>
         )}
       </div>
     </div>
