@@ -636,6 +636,18 @@ export default function RevistasDigitais() {
             <h2 className="text-2xl font-bold">{managingLicoes.titulo}</h2>
             <p className="text-muted-foreground">Gestão das lições e páginas</p>
           </div>
+          <Button
+            className="gap-2 text-black"
+            style={{ backgroundColor: "#FFC107" }}
+            disabled={bulkQuiz.running}
+            onClick={handleBulkGenerateQuiz}
+          >
+            {bulkQuiz.running ? (
+              <><Loader2 className="h-4 w-4 animate-spin" /> Gerando quiz... Lição {bulkQuiz.current} de {bulkQuiz.total}</>
+            ) : (
+              <>🤖 Gerar Quiz de Todas as Lições</>
+            )}
+          </Button>
         </div>
 
         <div className="space-y-4">
