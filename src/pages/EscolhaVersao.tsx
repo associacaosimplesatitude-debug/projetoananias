@@ -183,16 +183,19 @@ export default function EscolhaVersao() {
           </p>
           <ul className="space-y-2.5">
             {[
-              "Acesso apenas com seu número de celular — sem senha para lembrar",
-              "Modo noturno — tela escura para não cansar os olhos à noite",
-              "Quiz ao final de cada lição com pontuação e ranking entre leitores",
-              "Versículos bíblicos citados na lição — veja o texto sem sair da revista",
-              "Anotações por página salvas em qualquer dispositivo",
-              "O sistema lembra onde você parou — continue de onde deixou",
-            ].map((text, i) => (
-              <li key={i} className="flex gap-2 text-sm" style={{ color: "#d1d5db" }}>
-                <span style={{ color: "#FFC107" }} className="shrink-0">✓</span>
-                {text}
+              { icon: "✓", color: "#22c55e", text: "Acesso com número de celular, sem senha", textColor: "#ffffff" },
+              { icon: "✓", color: "#22c55e", text: "Páginas da revista na tela, uma após a outra", textColor: "#ffffff" },
+              { icon: "✓", color: "#22c55e", text: "Modo noturno para não cansar os olhos", textColor: "#ffffff" },
+              { icon: "✓", color: "#22c55e", text: "Quiz ao final de cada lição com pontuação e ranking", textColor: "#ffffff" },
+              { icon: "✓", color: "#22c55e", text: "Versículos bíblicos aparecem sem sair da revista", textColor: "#ffffff" },
+              { icon: "✓", color: "#22c55e", text: "Anotações salvas em qualquer dispositivo", textColor: "#ffffff" },
+              { icon: "✓", color: "#22c55e", text: "Continua de onde parou automaticamente", textColor: "#ffffff" },
+              { icon: "✓", color: "#22c55e", text: "Não ocupa espaço no celular", textColor: "#ffffff" },
+              { icon: "✗", color: "#ef4444", text: "Não funciona sem internet", textColor: "#ffffff" },
+            ].map((item, i) => (
+              <li key={i} className="flex items-start" style={{ gap: 10 }}>
+                <span style={{ color: item.color, fontSize: 16, fontWeight: 700, flexShrink: 0 }}>{item.icon}</span>
+                <span style={{ color: item.textColor, fontSize: 15, lineHeight: 1.5 }}>{item.text}</span>
               </li>
             ))}
           </ul>
@@ -230,18 +233,23 @@ export default function EscolhaVersao() {
           </p>
           <ul className="space-y-2.5">
             {[
-              { text: "Acesso apenas com seu número de celular — sem senha para lembrar", ok: true },
-              { text: "Páginas da revista na tela, uma após a outra — só deslize para baixo", ok: true },
-              { text: "Funciona sem internet após o download inicial", ok: true },
-              { text: "Sem quiz, pontos, anotações ou referências bíblicas", ok: false },
+              { icon: "✓", color: "#22c55e", text: "Acesso com número de celular, sem senha", textColor: "#ffffff" },
+              { icon: "✓", color: "#22c55e", text: "Páginas da revista na tela, uma após a outra", textColor: "#ffffff" },
+              { icon: "✓", color: "#22c55e", text: "Funciona sem internet após o primeiro acesso", textColor: "#ffffff" },
+              { icon: "✗", color: "#ef4444", text: "Sem quiz, pontuação e ranking", textColor: "#ffffff" },
+              { icon: "✗", color: "#ef4444", text: "Sem versículos bíblicos integrados", textColor: "#ffffff" },
+              { icon: "✗", color: "#ef4444", text: "Sem anotações por página", textColor: "#ffffff" },
+              { icon: "✗", color: "#ef4444", text: "Sem modo noturno", textColor: "#ffffff" },
             ].map((item, i) => (
-              <li key={i} className="flex gap-2 text-sm" style={{ color: item.ok ? "#d1d5db" : "#6b7280" }}>
-                <span style={{ color: item.ok ? "#9ca3af" : "#555" }} className="shrink-0">
-                  {item.ok ? "✓" : "✗"}
-                </span>
-                {item.text}
+              <li key={i} className="flex items-start" style={{ gap: 10 }}>
+                <span style={{ color: item.color, fontSize: 16, fontWeight: 700, flexShrink: 0 }}>{item.icon}</span>
+                <span style={{ color: item.textColor, fontSize: 15, lineHeight: 1.5 }}>{item.text}</span>
               </li>
             ))}
+            <li className="flex items-start" style={{ gap: 10 }}>
+              <span style={{ color: "#f59e0b", fontSize: 16, fontWeight: 700, flexShrink: 0 }}>⚠</span>
+              <span style={{ color: "#fbbf24", fontSize: 15, fontWeight: 600, lineHeight: 1.5 }}>Atenção: ocupa espaço no celular</span>
+            </li>
           </ul>
           <button
             onClick={() => handleChoose("leitor_cg")}
