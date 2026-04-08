@@ -589,10 +589,7 @@ function LicencaEditDrawer({ licenca, open, onClose, onSaved }: {
                 <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5"><MailIcon className="h-3.5 w-3.5" />Email</p>
                 {emailLogs.length === 0 ? (
                   <div>
-                    <p className="text-xs text-muted-foreground italic pl-5">Nenhum envio registrado</p>
-                    {licenca.primeiro_acesso_em && (
-                      <p className="text-xs text-muted-foreground/70 italic pl-5 mt-1">O cliente pode ter acessado diretamente pelo link</p>
-                    )}
+                    <p className="text-xs text-muted-foreground italic pl-5">Emails de acesso à revista não são registrados no log de envios</p>
                   </div>
                 ) : (
                   <div className="space-y-1">
