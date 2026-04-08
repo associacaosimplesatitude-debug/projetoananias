@@ -77,6 +77,7 @@ export default function RevistasDigitais() {
   const [generatingQuiz, setGeneratingQuiz] = useState<string | null>(null);
   const [extractingRefs, setExtractingRefs] = useState<string | null>(null);
   const [bulkQuiz, setBulkQuiz] = useState<{ running: boolean; current: number; total: number; errors: number }>({ running: false, current: 0, total: 0, errors: 0 });
+  const [bulkRefs, setBulkRefs] = useState<{ running: boolean; current: number; total: number; errors: number }>({ running: false, current: 0, total: 0, errors: 0 });
   const [editingQuizLicao, setEditingQuizLicao] = useState<{ id: string; titulo: string } | null>(null);
   
   const [uploadingPdfGlobal, setUploadingPdfGlobal] = useState(false);
@@ -221,6 +222,32 @@ export default function RevistasDigitais() {
     }
     setBulkQuiz({ running: false, current: 0, total: 0, errors: 0 });
     toast.success(`Quiz gerado para ${eligible.length - errors} lições com sucesso${errors > 0 ? ` | ${errors} erros` : ""}`);
+  };
+
+  const handleBulkExtractRefs = async () => {
+    if (!licoes?.length) return;
+    const eligible = licoes.filter(l => l.paginas.length > 0);
+    if (eligible.length === 0) { toast.error("Nenhuma lição com páginas"); return; }
+    if (!confirm(`Isso vai extrair/substituir as referências de todas as ${eligible.length} lições. Confirmar?`)) return;
+
+    setBulkRefs({ running: true, current: 0, total: eligible.length, errors: 0 });
+    let errors = 0;
+    for (let i = 0; i < eligible.length; i++) {
+      setBulkRefs(prev => ({ ...prev, current: i + 1 }));
+      setExtractingRefs(eligible[i].id);
+      try {
+        const { data, error } = await supabase.functions.invoke("extrair-referencias-pagina", {
+          body: { licao_id: eligible[i].id },
+        });
+        if (error || data?.error) errors++;
+      } catch {
+        errors++;
+      }
+      setExtractingRefs(null);
+      refetchRefs();
+    }
+    setBulkRefs({ running: false, current: 0, total: 0, errors: 0 });
+    toast.success(`Referências extraídas em ${eligible.length - errors} lições com sucesso${errors > 0 ? ` | ${errors} erros` : ""}`);
   };
 
   const uploadCapa = async (file: File) => {
@@ -646,6 +673,18 @@ export default function RevistasDigitais() {
               <><Loader2 className="h-4 w-4 animate-spin" /> Gerando quiz... Lição {bulkQuiz.current} de {bulkQuiz.total}</>
             ) : (
               <>🤖 Gerar Quiz de Todas as Lições</>
+            )}
+          </Button>
+          <Button
+            className="gap-2"
+            variant="outline"
+            disabled={bulkRefs.running || bulkQuiz.running}
+            onClick={handleBulkExtractRefs}
+          >
+            {bulkRefs.running ? (
+              <><Loader2 className="h-4 w-4 animate-spin" /> Extraindo referências... Lição {bulkRefs.current} de {bulkRefs.total}</>
+            ) : (
+              <>🔍 Extrair Referências de Todas as Lições</>
             )}
           </Button>
         </div>
