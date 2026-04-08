@@ -136,7 +136,7 @@ Deno.serve(async (req) => {
       },
     };
 
-    console.log("[testar-campanha-revista] Enviando para", phone, "nome:", primeiroNome);
+    console.log("[testar-campanha-revista] Payload:", JSON.stringify(payload, null, 2));
 
     const res = await fetch(
       `https://graph.facebook.com/v22.0/${phoneNumberId}/messages`,
