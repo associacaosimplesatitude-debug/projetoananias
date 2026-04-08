@@ -341,6 +341,37 @@ export default function WhatsAppCampaigns() {
     onError: (err: Error) => toast.error("Erro ao enviar: " + err.message),
   });
 
+  // --- Dispatch campaign (disparar-campanha-revista) ---
+  const [dispatchingId, setDispatchingId] = useState<string | null>(null);
+  const dispatchCampaignMutation = useMutation({
+    mutationFn: async ({ campanhaId, dryRun }: { campanhaId: string; dryRun: boolean }) => {
+      const { data, error } = await supabase.functions.invoke("disparar-campanha-revista", {
+        body: { campanha_id: campanhaId, dry_run: dryRun },
+      });
+      if (error) throw new Error(error.message);
+      if (data?.error) throw new Error(data.error);
+      return data;
+    },
+    onSuccess: (data) => {
+      if (data.dry_run) {
+        const confirmSend = confirm(
+          `Campanha possui ${data.total} destinatários pendentes.\n\nDeseja disparar agora?`
+        );
+        if (confirmSend && dispatchingId) {
+          dispatchCampaignMutation.mutate({ campanhaId: dispatchingId, dryRun: false });
+        }
+      } else {
+        queryClient.invalidateQueries({ queryKey: ["whatsapp-campanhas"] });
+        toast.success(`Campanha disparada! Enviados: ${data.enviados}, Erros: ${data.erros}`);
+        setDispatchingId(null);
+      }
+    },
+    onError: (err: Error) => {
+      toast.error("Erro ao disparar: " + err.message);
+      setDispatchingId(null);
+    },
+  });
+
   const resetFlow = () => {
     setStep("list");
     setRecipients([]);
