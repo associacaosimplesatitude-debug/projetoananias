@@ -439,9 +439,9 @@ export default function LeitorLeitura() {
                 <p
                   className="text-white/90 font-medium"
                   style={{
-                    padding: "8px 8px",
-                    fontSize: "11px",
-                    lineHeight: "1.3",
+                    padding: "12px 12px 14px",
+                    fontSize: "13px",
+                    lineHeight: "1.5",
                     display: "-webkit-box",
                     WebkitLineClamp: 2,
                     WebkitBoxOrient: "vertical",
