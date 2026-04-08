@@ -618,6 +618,7 @@ function ShopifyTab() {
   const [formEmail, setFormEmail] = useState("");
   const [formRevistaId, setFormRevistaId] = useState("");
   const [formExpira, setFormExpira] = useState("");
+  const [selectedLicenca, setSelectedLicenca] = useState<ShopifyLicencaRow | null>(null);
 
   const { data: licencas = [], isLoading } = useQuery({
     queryKey: ["admin-revista-licencas-shopify"],
