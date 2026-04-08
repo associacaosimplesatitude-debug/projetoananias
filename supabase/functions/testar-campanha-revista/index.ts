@@ -82,40 +82,8 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Fetch header image handle from Meta API
-    let headerImageId = "";
-    if (businessAccountId) {
-      try {
-        const tplRes = await fetch(
-          `https://graph.facebook.com/v22.0/${businessAccountId}/message_templates?name=utilidade&fields=components`,
-          { headers: { Authorization: `Bearer ${accessToken}` } }
-        );
-        const tplData = await tplRes.json();
-        const tplComponents = tplData?.data?.[0]?.components || [];
-        const headerComp = tplComponents.find((c: any) => c.type === "HEADER");
-        headerImageId = headerComp?.example?.header_handle?.[0] || "";
-        console.log("[testar-campanha-revista] Header handle raw:", headerImageId, "isUrl:", headerImageId?.startsWith?.("http"));
-      } catch (e) {
-        console.warn("[testar-campanha-revista] Falha ao buscar header handle:", e);
-      }
-    }
-
-    // Build Meta API payload
-    const components: any[] = [];
-
-    // Header with image (required for this template)
-    if (headerImageId) {
-      const isUrl = typeof headerImageId === "string" && headerImageId.startsWith("http");
-      components.push({
-        type: "header",
-        parameters: [{
-          type: "image",
-          image: isUrl
-            ? { link: headerImageId }
-            : { id: Number(headerImageId) },
-        }],
-      });
-    }
+    // Header image removed — Meta rejects temporary CDN URLs and template
+    // should fall back to its default approved image when header component is omitted.
 
     // Body with first name
     components.push({
@@ -157,6 +125,7 @@ Deno.serve(async (req) => {
     );
 
     const resBody = await res.json();
+    console.log("[testar-campanha-revista] Meta response:", JSON.stringify(resBody));
 
     if (!res.ok) {
       const errorMsg = resBody?.error?.message || JSON.stringify(resBody);
