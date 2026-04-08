@@ -360,6 +360,7 @@ function ShopifyTab() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [filterAtivo, setFilterAtivo] = useState("all");
+  const [cardFilter, setCardFilter] = useState<CardFilterType>(null);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [formWhatsapp, setFormWhatsapp] = useState("");
   const [formNome, setFormNome] = useState("");
