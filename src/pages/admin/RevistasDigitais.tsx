@@ -197,7 +197,32 @@ export default function RevistasDigitais() {
     }
   };
 
-  // Upload capa to storage
+  const handleBulkGenerateQuiz = async () => {
+    if (!licoes?.length) return;
+    const eligible = licoes.filter(l => l.paginas.length > 0);
+    if (eligible.length === 0) { toast.error("Nenhuma lição com páginas"); return; }
+    if (!confirm(`Isso vai gerar/substituir o quiz de todas as ${eligible.length} lições. Confirmar?`)) return;
+
+    setBulkQuiz({ running: true, current: 0, total: eligible.length, errors: 0 });
+    let errors = 0;
+    for (let i = 0; i < eligible.length; i++) {
+      setBulkQuiz(prev => ({ ...prev, current: i + 1 }));
+      setGeneratingQuiz(eligible[i].id);
+      try {
+        const { data, error } = await supabase.functions.invoke("gerar-quiz-revista", {
+          body: { licao_id: eligible[i].id },
+        });
+        if (error || data?.error) errors++;
+      } catch {
+        errors++;
+      }
+      setGeneratingQuiz(null);
+      refetchQuiz();
+    }
+    setBulkQuiz({ running: false, current: 0, total: 0, errors: 0 });
+    toast.success(`Quiz gerado para ${eligible.length - errors} lições com sucesso${errors > 0 ? ` | ${errors} erros` : ""}`);
+  };
+
   const uploadCapa = async (file: File) => {
     setUploadingCapa(true);
     try {
