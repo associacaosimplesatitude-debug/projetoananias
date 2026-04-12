@@ -1,46 +1,31 @@
 
 
-## Registrar envios de OTP nos logs
+## Adicionar "Atendimento WhatsApp" ao sidebar Admin EBD
 
-### Problema identificado
+### Arquivos a criar
 
-A edge function `revista-solicitar-otp` envia o código OTP via WhatsApp (Meta API) e opcionalmente por email (Resend), mas **não registra nenhum dos dois envios** na tabela `whatsapp_mensagens`. Isso impede o suporte de verificar se o OTP foi realmente enviado.
+**1. `src/pages/admin/AtendimentoWhatsApp.tsx`**
+- Componente com cabeçalho mínimo (ícone WhatsApp verde + título + botão "Abrir em nova aba")
+- iframe full-width apontando para `https://crm.houseassessoria.com.br/login`
+- Sem padding extra — o main do layout já tem `p-6`, então vamos usar margin negativo ou override para o iframe preencher o espaço
 
-No caso da Nathalia: ela solicitou OTP **5 vezes hoje** (nenhum usado), a Meta retornou status 200 para todos, mas sem log no painel é impossível diagnosticar. O email de fallback também não foi registrado.
+### Arquivos a modificar
 
-### Plano
+**2. `src/components/admin/AdminEBDLayout.tsx`**
+- Adicionar item "Atendimento WhatsApp" no TOPO do sidebar (antes do grupo "Voltar ao Admin Geral")
+- Estilização especial: fundo verde `#25D366`, texto branco, hover `#1ebe5d`
+- Ponto verde pulsante animado ao lado
+- Ícone `MessageCircle` do lucide-react
+- Link para `/admin/ebd/atendimento-whatsapp`
+- Visível para todos os roles (inclusive gerente_sorteio)
 
-**Arquivo a alterar:** `supabase/functions/revista-solicitar-otp/index.ts`
+**3. `src/App.tsx`**
+- Adicionar rota `atendimento-whatsapp` como child de `/admin/ebd` (linha ~580)
+- Componente: `AtendimentoWhatsApp`
 
-Após o envio bem-sucedido via Meta API (linha ~186), inserir registro em `whatsapp_mensagens`:
+### Detalhes técnicos
 
-```
-tipo_mensagem: "revista_otp"
-telefone_destino: metaPhone (com 55)
-nome_destino: nome_comprador da licença
-mensagem: "Código OTP enviado (template acesso_revista_otp)"
-status: "enviado" ou "erro" conforme resposta da Meta
-erro_detalhes: JSON do erro se falhou
-payload_enviado: body do request à Meta
-resposta_recebida: response da Meta
-```
-
-Após o envio do email de fallback (linha ~233), inserir registro separado:
-
-```
-tipo_mensagem: "revista_otp_email"
-telefone_destino: numeroLimpo
-nome_destino: nome_comprador
-mensagem: "Código OTP enviado por email para {email}"
-status: "enviado" ou "erro"
-erro_detalhes: mensagem de erro se falhou
-```
-
-Isso permite que o drawer de licenças no admin já mostre esses registros automaticamente (a query por `telefone_destino` já existe).
-
-### Resultado esperado
-
-- Cada solicitação de OTP aparece no "Log de Envios" do drawer do cliente
-- Visibilidade clara de quantas vezes o cliente tentou, se foi WhatsApp ou email, e se houve erro
-- Facilita diagnóstico de reclamações como a da Nathalia
+- O item do sidebar usará estilos inline para o fundo verde, ignorando os estilos padrão do `SidebarMenuButton`
+- A animação de pulso usará `animate-pulse` do Tailwind em um pequeno dot
+- A página terá `overflow: hidden` e o `main` padding será compensado com margin negativo para o iframe ocupar tudo
 
