@@ -59,6 +59,7 @@ import WhatsAppPanel from "./pages/admin/WhatsAppPanel";
 import CampaignTracking from "./pages/admin/CampaignTracking";
 import EbdRetencao from "./pages/admin/EbdRetencao";
 import SorteioAdmin from "./pages/admin/SorteioAdmin";
+import AtendimentoWhatsApp from "./pages/admin/AtendimentoWhatsApp";
 import { AdminEBDLayout } from "@/components/admin/AdminEBDLayout";
 import { EBDLayout } from "@/components/ebd/EBDLayout";
 import { ProfessorLayout } from "@/components/ebd/ProfessorLayout";
@@ -578,6 +579,7 @@ const App = () => (
                       <Route path="sync-errors" element={<BlingSyncErrors />} />
                       <Route path="sorteio" element={<SorteioAdmin />} />
                       <Route path="retencao" element={<EbdRetencao />} />
+                      <Route path="atendimento-whatsapp" element={<AtendimentoWhatsApp />} />
                     </Route>
                     <Route
                       path="/superadmin/branding"
