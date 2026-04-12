@@ -7,7 +7,7 @@ const AtendimentoWhatsApp = () => {
       <div className="flex items-center justify-between px-4 py-2 border-b bg-background">
         <div className="flex items-center gap-2">
           <MessageCircle className="h-5 w-5" style={{ color: '#25D366' }} />
-          <h1 className="text-lg font-semibold">Atendimento WhatsApp</h1>
+          <h1 className="text-lg font-semibold">Atendimento</h1>
         </div>
         <Button
           variant="outline"
