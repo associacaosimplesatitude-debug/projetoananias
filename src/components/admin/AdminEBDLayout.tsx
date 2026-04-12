@@ -32,6 +32,7 @@ import {
   DollarSign,
   AlertTriangle,
   Gift,
+  MessageCircle,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -172,6 +173,25 @@ function AdminSidebar() {
             <SidebarGroupContent>
               <SidebarMenu>
                 <SidebarMenuItem>
+                  <SidebarMenuButton
+                    asChild
+                    className="bg-[#25D366] hover:bg-[#1ebe5d] text-white font-bold transition-all duration-300 mb-1 shadow-md rounded-lg [&>svg]:text-white"
+                    isActive={isActive('/admin/ebd/atendimento-whatsapp')}
+                  >
+                    <RouterNavLink to="/admin/ebd/atendimento-whatsapp" className="!text-white hover:!text-white">
+                      <MessageCircle className="h-4 w-4 fill-white/20" />
+                      <span>💬 Atendimento WhatsApp</span>
+                      <span className="ml-auto flex h-2 w-2 rounded-full bg-white animate-pulse" />
+                    </RouterNavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+          <SidebarGroup>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={isActive('/admin/ebd/sorteio')}>
                     <RouterNavLink to="/admin/ebd/sorteio">
                       <Gift className="h-4 w-4" />
@@ -199,6 +219,27 @@ function AdminSidebar() {
       </SidebarHeader>
 
       <SidebarContent>
+        {/* Atendimento WhatsApp - Destaque no topo */}
+        <SidebarGroup>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  className="bg-[#25D366] hover:bg-[#1ebe5d] text-white font-bold transition-all duration-300 mb-1 shadow-md rounded-lg [&>svg]:text-white"
+                  isActive={isActive('/admin/ebd/atendimento-whatsapp')}
+                >
+                  <RouterNavLink to="/admin/ebd/atendimento-whatsapp" className="!text-white hover:!text-white">
+                    <MessageCircle className="h-4 w-4 fill-white/20" />
+                    <span>💬 Atendimento WhatsApp</span>
+                    <span className="ml-auto flex h-2 w-2 rounded-full bg-white animate-pulse" />
+                  </RouterNavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
         {/* Navegação */}
         {isAdmin && (
           <SidebarGroup>
