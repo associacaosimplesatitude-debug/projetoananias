@@ -37,7 +37,7 @@ export default function StripeCardPaymentForm({ clientSecret, amount }: StripeCa
       }
 
       const stripe = window.Stripe(
-        "pk_live_51TKJLCQqNlxyJH6pBaLgJEJaXLtV7LSfb2TcryYRZ4X2FjuAB0V0kcrAx9edW0UY9JY7KDzRhE8NDxDiyGzq0Xq00cHZcKE32"
+        "pk_live_51TKJLCQqNlxyJH6pqBaLgJEJaXLtV7LSfb2TcryYRZ4X2FjuAB0V0kcrAx9edW0UY9JY7KDzRhE8NDxDiyGzq0Xq00cHZcKE32"
       );
       stripeRef.current = stripe;
 
