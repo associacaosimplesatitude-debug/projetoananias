@@ -6999,6 +6999,45 @@ export type Database = {
         }
         Relationships: []
       }
+      stripe_test_logs: {
+        Row: {
+          amount: number
+          created_at: string
+          description: string | null
+          fee_amount: number
+          id: string
+          net_amount: number
+          payment_intent_id: string | null
+          raw_payload: Json | null
+          status: string
+          stripe_event: string | null
+        }
+        Insert: {
+          amount?: number
+          created_at?: string
+          description?: string | null
+          fee_amount?: number
+          id?: string
+          net_amount?: number
+          payment_intent_id?: string | null
+          raw_payload?: Json | null
+          status?: string
+          stripe_event?: string | null
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          description?: string | null
+          fee_amount?: number
+          id?: string
+          net_amount?: number
+          payment_intent_id?: string | null
+          raw_payload?: Json | null
+          status?: string
+          stripe_event?: string | null
+        }
+        Relationships: []
+      }
       system_implementations: {
         Row: {
           category: string | null
