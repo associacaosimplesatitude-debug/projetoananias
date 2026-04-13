@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import StripeCardPaymentForm from "@/components/admin/StripeCardPaymentForm";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -219,6 +220,14 @@ export default function StripeTeste() {
                   <QrCode className="h-4 w-4 mr-2" />
                   {loadingPix ? "Gerando PIX..." : "Gerar QR Code PIX"}
                 </Button>
+              </div>
+
+              {/* Card Payment Form */}
+              <div className="mt-3 pt-3 border-t">
+                <StripeCardPaymentForm
+                  clientSecret={result.client_secret}
+                  amount={result.amount}
+                />
               </div>
             </div>
           )}
