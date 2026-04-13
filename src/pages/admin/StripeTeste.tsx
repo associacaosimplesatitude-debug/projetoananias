@@ -140,11 +140,11 @@ export default function StripeTeste() {
             </div>
             <div className="md:col-span-2">
               <span className="font-medium text-muted-foreground">Split configurado:</span>
-              <p>
-                <Badge className="bg-green-600 text-white mr-2">97%</Badge> Central Gospel
+              <div className="flex items-center gap-1 flex-wrap">
+                <Badge className="bg-green-600 text-white mr-1">97%</Badge> Central Gospel
                 <span className="mx-2">|</span>
                 <Badge className="bg-[#635BFF] text-white">3%</Badge> House Comunicação (taxa)
-              </p>
+              </div>
             </div>
           </div>
         </CardContent>
