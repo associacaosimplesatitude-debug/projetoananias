@@ -82,6 +82,60 @@ Deno.serve(async (req) => {
       feeAmount = (pi.application_fee_amount || Math.round(pi.amount * 0.03)) / 100;
       netAmount = amount - feeAmount;
       description = pi.metadata?.descricao || "";
+
+      // Gravar log do pagamento primeiro
+      const { error: logError } = await supabase.from("stripe_test_logs").insert({
+        payment_intent_id: paymentIntentId,
+        amount,
+        fee_amount: feeAmount,
+        net_amount: netAmount,
+        status,
+        description,
+        stripe_event: event.type,
+        raw_payload: event,
+      });
+      if (logError) console.error("Erro ao salvar log:", logError);
+
+      // Executar transferência de 3% para House Comunicação
+      const STRIPE_SECRET_KEY = Deno.env.get("STRIPE_SECRET_KEY");
+      const destination = Deno.env.get("STRIPE_TRANSFER_DESTINATION") || "acct_1TJE3cKCVupxwxRr";
+      const transferAmount = Math.round(pi.amount * 0.03);
+
+      const transferParams = new URLSearchParams();
+      transferParams.append("amount", transferAmount.toString());
+      transferParams.append("currency", "brl");
+      transferParams.append("destination", destination);
+      transferParams.append("transfer_group", pi.id);
+      transferParams.append("metadata[origem]", "webhook_automatico");
+      transferParams.append("metadata[payment_intent]", pi.id);
+
+      const transferRes = await fetch("https://api.stripe.com/v1/transfers", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${STRIPE_SECRET_KEY}`,
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: transferParams.toString(),
+      });
+
+      const transferData = await transferRes.json();
+      console.log("Transfer result:", transferRes.ok, JSON.stringify(transferData));
+
+      // Gravar resultado da transferência em stripe_test_logs
+      await supabase.from("stripe_test_logs").insert({
+        payment_intent_id: pi.id,
+        amount: pi.amount / 100,
+        fee_amount: transferAmount / 100,
+        net_amount: (pi.amount - transferAmount) / 100,
+        status: transferRes.ok ? "TRANSFERENCIA_EXECUTADA" : "TRANSFERENCIA_FALHOU",
+        stripe_event: "transfer.created",
+        raw_payload: transferData,
+      });
+
+      // Retornar aqui pois já gravamos o log acima
+      return new Response(JSON.stringify({ received: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     } else if (event.type === "payment_intent.payment_failed") {
       const pi = event.data.object;
       status = "FALHOU";
