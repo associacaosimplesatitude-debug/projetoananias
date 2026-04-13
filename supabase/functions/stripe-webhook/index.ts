@@ -98,14 +98,37 @@ Deno.serve(async (req) => {
 
       // Executar transferência de 3% para House Comunicação
       const STRIPE_SECRET_KEY = Deno.env.get("STRIPE_SECRET_KEY");
-      const destination = Deno.env.get("STRIPE_CONNECTED_ACCOUNT") || Deno.env.get("STRIPE_TRANSFER_DESTINATION") || "acct_1TJE3cKCVupxwxRr";
+      const destination = Deno.env.get("STRIPE_CONNECTED_ACCOUNT") || "acct_1TLch2QtDc37RJKx";
       console.log("Transfer destination:", destination);
       const transferAmount = Math.round(pi.amount * 0.03);
+
+      // Extrair source_transaction (obrigatório para transferências no Brasil)
+      const sourceTransaction = typeof pi.latest_charge === 'string'
+        ? pi.latest_charge
+        : pi.charges?.data?.[0]?.id || null;
+      console.log("Source transaction (charge):", sourceTransaction);
+
+      if (!sourceTransaction) {
+        console.error("Charge não encontrado no PaymentIntent, impossível criar transferência no Brasil");
+        await supabase.from("stripe_test_logs").insert({
+          payment_intent_id: pi.id,
+          amount: pi.amount / 100,
+          fee_amount: transferAmount / 100,
+          net_amount: (pi.amount - transferAmount) / 100,
+          status: "TRANSFERENCIA_FALHOU",
+          stripe_event: "transfer.skipped",
+          raw_payload: { error: "source_transaction not found", pi_keys: Object.keys(pi) },
+        });
+        return new Response(JSON.stringify({ received: true }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
 
       const transferParams = new URLSearchParams();
       transferParams.append("amount", transferAmount.toString());
       transferParams.append("currency", "brl");
       transferParams.append("destination", destination);
+      transferParams.append("source_transaction", sourceTransaction);
       transferParams.append("transfer_group", pi.id);
       transferParams.append("metadata[origem]", "webhook_automatico");
       transferParams.append("metadata[payment_intent]", pi.id);

@@ -85,7 +85,7 @@ Deno.serve(async (req) => {
     piParams.append("payment_method_types[]", "card");
     piParams.append("metadata[origem]", "teste_admin");
     piParams.append("metadata[descricao]", description || "Teste Stripe");
-    piParams.append("metadata[transfer_destination]", "acct_1TJE3cKCVupxwxRr");
+    piParams.append("metadata[transfer_destination]", Deno.env.get("STRIPE_CONNECTED_ACCOUNT") || "acct_1TLch2QtDc37RJKx");
     piParams.append("metadata[fee_percent]", "3");
     if (test_mode) {
       piParams.append("metadata[test_mode]", "true");
