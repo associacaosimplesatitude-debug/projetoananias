@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { CreditCard, RefreshCw, Zap, Settings, ListChecks, ArrowRight } from "lucide-react";
+import { CreditCard, RefreshCw, Zap, Settings, ListChecks, ArrowRight, QrCode, Copy, Clock } from "lucide-react";
 import { toast } from "sonner";
 
 interface StripeLog {
@@ -31,6 +31,13 @@ interface PaymentResult {
   status: string;
 }
 
+interface PixResult {
+  qr_code: string | null;
+  qr_code_text: string | null;
+  expires_at: number | null;
+  status: string;
+}
+
 export default function StripeTeste() {
   const [valor, setValor] = useState("");
   const [descricao, setDescricao] = useState("");
@@ -38,6 +45,8 @@ export default function StripeTeste() {
   const [result, setResult] = useState<PaymentResult | null>(null);
   const [logs, setLogs] = useState<StripeLog[]>([]);
   const [loadingLogs, setLoadingLogs] = useState(false);
+  const [pixResult, setPixResult] = useState<PixResult | null>(null);
+  const [loadingPix, setLoadingPix] = useState(false);
 
   const fetchLogs = async () => {
     setLoadingLogs(true);
@@ -69,6 +78,7 @@ export default function StripeTeste() {
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       setResult(data);
+      setPixResult(null);
       toast.success("PaymentIntent criado com sucesso!");
     } catch (err: any) {
       toast.error(err.message || "Erro ao criar PaymentIntent");
@@ -183,6 +193,87 @@ export default function StripeTeste() {
                 <summary className="cursor-pointer text-muted-foreground">client_secret (clique para expandir)</summary>
                 <p className="break-all mt-1">{result.client_secret}</p>
               </details>
+
+              <div className="mt-3 pt-3 border-t">
+                <Button
+                  onClick={async () => {
+                    setLoadingPix(true);
+                    try {
+                      const { data, error } = await supabase.functions.invoke("stripe-test-payment", {
+                        body: { action: "create_pix", payment_intent_id: result.payment_intent_id },
+                      });
+                      if (error) throw error;
+                      if (data?.error) throw new Error(data.error);
+                      setPixResult(data);
+                      toast.success("QR Code PIX gerado!");
+                    } catch (err: any) {
+                      toast.error(err.message || "Erro ao gerar PIX");
+                    } finally {
+                      setLoadingPix(false);
+                    }
+                  }}
+                  disabled={loadingPix}
+                  variant="outline"
+                  className="w-full"
+                >
+                  <QrCode className="h-4 w-4 mr-2" />
+                  {loadingPix ? "Gerando PIX..." : "Gerar QR Code PIX"}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {pixResult && (
+            <div className="mt-4 p-4 rounded-lg bg-muted border space-y-4">
+              <h3 className="font-semibold flex items-center gap-2">
+                <QrCode className="h-5 w-5" /> Pagamento PIX
+              </h3>
+
+              {pixResult.qr_code && (
+                <div className="flex justify-center">
+                  <img
+                    src={pixResult.qr_code}
+                    alt="QR Code PIX"
+                    className="w-48 h-48 rounded-lg border bg-white p-2"
+                  />
+                </div>
+              )}
+
+              {pixResult.qr_code_text && (
+                <div className="space-y-1">
+                  <label className="text-sm font-medium">Código copia-e-cola:</label>
+                  <div className="flex gap-2">
+                    <Input
+                      readOnly
+                      value={pixResult.qr_code_text}
+                      className="font-mono text-xs"
+                    />
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => {
+                        navigator.clipboard.writeText(pixResult.qr_code_text!);
+                        toast.success("Código PIX copiado!");
+                      }}
+                    >
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {pixResult.expires_at && (
+                <p className="text-sm text-muted-foreground flex items-center gap-1">
+                  <Clock className="h-4 w-4" />
+                  Expira em: {new Date(pixResult.expires_at * 1000).toLocaleString("pt-BR")}
+                </p>
+              )}
+
+              <p className="text-sm font-medium">Status: {pixResult.status}</p>
+
+              <p className="text-xs text-muted-foreground italic">
+                Após pagar, clique em "Atualizar" no Log de Eventos abaixo para ver o webhook.
+              </p>
             </div>
           )}
         </CardContent>
