@@ -17,6 +17,7 @@ import {
   Eye,
   Wallet,
   Filter,
+  MessageCircle,
 } from "lucide-react";
 import { UserProfileDropdown } from "@/components/layout/UserProfileDropdown";
 import { NotificationBell } from "@/components/vendedor/NotificationBell";
@@ -49,6 +50,7 @@ interface MenuItem {
 // Menu organizado por contexto de Playbook
 const allMenuItems: MenuItem[] = [
   { to: "/vendedor", icon: LayoutDashboard, label: "Painel", end: true },
+  { to: "/vendedor/atendimento", icon: MessageCircle, label: "Atendimento" },
   { to: "/vendedor/clientes", icon: Users, label: "Clientes" },
   // PDV para vendas de balcão (Polo Penha)
   { to: "/vendedor/pdv", icon: Store, label: "PDV Balcão", poloOnly: true },
@@ -152,12 +154,26 @@ export function VendedorLayout() {
                     ) : (
                       menuItems.map((item) => (
                         <SidebarMenuItem key={item.to}>
-                          <SidebarMenuButton asChild isActive={isActive(item.to)}>
-                            <RouterNavLink to={item.to} end={item.end}>
-                              <item.icon className="h-4 w-4" />
-                              <span>{item.label}</span>
-                            </RouterNavLink>
-                          </SidebarMenuButton>
+                          {item.label === "Atendimento" ? (
+                            <SidebarMenuButton
+                              asChild
+                              className="!bg-[#25D366] hover:!bg-[#1ebe5d] !text-white font-bold transition-all duration-300 mb-1 shadow-md rounded-lg [&>svg]:!text-white data-[active=true]:!bg-[#25D366] data-[active=true]:!text-white"
+                              isActive={isActive(item.to)}
+                            >
+                              <RouterNavLink to={item.to} style={{ backgroundColor: '#25D366', color: '#ffffff' }} className="!text-white hover:!text-white">
+                                <MessageCircle className="h-4 w-4 fill-white/20" />
+                                <span>Atendimento</span>
+                                <span className="ml-auto flex h-2 w-2 rounded-full bg-white animate-pulse" />
+                              </RouterNavLink>
+                            </SidebarMenuButton>
+                          ) : (
+                            <SidebarMenuButton asChild isActive={isActive(item.to)}>
+                              <RouterNavLink to={item.to} end={item.end}>
+                                <item.icon className="h-4 w-4" />
+                                <span>{item.label}</span>
+                              </RouterNavLink>
+                            </SidebarMenuButton>
+                          )}
                         </SidebarMenuItem>
                       ))
                     )}

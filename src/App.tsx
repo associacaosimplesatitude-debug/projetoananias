@@ -634,6 +634,7 @@ const App = () => (
                           <VendedorFunil />
                         </VendedorProtectedRoute>
                       } />
+                      <Route path="atendimento" element={<AtendimentoWhatsApp />} />
                       <Route path="tutoriais" element={<Tutoriais />} />
                     </Route>
                     <Route path="/vendedor/catalogo" element={<VendedorCatalogo />} />
