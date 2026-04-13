@@ -83,7 +83,6 @@ Deno.serve(async (req) => {
     piParams.append("amount", amountCents.toString());
     piParams.append("currency", "brl");
     piParams.append("payment_method_types[]", "card");
-    piParams.append("payment_method_types[]", "pix");
     piParams.append("metadata[origem]", "teste_admin");
     piParams.append("metadata[descricao]", description || "Teste Stripe");
     piParams.append("metadata[transfer_destination]", "acct_1TJE3cKCVupxwxRr");
