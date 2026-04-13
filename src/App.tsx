@@ -46,6 +46,7 @@ import AdminEBDCurriculo from "./pages/admin/EBDCurriculo";
 import AdminEBDQuizMestre from "./pages/admin/EBDQuizMestre";
 import AdminEBDConteudoBiblico from "./pages/admin/EBDConteudoBiblico";
 import AdminOrders from "./pages/admin/Orders";
+import StripeTeste from "./pages/admin/StripeTeste";
 import AdminEBD from "./pages/admin/AdminEBD";
 import AdminEBDPropostasPage from "./pages/admin/AdminEBDPropostasPage";
 import AprovacaoFaturamento from "./pages/admin/AprovacaoFaturamento";
@@ -527,6 +528,7 @@ const App = () => (
                       <Route path="implementacoes" element={<Implementacoes />} />
                       <Route path="whatsapp" element={<WhatsAppPanel />} />
                       <Route path="whatsapp/campanhas/:campanha_id/rastreamento" element={<CampaignTracking />} />
+                      <Route path="stripe-teste" element={<StripeTeste />} />
                     </Route>
                     <Route
                       path="/admin/ebd"
