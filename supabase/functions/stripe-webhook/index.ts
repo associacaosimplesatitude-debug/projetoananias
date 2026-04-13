@@ -98,7 +98,8 @@ Deno.serve(async (req) => {
 
       // Executar transferência de 3% para House Comunicação
       const STRIPE_SECRET_KEY = Deno.env.get("STRIPE_SECRET_KEY");
-      const destination = Deno.env.get("STRIPE_TRANSFER_DESTINATION") || "acct_1TJE3cKCVupxwxRr";
+      const destination = Deno.env.get("STRIPE_CONNECTED_ACCOUNT") || Deno.env.get("STRIPE_TRANSFER_DESTINATION") || "acct_1TJE3cKCVupxwxRr";
+      console.log("Transfer destination:", destination);
       const transferAmount = Math.round(pi.amount * 0.03);
 
       const transferParams = new URLSearchParams();
