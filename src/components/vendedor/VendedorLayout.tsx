@@ -17,6 +17,7 @@ import {
   Eye,
   Wallet,
   Filter,
+  MessageCircle,
 } from "lucide-react";
 import { UserProfileDropdown } from "@/components/layout/UserProfileDropdown";
 import { NotificationBell } from "@/components/vendedor/NotificationBell";
