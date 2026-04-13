@@ -1,31 +1,39 @@
 
 
-## Adicionar "Atendimento WhatsApp" ao sidebar Admin EBD
+## Diagnóstico
 
-### Arquivos a criar
+O erro persiste: **"No such destination: 'acct_1TJE3cKCVupxwxRr'"**
 
-**1. `src/pages/admin/AtendimentoWhatsApp.tsx`**
-- Componente com cabeçalho mínimo (ícone WhatsApp verde + título + botão "Abrir em nova aba")
-- iframe full-width apontando para `https://crm.houseassessoria.com.br/login`
-- Sem padding extra — o main do layout já tem `p-6`, então vamos usar margin negativo ou override para o iframe preencher o espaço
+- O código na linha 101 do webhook faz: `Deno.env.get("STRIPE_TRANSFER_DESTINATION") || "acct_1TJE3cKCVupxwxRr"`
+- O secret `STRIPE_TRANSFER_DESTINATION` **não existe** nos secrets do projeto
+- O secret `STRIPE_CONNECTED_ACCOUNT` **existe** mas não está sendo usado
+- Resultado: sempre cai no fallback hardcoded `acct_1TJE3cKCVupxwxRr`, que é inválido
 
-### Arquivos a modificar
+## Plano
 
-**2. `src/components/admin/AdminEBDLayout.tsx`**
-- Adicionar item "Atendimento WhatsApp" no TOPO do sidebar (antes do grupo "Voltar ao Admin Geral")
-- Estilização especial: fundo verde `#25D366`, texto branco, hover `#1ebe5d`
-- Ponto verde pulsante animado ao lado
-- Ícone `MessageCircle` do lucide-react
-- Link para `/admin/ebd/atendimento-whatsapp`
-- Visível para todos os roles (inclusive gerente_sorteio)
+### 1. Corrigir `supabase/functions/stripe-webhook/index.ts` (linha 101)
 
-**3. `src/App.tsx`**
-- Adicionar rota `atendimento-whatsapp` como child de `/admin/ebd` (linha ~580)
-- Componente: `AtendimentoWhatsApp`
+Alterar a leitura do destination para usar `STRIPE_CONNECTED_ACCOUNT` (que é o secret que realmente existe):
 
-### Detalhes técnicos
+```typescript
+// Antes:
+const destination = Deno.env.get("STRIPE_TRANSFER_DESTINATION") || "acct_1TJE3cKCVupxwxRr";
 
-- O item do sidebar usará estilos inline para o fundo verde, ignorando os estilos padrão do `SidebarMenuButton`
-- A animação de pulso usará `animate-pulse` do Tailwind em um pequeno dot
-- A página terá `overflow: hidden` e o `main` padding será compensado com margin negativo para o iframe ocupar tudo
+// Depois:
+const destination = Deno.env.get("STRIPE_CONNECTED_ACCOUNT") || Deno.env.get("STRIPE_TRANSFER_DESTINATION") || "acct_1TJE3cKCVupxwxRr";
+```
+
+### 2. Adicionar log do destination para debug
+
+Adicionar `console.log("Transfer destination:", destination);` antes da chamada para confirmar qual valor está sendo usado.
+
+### 3. Redeploy da edge function
+
+### 4. Verificar o valor do secret `STRIPE_CONNECTED_ACCOUNT`
+
+Se mesmo após a correção a transferência falhar, o valor armazenado em `STRIPE_CONNECTED_ACCOUNT` pode estar incorreto e precisará ser atualizado com o account ID correto da House Assessoria (visível no dashboard do Stripe em Connect > Contas conectadas).
+
+### Arquivos modificados
+- `supabase/functions/stripe-webhook/index.ts` (única alteração)
+- Nenhum arquivo do Mercado Pago será tocado
 
