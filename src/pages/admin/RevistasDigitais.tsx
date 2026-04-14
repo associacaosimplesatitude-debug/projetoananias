@@ -281,7 +281,7 @@ export default function RevistasDigitais() {
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      const isLivro = tipoConteudo === 'livro_digital';
+      const isLivro = tipoConteudo === 'livro_digital' || tipoConteudo === 'infografico';
       const payload = {
         titulo,
         tipo: isLivro ? 'aluno' : tipo,
@@ -919,7 +919,7 @@ export default function RevistasDigitais() {
                 <Label>Título</Label>
                 <Input value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder="Ex: Estudo Bíblico Nº 9" />
               </div>
-              {tipoConteudo !== 'livro_digital' && (
+              {tipoConteudo !== 'livro_digital' && tipoConteudo !== 'infografico' && (
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label>Tipo</Label>
@@ -944,6 +944,7 @@ export default function RevistasDigitais() {
                   <SelectContent>
                     <SelectItem value="revista">Revista EBD</SelectItem>
                     <SelectItem value="livro_digital">Livro Digital</SelectItem>
+                    <SelectItem value="infografico">Infográficos</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -978,7 +979,7 @@ export default function RevistasDigitais() {
                     </SelectContent>
                   </Select>
                 </div>
-                {!editingRevista && tipoConteudo !== 'livro_digital' && (
+                {!editingRevista && tipoConteudo !== 'livro_digital' && tipoConteudo !== 'infografico' && (
                   <div>
                     <Label>Total de Lições *</Label>
                     <Input
@@ -1019,7 +1020,7 @@ export default function RevistasDigitais() {
 
               <Button
                 onClick={() => saveMutation.mutate()}
-                disabled={!titulo || saveMutation.isPending || (!editingRevista && tipoConteudo !== 'livro_digital' && (!totalLicoes || Number(totalLicoes) < 1))}
+                disabled={!titulo || saveMutation.isPending || (!editingRevista && tipoConteudo !== 'livro_digital' && tipoConteudo !== 'infografico' && (!totalLicoes || Number(totalLicoes) < 1))}
                 className="w-full bg-orange-500 hover:bg-orange-600 text-white gap-2"
               >
                 <Save className="h-4 w-4" />
@@ -1119,10 +1120,10 @@ export default function RevistasDigitais() {
                 )}
               </div>
 
-              {/* Upload de Páginas para Livro Digital */}
-              {tipoConteudo === 'livro_digital' && editingRevista && (
+              {/* Upload de Páginas para Livro Digital / Infográfico */}
+              {(tipoConteudo === 'livro_digital' || tipoConteudo === 'infografico') && editingRevista && (
                 <div className="pt-2 border-t">
-                  <Label className="text-xs">Páginas do Livro</Label>
+                  <Label className="text-xs">{tipoConteudo === 'infografico' ? 'Páginas do Infográfico' : 'Páginas do Livro'}</Label>
                   <p className="text-[10px] text-muted-foreground mb-2">
                     Selecione as imagens das páginas (serão ordenadas pelo nome do arquivo)
                   </p>
@@ -1209,7 +1210,7 @@ export default function RevistasDigitais() {
                   </TableCell>
                   <TableCell>{r.trimestre}</TableCell>
                   <TableCell>
-                    {(r as any).tipo_conteudo === 'livro_digital'
+                    {(r as any).tipo_conteudo === 'livro_digital' || (r as any).tipo_conteudo === 'infografico'
                       ? r.total_licoes > 0 ? `${r.total_licoes} páginas` : "—"
                       : r.total_licoes}
                   </TableCell>
@@ -1220,7 +1221,7 @@ export default function RevistasDigitais() {
                   </TableCell>
                   <TableCell className="text-right space-x-1">
                     <Button size="sm" variant="ghost" onClick={() => openEdit(r)} title="Editar"><Pencil className="h-4 w-4" /></Button>
-                    {(r as any).tipo_conteudo !== 'livro_digital' && (
+                    {(r as any).tipo_conteudo !== 'livro_digital' && (r as any).tipo_conteudo !== 'infografico' && (
                       <Button size="sm" variant="ghost" onClick={() => setManagingLicoes(r)} title="Gerir Lições"><Image className="h-4 w-4" /></Button>
                     )}
                     <Button size="sm" variant="ghost" onClick={() => deleteMutation.mutate(r.id)} title="Excluir"><Trash2 className="h-4 w-4 text-destructive" /></Button>
