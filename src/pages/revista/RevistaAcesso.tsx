@@ -1,34 +1,59 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
-import { Loader2, AlertCircle } from "lucide-react";
+import { Loader2, AlertCircle, ChevronDown } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import {
-  getRevistaTokenExpiresAt,
-  parseRevistaToken,
   persistRevistaToken,
-  REVISTA_KEYS,
   getValidRevistaSession,
   clearRevistaSession,
   saveRevistaSession,
 } from "@/lib/revistaSession";
 import logoCentralGospel from "@/assets/logo_central_gospel.png";
 
-function formatPhone(value: string) {
+const COUNTRIES = [
+  { code: "BR", flag: "🇧🇷", ddi: "55", label: "Brasil", maxDigits: 11, minDigits: 10, placeholder: "(11) 99999-9999" },
+  { code: "PT", flag: "🇵🇹", ddi: "351", label: "Portugal", maxDigits: 9, minDigits: 9, placeholder: "913 603 081" },
+  { code: "US", flag: "🇺🇸", ddi: "1", label: "Estados Unidos", maxDigits: 10, minDigits: 10, placeholder: "(212) 555-1234" },
+] as const;
+
+type Country = (typeof COUNTRIES)[number];
+
+function formatPhoneBR(value: string) {
   const digits = value.replace(/\D/g, "").slice(0, 11);
   if (digits.length <= 2) return `(${digits}`;
   if (digits.length <= 7) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
   return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
 }
 
+function formatPhonePT(value: string) {
+  const digits = value.replace(/\D/g, "").slice(0, 9);
+  if (digits.length <= 3) return digits;
+  if (digits.length <= 6) return `${digits.slice(0, 3)} ${digits.slice(3)}`;
+  return `${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6)}`;
+}
+
+function formatPhoneUS(value: string) {
+  const digits = value.replace(/\D/g, "").slice(0, 10);
+  if (digits.length <= 3) return `(${digits}`;
+  if (digits.length <= 6) return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
+  return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+}
+
+function formatPhone(value: string, country: Country) {
+  if (country.code === "PT") return formatPhonePT(value);
+  if (country.code === "US") return formatPhoneUS(value);
+  return formatPhoneBR(value);
+}
+
 function extractDigits(value: string) {
   return value.replace(/\D/g, "");
 }
 
-function isEmail(value: string) {
-  return value.includes("@");
+function buildWhatsappIdentifier(digits: string, ddi: string): string {
+  if (ddi === "55") return digits;
+  return ddi + digits;
 }
 
 export default function RevistaAcesso() {
@@ -36,86 +61,74 @@ export default function RevistaAcesso() {
   const [checkingSession, setCheckingSession] = useState(true);
   const [step, setStep] = useState<"numero" | "codigo">("numero");
   const [phone, setPhone] = useState("");
-  const [inputMode, setInputMode] = useState<"phone" | "email">("phone");
+  const [country, setCountry] = useState<Country>(COUNTRIES[0]);
+  const [countryOpen, setCountryOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [otp, setOtp] = useState(["", "", "", ""]);
   const [resendTimer, setResendTimer] = useState(0);
   const [otpMotivo, setOtpMotivo] = useState<"primeiro_acesso" | "prazo_expirado">("primeiro_acesso");
-  const [otpEnviadoPorEmail, setOtpEnviadoPorEmail] = useState(false);
   const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Check existing session BEFORE rendering
   useEffect(() => {
     const session = getValidRevistaSession();
     if (session) {
       navigate("/revista/leitura", { replace: true });
       return;
     }
-    // Session invalid or absent — clear and show form
     clearRevistaSession();
     setCheckingSession(false);
   }, [navigate]);
 
-  // Resend timer countdown
   useEffect(() => {
     if (resendTimer <= 0) return;
     const interval = setInterval(() => setResendTimer((t) => t - 1), 1000);
     return () => clearInterval(interval);
   }, [resendTimer]);
 
+  // Close dropdown on outside click
+  useEffect(() => {
+    if (!countryOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setCountryOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [countryOpen]);
+
   const cleanNumber = extractDigits(phone);
-  const emailValue = inputMode === "email" ? phone.trim().toLowerCase() : "";
+  const identifier = buildWhatsappIdentifier(cleanNumber, country.ddi);
 
-  const isInputValid = inputMode === "email" 
-    ? emailValue.includes("@") && emailValue.includes(".")
-    : cleanNumber.length >= 10;
-
-  const handleInputChange = (value: string) => {
-    setPhone(value);
-    // Auto-detect: if user types @, switch to email mode
-    if (value.includes("@") && inputMode === "phone") {
-      setInputMode("email");
-    }
-  };
+  const isInputValid = cleanNumber.length >= country.minDigits && cleanNumber.length <= country.maxDigits;
 
   const handleSolicitarOtp = useCallback(async () => {
     if (!isInputValid) {
-      setError(inputMode === "email" 
-        ? "Por favor, insira um email válido" 
-        : "Por favor, verifique se o número está correto");
+      setError("Por favor, verifique se o número está correto");
       return;
     }
     setLoading(true);
     setError("");
     try {
-      const body = inputMode === "email" 
-        ? { email: emailValue } 
-        : { whatsapp: cleanNumber };
-
       const { data, error: fnError } = await supabase.functions.invoke(
         "revista-solicitar-otp",
-        { body }
+        { body: { whatsapp: identifier } }
       );
       if (fnError) throw fnError;
 
-      // Handle acesso_direto — enter without OTP
       if (data?.status === "acesso_direto") {
         const newToken = persistRevistaToken(data.token);
-        if (!newToken) {
-          setError("Ocorreu um erro. Tente novamente.");
-          return;
-        }
+        if (!newToken) { setError("Ocorreu um erro. Tente novamente."); return; }
         saveRevistaSession(newToken, data.licencas);
         const destino = data.versao_preferida === "leitor_cg" ? "/leitor/leitura" : "/revista/leitura";
         navigate(destino, { replace: true });
         return;
       }
 
-      // Handle OTP sent
       if (data?.status === "otp_enviado" || data?.sucesso) {
         setOtpMotivo(data?.motivo === "prazo_expirado" ? "prazo_expirado" : "primeiro_acesso");
-        setOtpEnviadoPorEmail(data?.otp_via === "email" || inputMode === "email");
         setStep("codigo");
         setResendTimer(60);
         setOtp(["", "", "", ""]);
@@ -124,17 +137,11 @@ export default function RevistaAcesso() {
       }
 
       if (data?.erro === "numero_nao_encontrado") {
-        setError(
-          inputMode === "email"
-            ? "Email não encontrado. Verifique se usou o mesmo email informado na compra."
-            : "Número não encontrado. Verifique se usou o mesmo número informado na compra."
-        );
+        setError("Número não encontrado. Verifique se usou o mesmo número informado na compra.");
         return;
       }
       if (data?.erro === "numero_invalido") {
-        setError(inputMode === "email"
-          ? "Por favor, insira um email válido"
-          : "Por favor, verifique se o número está correto");
+        setError("Por favor, verifique se o número está correto");
         return;
       }
       if (data?.erro) {
@@ -146,22 +153,17 @@ export default function RevistaAcesso() {
     } finally {
       setLoading(false);
     }
-  }, [cleanNumber, emailValue, inputMode, isInputValid, navigate]);
+  }, [identifier, isInputValid, navigate]);
 
   const handleOtpChange = (index: number, value: string) => {
     if (!/^\d?$/.test(value)) return;
     const newOtp = [...otp];
     newOtp[index] = value;
     setOtp(newOtp);
-    if (value && index < 3) {
-      otpRefs.current[index + 1]?.focus();
-    }
+    if (value && index < 3) otpRefs.current[index + 1]?.focus();
   };
 
-  const handleOtpKeyDown = (
-    index: number,
-    e: React.KeyboardEvent<HTMLInputElement>
-  ) => {
+  const handleOtpKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Backspace" && !otp[index] && index > 0) {
       otpRefs.current[index - 1]?.focus();
     }
@@ -173,33 +175,20 @@ export default function RevistaAcesso() {
     setLoading(true);
     setError("");
     try {
-      const body = inputMode === "email"
-        ? { email: emailValue, codigo }
-        : { whatsapp: cleanNumber, codigo };
-
       const { data, error: fnError } = await supabase.functions.invoke(
         "revista-validar-otp",
-        { body }
+        { body: { whatsapp: identifier, codigo } }
       );
       if (fnError) throw fnError;
       if (data?.erro === "codigo_invalido") {
-        setError(
-          "Código incorreto ou expirado. Verifique e tente novamente."
-        );
+        setError("Código incorreto ou expirado. Verifique e tente novamente.");
         setOtp(["", "", "", ""]);
         otpRefs.current[0]?.focus();
         return;
       }
-      if (data?.erro) {
-        setError("Ocorreu um erro. Tente novamente.");
-        return;
-      }
+      if (data?.erro) { setError("Ocorreu um erro. Tente novamente."); return; }
       const newToken = persistRevistaToken(data.token);
-      if (!newToken) {
-        setError("Ocorreu um erro. Tente novamente.");
-        return;
-      }
-
+      if (!newToken) { setError("Ocorreu um erro. Tente novamente."); return; }
       saveRevistaSession(newToken, data.licencas);
       const destino = data.versao_preferida === "leitor_cg" ? "/leitor/leitura" : "/revista/leitura";
       navigate(destino, { replace: true });
@@ -215,13 +204,6 @@ export default function RevistaAcesso() {
     handleSolicitarOtp();
   };
 
-  const toggleMode = () => {
-    setInputMode(prev => prev === "phone" ? "email" : "phone");
-    setPhone("");
-    setError("");
-  };
-
-  // Show nothing while checking session
   if (checkingSession) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
@@ -239,38 +221,60 @@ export default function RevistaAcesso() {
               <img src={logoCentralGospel} alt="Central Gospel Editora" className="w-20 h-20 object-contain" />
             </div>
             <h1 className="text-2xl font-bold text-foreground">
-              {step === "numero"
-                ? "Acesse sua Revista Digital"
-                : "Código enviado!"}
+              {step === "numero" ? "Acesse sua Revista Digital" : "Código enviado!"}
             </h1>
           </div>
 
           {step === "numero" && (
             <div className="space-y-5">
               <p className="text-lg text-muted-foreground text-center">
-                {inputMode === "phone"
-                  ? "Digite o número de WhatsApp que você usou na compra"
-                  : "Digite o email que você usou na compra"}
+                Digite o número de WhatsApp que você usou na compra
               </p>
-              <div>
-                {inputMode === "phone" ? (
-                  <Input
-                    type="tel"
-                    placeholder="(11) 99999-9999"
-                    value={phone}
-                    onChange={(e) => handleInputChange(formatPhone(e.target.value))}
-                    className="h-14 text-xl text-center"
-                    maxLength={16}
-                  />
-                ) : (
-                  <Input
-                    type="email"
-                    placeholder="seu@email.com"
-                    value={phone}
-                    onChange={(e) => handleInputChange(e.target.value)}
-                    className="h-14 text-xl text-center"
-                  />
-                )}
+              <div className="flex gap-2">
+                {/* Country selector */}
+                <div className="relative" ref={dropdownRef}>
+                  <button
+                    type="button"
+                    onClick={() => setCountryOpen((o) => !o)}
+                    className="h-14 px-3 flex items-center gap-1.5 rounded-lg border border-input bg-background hover:bg-accent transition-colors whitespace-nowrap"
+                  >
+                    <span className="text-xl leading-none">{country.flag}</span>
+                    <span className="text-sm text-muted-foreground">+{country.ddi}</span>
+                    <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                  </button>
+                  {countryOpen && (
+                    <div className="absolute top-full left-0 mt-1 w-56 bg-background border border-input rounded-lg shadow-lg z-50 py-1">
+                      {COUNTRIES.map((c) => (
+                        <button
+                          key={c.code}
+                          type="button"
+                          onClick={() => {
+                            setCountry(c);
+                            setPhone("");
+                            setError("");
+                            setCountryOpen(false);
+                          }}
+                          className={`w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-accent transition-colors ${
+                            c.code === country.code ? "bg-accent/50" : ""
+                          }`}
+                        >
+                          <span className="text-xl leading-none">{c.flag}</span>
+                          <span className="text-sm font-medium text-foreground">{c.label}</span>
+                          <span className="text-sm text-muted-foreground ml-auto">+{c.ddi}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {/* Phone input */}
+                <input
+                  type="tel"
+                  placeholder={country.placeholder}
+                  value={phone}
+                  onChange={(e) => setPhone(formatPhone(e.target.value, country))}
+                  maxLength={20}
+                  className="flex-1 h-14 text-xl text-center rounded-lg border border-input bg-background px-3 outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 transition-colors"
+                />
               </div>
               {error && (
                 <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-3">
@@ -283,21 +287,9 @@ export default function RevistaAcesso() {
                 disabled={loading || !isInputValid}
                 className="w-full h-14 text-lg font-semibold"
               >
-                {loading ? (
-                  <Loader2 className="h-5 w-5 animate-spin mr-2" />
-                ) : null}
+                {loading && <Loader2 className="h-5 w-5 animate-spin mr-2" />}
                 Acessar minha biblioteca
               </Button>
-              <div className="text-center">
-                <button
-                  onClick={toggleMode}
-                  className="text-sm text-muted-foreground hover:text-primary underline"
-                >
-                  {inputMode === "phone"
-                    ? "Prefiro acessar com meu email"
-                    : "Prefiro acessar com meu WhatsApp"}
-                </button>
-              </div>
             </div>
           )}
 
@@ -309,25 +301,15 @@ export default function RevistaAcesso() {
                     Seu acesso expirou após 30 dias de inatividade.
                   </p>
                   <p className="text-sm text-amber-700 mt-1">
-                    Digite o código enviado para {otpEnviadoPorEmail ? "o seu email" : "o seu WhatsApp"} para renovar o acesso.
+                    Digite o código enviado para o seu WhatsApp para renovar o acesso.
                   </p>
                 </div>
               )}
               {otpMotivo === "primeiro_acesso" && (
                 <p className="text-lg text-muted-foreground text-center">
-                  {otpEnviadoPorEmail ? (
-                    <>
-                      Enviamos 4 números para o seu email.
-                      <br />
-                      Verifique sua caixa de entrada e digite o código aqui:
-                    </>
-                  ) : (
-                    <>
-                      Enviamos 4 números para o seu WhatsApp.
-                      <br />
-                      Abra o WhatsApp e digite o código aqui:
-                    </>
-                  )}
+                  Enviamos 4 números para o seu WhatsApp.
+                  <br />
+                  Abra o WhatsApp e digite o código aqui:
                 </p>
               )}
               <div className="flex justify-center gap-3">
@@ -356,9 +338,7 @@ export default function RevistaAcesso() {
                 disabled={loading || otp.join("").length !== 4}
                 className="w-full h-14 text-lg font-semibold"
               >
-                {loading ? (
-                  <Loader2 className="h-5 w-5 animate-spin mr-2" />
-                ) : null}
+                {loading && <Loader2 className="h-5 w-5 animate-spin mr-2" />}
                 Entrar
               </Button>
               <div className="text-center">
@@ -367,9 +347,7 @@ export default function RevistaAcesso() {
                   disabled={resendTimer > 0}
                   className="text-base text-muted-foreground hover:text-primary disabled:opacity-50 disabled:cursor-not-allowed underline"
                 >
-                  {resendTimer > 0
-                    ? `Reenviar em ${resendTimer}s`
-                    : "Não recebi o código"}
+                  {resendTimer > 0 ? `Reenviar em ${resendTimer}s` : "Não recebi o código"}
                 </button>
               </div>
             </div>
