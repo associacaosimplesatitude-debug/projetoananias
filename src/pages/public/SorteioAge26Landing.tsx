@@ -380,11 +380,12 @@ export default function SorteioAge26Landing() {
             Sorteio ao Vivo
           </h2>
 
-          {!sessaoAtiva ? (
+          {!sessaoAtiva || ((!ganhadoresAtuais || ganhadoresAtuais.length === 0) && (!historico || historico.length === 0) && !countdown) ? (
             <Card className="border-0 bg-[#045f74]/10 text-center">
               <CardContent className="p-8">
                 <Clock className="w-12 h-12 text-[#045f74]/40 mx-auto mb-3" />
-                <p className="text-[#2c3061]/60 text-lg">Aguarde o próximo sorteio</p>
+                <p className="text-[#2c3061]/60 text-lg">Aguardando o próximo sorteio...</p>
+                <p className="text-[#2c3061]/40 text-sm mt-2">Nenhum ganhador ainda. O sorteio começa em breve!</p>
               </CardContent>
             </Card>
           ) : (
