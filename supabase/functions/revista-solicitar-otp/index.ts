@@ -15,23 +15,35 @@ serve(async (req) => {
   }
 
   try {
-    const { whatsapp } = await req.json();
+    const body = await req.json();
+    const { whatsapp, email } = body;
 
-    // Limpar número: só dígitos, sem 55 inicial
-    const digitsOnly = String(whatsapp || "").replace(/\D/g, "");
-    const numeroLimpo =
-      digitsOnly.startsWith("55") && digitsOnly.length >= 12
-        ? digitsOnly.slice(2)
-        : digitsOnly;
+    // Determine lookup mode: email or phone
+    const isEmailMode = !!email && !whatsapp;
+    let identificador: string;
 
-    if (!numeroLimpo || numeroLimpo.length < 10) {
-      return new Response(
-        JSON.stringify({ erro: "numero_invalido" }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
+    if (isEmailMode) {
+      identificador = String(email).trim().toLowerCase();
+      if (!identificador || !identificador.includes("@")) {
+        return new Response(
+          JSON.stringify({ erro: "numero_invalido" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    } else {
+      // Phone mode (original logic)
+      const digitsOnly = String(whatsapp || "").replace(/\D/g, "");
+      identificador =
+        digitsOnly.startsWith("55") && digitsOnly.length >= 12
+          ? digitsOnly.slice(2)
+          : digitsOnly;
+
+      if (!identificador || identificador.length < 10) {
+        return new Response(
+          JSON.stringify({ erro: "numero_invalido" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
     }
 
     const supabaseAdmin = createClient(
@@ -39,7 +51,7 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // Verificar se número tem licença ativa
+    // Buscar licenças ativas pelo identificador (whatsapp field pode conter email ou telefone)
     const { data } = await supabaseAdmin
       .from("revista_licencas_shopify")
       .select(`
@@ -49,22 +61,42 @@ serve(async (req) => {
           id, titulo, capa_url, total_licoes, tipo, pdf_url, leitura_continua, tipo_conteudo
         )
       `)
-      .eq("whatsapp", numeroLimpo)
+      .eq("whatsapp", identificador)
       .eq("ativo", true);
 
-    if (!data || data.length === 0) {
+    // If email mode and no results by whatsapp field, also try by email field
+    let licencas = data;
+    let lookupField = "whatsapp";
+    if (isEmailMode && (!licencas || licencas.length === 0)) {
+      const { data: emailData } = await supabaseAdmin
+        .from("revista_licencas_shopify")
+        .select(`
+          id, nome_comprador, email, primeiro_acesso_em, ultimo_acesso_em,
+          revista_id, versao_preferida,
+          revistas_digitais (
+            id, titulo, capa_url, total_licoes, tipo, pdf_url, leitura_continua, tipo_conteudo
+          )
+        `)
+        .eq("email", identificador)
+        .eq("ativo", true);
+      
+      if (emailData && emailData.length > 0) {
+        licencas = emailData;
+        // Use the whatsapp value from the first license for OTP storage
+        identificador = emailData[0].whatsapp || identificador;
+        lookupField = "email";
+      }
+    }
+
+    if (!licencas || licencas.length === 0) {
       return new Response(
         JSON.stringify({ erro: "numero_nao_encontrado" }),
-        {
-          status: 404,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
+        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     // Verificar se pode ter acesso direto (sem OTP)
-    // Condição: primeiro_acesso_em preenchido E ultimo_acesso_em dentro de 30 dias
-    const primeiraLicenca = data[0];
+    const primeiraLicenca = licencas[0];
     const temPrimeiroAcesso = !!primeiraLicenca.primeiro_acesso_em;
     const ultimoAcesso = primeiraLicenca.ultimo_acesso_em
       ? new Date(primeiraLicenca.ultimo_acesso_em).getTime()
@@ -74,219 +106,242 @@ serve(async (req) => {
 
     if (temPrimeiroAcesso && dentroDosPrazoDias) {
       // ACESSO DIRETO — sem OTP
-      // Atualizar ultimo_acesso_em
       await supabaseAdmin
         .from("revista_licencas_shopify")
         .update({ ultimo_acesso_em: new Date().toISOString() })
-        .eq("whatsapp", numeroLimpo)
+        .eq("whatsapp", identificador)
         .eq("ativo", true);
 
-      // Gerar token
       const token = btoa(
         JSON.stringify({
-          whatsapp: numeroLimpo,
+          whatsapp: identificador,
           exp: Date.now() + 86400000,
-          licencas: data.map((l: any) => l.revista_id),
+          licencas: licencas.map((l: any) => l.revista_id),
         })
       );
 
-      const versaoPreferida = data[0]?.versao_preferida || "cg_digital";
+      const versaoPreferida = licencas[0]?.versao_preferida || "cg_digital";
 
       return new Response(
         JSON.stringify({
           status: "acesso_direto",
           token,
-          licencas: data,
+          licencas,
           versao_preferida: versaoPreferida,
         }),
-        {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     // PRECISA DE OTP — primeira vez ou prazo expirado
     const motivo = temPrimeiroAcesso ? "prazo_expirado" : "primeiro_acesso";
-    // Gerar código de 4 dígitos
     const codigo = String(Math.floor(1000 + Math.random() * 9000));
     const expiraEm = new Date(Date.now() + 10 * 60 * 1000).toISOString();
 
-    // Salvar OTP
+    // Salvar OTP usando o identificador
     await supabaseAdmin.from("revista_otp").insert({
-      whatsapp: numeroLimpo,
+      whatsapp: identificador,
       codigo,
       expira_em: expiraEm,
     });
 
-    // ── Buscar credenciais WhatsApp da Meta ──
-    const settingsRes = await supabaseAdmin
-      .from("system_settings")
-      .select("key, value")
-      .in("key", ["whatsapp_phone_number_id", "whatsapp_access_token"]);
+    // Determine if we should send via WhatsApp or email-only
+    const identificadorIsEmail = identificador.includes("@");
+    let otpVia = "whatsapp";
 
-    const settings = Object.fromEntries(
-      (settingsRes.data || []).map((s: any) => [s.key, s.value])
-    );
+    if (!identificadorIsEmail) {
+      // Phone-based: send WhatsApp OTP (original flow)
+      const settingsRes = await supabaseAdmin
+        .from("system_settings")
+        .select("key, value")
+        .in("key", ["whatsapp_phone_number_id", "whatsapp_access_token"]);
 
-    const phoneNumberId = settings["whatsapp_phone_number_id"];
-    const accessToken = settings["whatsapp_access_token"];
-
-    if (!phoneNumberId || !accessToken) {
-      console.error("WhatsApp credentials missing in system_settings");
-      return new Response(
-        JSON.stringify({ erro: "config_whatsapp_ausente" }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
+      const settings = Object.fromEntries(
+        (settingsRes.data || []).map((s: any) => [s.key, s.value])
       );
-    }
 
-    // Formatar número para a Meta: adicionar 55 se não tiver
-    const digits = numeroLimpo.replace(/\D/g, "");
-    const metaPhone = digits.startsWith("55") ? digits : `55${digits}`;
+      const phoneNumberId = settings["whatsapp_phone_number_id"];
+      const accessToken = settings["whatsapp_access_token"];
 
-    // ── Enviar WhatsApp via template AUTHENTICATION da Meta ──
-    const waRes = await fetch(
-      `https://graph.facebook.com/v22.0/${phoneNumberId}/messages`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({
-          messaging_product: "whatsapp",
-          to: metaPhone,
-          type: "template",
-          template: {
-            name: "acesso_revista_otp",
-            language: { code: "pt_BR" },
-            components: [
-              {
-                type: "body",
-                parameters: [
-                  { type: "text", text: codigo }
-                ]
-              },
-              {
-                type: "button",
-                sub_type: "url",
-                index: "0",
-                parameters: [
-                  { type: "text", text: codigo }
-                ]
-              }
-            ]
-          }
-        }),
+      if (!phoneNumberId || !accessToken) {
+        console.error("WhatsApp credentials missing in system_settings");
+        return new Response(
+          JSON.stringify({ erro: "config_whatsapp_ausente" }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
       }
-    );
 
-    const waData = await waRes.json();
-    console.log("Meta WA response status:", waRes.status);
-    console.log("Meta WA response body:", JSON.stringify(waData));
+      const digits = identificador.replace(/\D/g, "");
+      const metaPhone = digits.startsWith("55") ? digits : `55${digits}`;
 
-    // ── Registrar envio WhatsApp OTP no log ──
-    const waLogStatus = waRes.ok ? "enviado" : "erro";
-    try {
-      await supabaseAdmin.from("whatsapp_mensagens").insert({
-        tipo_mensagem: "revista_otp",
-        telefone_destino: metaPhone,
-        nome_destino: primeiraLicenca.nome_comprador || null,
-        mensagem: "Código OTP enviado (template acesso_revista_otp)",
-        status: waLogStatus,
-        erro_detalhes: waRes.ok ? null : JSON.stringify(waData),
-        payload_enviado: JSON.stringify({
-          messaging_product: "whatsapp",
-          to: metaPhone,
-          type: "template",
-          template: { name: "acesso_revista_otp", language: { code: "pt_BR" } },
-        }),
-        resposta_recebida: JSON.stringify(waData),
-      });
-    } catch (logErr) {
-      console.error("Erro ao registrar log WhatsApp OTP:", logErr);
-    }
-
-    if (!waRes.ok) {
-      console.error("WhatsApp send error:", JSON.stringify(waData));
-      return new Response(
-        JSON.stringify({ erro: "falha_whatsapp", status: waRes.status, detalhe: waData }),
+      const waRes = await fetch(
+        `https://graph.facebook.com/v22.0/${phoneNumberId}/messages`,
         {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({
+            messaging_product: "whatsapp",
+            to: metaPhone,
+            type: "template",
+            template: {
+              name: "acesso_revista_otp",
+              language: { code: "pt_BR" },
+              components: [
+                {
+                  type: "body",
+                  parameters: [{ type: "text", text: codigo }],
+                },
+                {
+                  type: "button",
+                  sub_type: "url",
+                  index: "0",
+                  parameters: [{ type: "text", text: codigo }],
+                },
+              ],
+            },
+          }),
         }
       );
-    }
 
-    // ── Fallback: enviar código também por email via Resend (se disponível) ──
-    const licencaComEmail = data.find((l: any) => l.email);
-    if (licencaComEmail?.email) {
+      const waData = await waRes.json();
+      console.log("Meta WA response status:", waRes.status);
+      console.log("Meta WA response body:", JSON.stringify(waData));
+
+      const waLogStatus = waRes.ok ? "enviado" : "erro";
+      try {
+        await supabaseAdmin.from("whatsapp_mensagens").insert({
+          tipo_mensagem: "revista_otp",
+          telefone_destino: metaPhone,
+          nome_destino: primeiraLicenca.nome_comprador || null,
+          mensagem: "Código OTP enviado (template acesso_revista_otp)",
+          status: waLogStatus,
+          erro_detalhes: waRes.ok ? null : JSON.stringify(waData),
+          payload_enviado: JSON.stringify({
+            messaging_product: "whatsapp",
+            to: metaPhone,
+            type: "template",
+            template: { name: "acesso_revista_otp", language: { code: "pt_BR" } },
+          }),
+          resposta_recebida: JSON.stringify(waData),
+        });
+      } catch (logErr) {
+        console.error("Erro ao registrar log WhatsApp OTP:", logErr);
+      }
+
+      if (!waRes.ok) {
+        console.error("WhatsApp send error:", JSON.stringify(waData));
+        return new Response(
+          JSON.stringify({ erro: "falha_whatsapp", status: waRes.status, detalhe: waData }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Also send email fallback for phone users
+      const licencaComEmail = licencas.find((l: any) => l.email);
+      if (licencaComEmail?.email) {
+        try {
+          const resendApiKey = Deno.env.get("RESEND_API_KEY");
+          if (resendApiKey) {
+            await fetch("https://api.resend.com/emails", {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${resendApiKey}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                from: "Gestão EBD <relatorios@painel.editoracentralgospel.com.br>",
+                to: [licencaComEmail.email],
+                subject: "Seu código de acesso à revista",
+                html: `
+                  <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px">
+                    <h2 style="color:#1B3A5C">Olá, ${primeiraLicenca.nome_comprador || "leitor"}!</h2>
+                    <p style="font-size:16px">Seu código de acesso à revista é:</p>
+                    <div style="font-size:48px;font-weight:bold;text-align:center;
+                                letter-spacing:12px;color:#1B3A5C;padding:24px 0">
+                      ${codigo}
+                    </div>
+                    <p style="font-size:14px;color:#666">
+                      Este código expira em 10 minutos.<br>
+                      Não compartilhe este código.
+                    </p>
+                  </div>
+                `,
+              }),
+            });
+          }
+        } catch (emailErr) {
+          console.error("Email fallback error:", emailErr);
+        }
+      }
+
+      otpVia = "whatsapp";
+    } else {
+      // Email-based: send OTP only by email (no WhatsApp)
+      otpVia = "email";
+      const emailDestinatario = isEmailMode ? email : primeiraLicenca.email || identificador;
+
       try {
         const resendApiKey = Deno.env.get("RESEND_API_KEY");
-        if (resendApiKey) {
-          const emailRes = await fetch("https://api.resend.com/emails", {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${resendApiKey}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              from: "Gestão EBD <relatorios@painel.editoracentralgospel.com.br>",
-              to: [licencaComEmail.email],
-              subject: "Seu código de acesso à revista",
-              html: `
-                <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px">
-                  <h2 style="color:#1B3A5C">Olá, ${primeiraLicenca.nome_comprador || "leitor"}!</h2>
-                  <p style="font-size:16px">Seu código de acesso à revista é:</p>
-                  <div style="font-size:48px;font-weight:bold;text-align:center;
-                              letter-spacing:12px;color:#1B3A5C;padding:24px 0">
-                    ${codigo}
-                  </div>
-                  <p style="font-size:14px;color:#666">
-                    Este código expira em 10 minutos.<br>
-                    Não compartilhe este código.
-                  </p>
+        if (!resendApiKey) {
+          console.error("RESEND_API_KEY not configured");
+          return new Response(
+            JSON.stringify({ erro: "config_email_ausente" }),
+            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        const emailRes = await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${resendApiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            from: "Gestão EBD <relatorios@painel.editoracentralgospel.com.br>",
+            to: [emailDestinatario],
+            subject: "Seu código de acesso à revista",
+            html: `
+              <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px">
+                <h2 style="color:#1B3A5C">Olá, ${primeiraLicenca.nome_comprador || "leitor"}!</h2>
+                <p style="font-size:16px">Seu código de acesso à revista é:</p>
+                <div style="font-size:48px;font-weight:bold;text-align:center;
+                            letter-spacing:12px;color:#1B3A5C;padding:24px 0">
+                  ${codigo}
                 </div>
-              `,
-            }),
-          });
-          const emailData = await emailRes.json();
-          const emailLogStatus = emailRes.ok ? "enviado" : "erro";
+                <p style="font-size:14px;color:#666">
+                  Este código expira em 10 minutos.<br>
+                  Não compartilhe este código.
+                </p>
+              </div>
+            `,
+          }),
+        });
 
-          // ── Registrar envio Email OTP no log ──
-          try {
-            await supabaseAdmin.from("whatsapp_mensagens").insert({
-              tipo_mensagem: "revista_otp_email",
-              telefone_destino: metaPhone,
-              nome_destino: primeiraLicenca.nome_comprador || null,
-              mensagem: `Código OTP enviado por email para ${licencaComEmail.email}`,
-              status: emailLogStatus,
-              erro_detalhes: emailRes.ok ? null : JSON.stringify(emailData),
-            });
-          } catch (emailLogErr) {
-            console.error("Erro ao registrar log Email OTP:", emailLogErr);
-          }
+        const emailData = await emailRes.json();
+        console.log("Email OTP response:", emailRes.status, JSON.stringify(emailData));
 
-          if (!emailRes.ok) {
-            console.error("Resend email error:", JSON.stringify(emailData));
-          } else {
-            console.log("OTP email sent to:", licencaComEmail.email);
-          }
-        } else {
-          console.warn("RESEND_API_KEY not configured, skipping email fallback");
+        if (!emailRes.ok) {
+          console.error("Email OTP send error:", JSON.stringify(emailData));
+          return new Response(
+            JSON.stringify({ erro: "falha_email", status: emailRes.status }),
+            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
         }
       } catch (emailErr) {
-        console.error("Email fallback error:", emailErr);
+        console.error("Email OTP error:", emailErr);
+        return new Response(
+          JSON.stringify({ erro: "falha_email" }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
       }
     }
 
     return new Response(
-      JSON.stringify({ status: "otp_enviado", motivo, sucesso: true }),
-      {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
+      JSON.stringify({ status: "otp_enviado", motivo, sucesso: true, otp_via: otpVia }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
     console.error("revista-solicitar-otp error:", error);
@@ -295,10 +350,7 @@ serve(async (req) => {
         erro: "erro_interno",
         detalhe: error.message,
       }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });
