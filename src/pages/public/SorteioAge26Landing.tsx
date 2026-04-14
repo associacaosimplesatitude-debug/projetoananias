@@ -122,15 +122,6 @@ export default function SorteioAge26Landing() {
       .then(() => {});
   }, []);
 
-  const { data: totalParticipantes } = useQuery({
-    queryKey: ["sorteio-age26-count"],
-    queryFn: async () => {
-      const { count } = await supabase.from("sorteio_participantes").select("*", { count: "exact", head: true });
-      return count ?? 0;
-    },
-    refetchInterval: 15000,
-  });
-
   const { data: sessaoAtiva } = useQuery({
     queryKey: ["sorteio-age26-sessao-ativa"],
     queryFn: async () => {
@@ -145,12 +136,29 @@ export default function SorteioAge26Landing() {
     refetchInterval: 30000,
   });
 
-  const { data: ganhadoresAtuais } = useQuery({
-    queryKey: ["sorteio-age26-ganhadores-atuais"],
+  const sessaoId = sessaoAtiva?.id;
+
+  const { data: totalParticipantes } = useQuery({
+    queryKey: ["sorteio-age26-count", sessaoId],
     queryFn: async () => {
+      if (!sessaoId) return 0;
+      const { count } = await supabase
+        .from("sorteio_participantes")
+        .select("*", { count: "exact", head: true })
+        .eq("sessao_id", sessaoId);
+      return count ?? 0;
+    },
+    refetchInterval: 15000,
+  });
+
+  const { data: ganhadoresAtuais } = useQuery({
+    queryKey: ["sorteio-age26-ganhadores-atuais", sessaoId],
+    queryFn: async () => {
+      if (!sessaoId) return [];
       const { data } = await supabase
         .from("sorteio_ganhadores")
         .select("*, sorteio_participantes(nome)")
+        .eq("sessao_id", sessaoId)
         .eq("status", "aguardando")
         .order("sorteado_em", { ascending: false });
       return (data ?? []) as any[];
@@ -159,11 +167,13 @@ export default function SorteioAge26Landing() {
   });
 
   const { data: historico } = useQuery({
-    queryKey: ["sorteio-age26-historico"],
+    queryKey: ["sorteio-age26-historico", sessaoId],
     queryFn: async () => {
+      if (!sessaoId) return [];
       const { data } = await supabase
         .from("sorteio_ganhadores")
         .select("*, sorteio_participantes(nome)")
+        .eq("sessao_id", sessaoId)
         .eq("status", "retirado")
         .order("sorteado_em", { ascending: false })
         .limit(5);
@@ -330,6 +340,12 @@ export default function SorteioAge26Landing() {
               >
                 📝 Faça sua inscrição
               </h2>
+              {!sessaoAtiva ? (
+                <div className="text-center py-6">
+                  <Clock className="w-10 h-10 text-[#045f74]/40 mx-auto mb-3" />
+                  <p className="text-[#2c3061]/60">As inscrições ainda não foram abertas. Volte em breve!</p>
+                </div>
+              ) : (
               <form onSubmit={handleSubmit} className="space-y-4">
                 <Input placeholder="Nome completo" value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} maxLength={100} required />
                 <Input placeholder="WhatsApp (00) 00000-0000" value={form.whatsapp} onChange={(e) => setForm({ ...form, whatsapp: formatWhatsApp(e.target.value) })} maxLength={15} required />
@@ -347,6 +363,7 @@ export default function SorteioAge26Landing() {
                   {submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : "Quero participar! 🎁"}
                 </Button>
               </form>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -363,11 +380,12 @@ export default function SorteioAge26Landing() {
             Sorteio ao Vivo
           </h2>
 
-          {!sessaoAtiva ? (
+          {!sessaoAtiva || ((!ganhadoresAtuais || ganhadoresAtuais.length === 0) && (!historico || historico.length === 0) && !countdown) ? (
             <Card className="border-0 bg-[#045f74]/10 text-center">
               <CardContent className="p-8">
                 <Clock className="w-12 h-12 text-[#045f74]/40 mx-auto mb-3" />
-                <p className="text-[#2c3061]/60 text-lg">Aguarde o próximo sorteio</p>
+                <p className="text-[#2c3061]/60 text-lg">Aguardando o próximo sorteio...</p>
+                <p className="text-[#2c3061]/40 text-sm mt-2">Nenhum ganhador ainda. O sorteio começa em breve!</p>
               </CardContent>
             </Card>
           ) : (
