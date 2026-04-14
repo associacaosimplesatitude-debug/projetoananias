@@ -1,23 +1,29 @@
 
 
-## Plano: Adicionar botão "Atendimento" no painel dos vendedores
+## Plano: Adicionar tipo de conteúdo "Infográficos"
 
 ### O que será feito
 
-Adicionar o item de menu "Atendimento" no sidebar do vendedor, com a mesma estilização verde (#25D366) usada no painel admin — fundo verde, texto branco, ícone MessageCircle e ponto pulsante.
+Adicionar a opção **"Infográficos"** no seletor de Tipo de Conteúdo da página de Revistas Digitais, funcionando exatamente como "Livro Digital" (leitura contínua, sem lições, upload de páginas).
 
 ### Implementação
 
-**1. Criar rota `/vendedor/atendimento` no `src/App.tsx`**
-- Reutilizar o componente `AtendimentoWhatsApp` já existente em `src/pages/admin/AtendimentoWhatsApp.tsx`
-- Adicionar a rota dentro do bloco de rotas do vendedor
+**Arquivo único: `src/pages/admin/RevistasDigitais.tsx`**
 
-**2. Adicionar item no sidebar do vendedor (`src/components/vendedor/VendedorLayout.tsx`)**
-- Adicionar `MessageCircle` aos imports do lucide-react
-- Adicionar entrada `{ to: "/vendedor/atendimento", icon: MessageCircle, label: "Atendimento" }` no topo do array `allMenuItems` (logo após "Painel")
-- Renderizar esse item específico com estilização especial: fundo `#25D366`, texto branco, ponto pulsante — idêntico ao que já existe no `AdminEBDLayout.tsx`
+1. **Adicionar opção no Select** (linha ~946): incluir `<SelectItem value="infografico">Infográficos</SelectItem>`
 
-### Arquivos modificados
-- `src/App.tsx` — nova rota
-- `src/components/vendedor/VendedorLayout.tsx` — novo item de menu com estilização verde
+2. **Atualizar todas as condições `livro_digital`** para incluir `infografico` — são ~10 pontos no código onde `tipoConteudo === 'livro_digital'` ou `tipo_conteudo === 'livro_digital'` controla:
+   - Ocultar campos de tipo/trimestre/total de lições
+   - Definir `leitura_continua: true`
+   - Habilitar upload de páginas
+   - Exibir "páginas" em vez de "lições" na tabela
+   - Ocultar botão "Gerir Lições"
+   - Validação do formulário
+
+3. **Criar helper para simplificar**: `const isLivroOuInfo = tipoConteudo === 'livro_digital' || tipoConteudo === 'infografico'` e substituir todas as comparações por essa variável.
+
+4. **Tabela de listagem**: mostrar ícone/label adequado para infográficos (ex: 📊) ao lado de 📖 (livro) e 📰 (revista).
+
+### Nenhuma alteração no banco de dados
+O campo `tipo_conteudo` já é `text`, aceita qualquer valor.
 
