@@ -122,15 +122,6 @@ export default function SorteioAge26Landing() {
       .then(() => {});
   }, []);
 
-  const { data: totalParticipantes } = useQuery({
-    queryKey: ["sorteio-age26-count"],
-    queryFn: async () => {
-      const { count } = await supabase.from("sorteio_participantes").select("*", { count: "exact", head: true });
-      return count ?? 0;
-    },
-    refetchInterval: 15000,
-  });
-
   const { data: sessaoAtiva } = useQuery({
     queryKey: ["sorteio-age26-sessao-ativa"],
     queryFn: async () => {
@@ -145,12 +136,29 @@ export default function SorteioAge26Landing() {
     refetchInterval: 30000,
   });
 
-  const { data: ganhadoresAtuais } = useQuery({
-    queryKey: ["sorteio-age26-ganhadores-atuais"],
+  const sessaoId = sessaoAtiva?.id;
+
+  const { data: totalParticipantes } = useQuery({
+    queryKey: ["sorteio-age26-count", sessaoId],
     queryFn: async () => {
+      if (!sessaoId) return 0;
+      const { count } = await supabase
+        .from("sorteio_participantes")
+        .select("*", { count: "exact", head: true })
+        .eq("sessao_id", sessaoId);
+      return count ?? 0;
+    },
+    refetchInterval: 15000,
+  });
+
+  const { data: ganhadoresAtuais } = useQuery({
+    queryKey: ["sorteio-age26-ganhadores-atuais", sessaoId],
+    queryFn: async () => {
+      if (!sessaoId) return [];
       const { data } = await supabase
         .from("sorteio_ganhadores")
         .select("*, sorteio_participantes(nome)")
+        .eq("sessao_id", sessaoId)
         .eq("status", "aguardando")
         .order("sorteado_em", { ascending: false });
       return (data ?? []) as any[];
@@ -159,11 +167,13 @@ export default function SorteioAge26Landing() {
   });
 
   const { data: historico } = useQuery({
-    queryKey: ["sorteio-age26-historico"],
+    queryKey: ["sorteio-age26-historico", sessaoId],
     queryFn: async () => {
+      if (!sessaoId) return [];
       const { data } = await supabase
         .from("sorteio_ganhadores")
         .select("*, sorteio_participantes(nome)")
+        .eq("sessao_id", sessaoId)
         .eq("status", "retirado")
         .order("sorteado_em", { ascending: false })
         .limit(5);
