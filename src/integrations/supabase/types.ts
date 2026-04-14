@@ -6949,6 +6949,7 @@ export type Database = {
           intervalo_minutos: number
           nome: string
           premio_padrao: string | null
+          slug: string | null
         }
         Insert: {
           ativo?: boolean | null
@@ -6959,6 +6960,7 @@ export type Database = {
           intervalo_minutos?: number
           nome: string
           premio_padrao?: string | null
+          slug?: string | null
         }
         Update: {
           ativo?: boolean | null
@@ -6969,6 +6971,7 @@ export type Database = {
           intervalo_minutos?: number
           nome?: string
           premio_padrao?: string | null
+          slug?: string | null
         }
         Relationships: []
       }
