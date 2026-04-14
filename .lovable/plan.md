@@ -1,29 +1,44 @@
 
 
-## Plano: Adicionar tipo de conteúdo "Infográficos"
+## Plano: Isolar dados da página AGE26 por sessão específica
 
-### O que será feito
+### Problema
+A query de sessão ativa busca qualquer sessão com `ativo = true`, retornando a sessão "Vitoriosas Conference" que está ativa no momento. Não há como distinguir sessões AGE26 de outras.
 
-Adicionar a opção **"Infográficos"** no seletor de Tipo de Conteúdo da página de Revistas Digitais, funcionando exatamente como "Livro Digital" (leitura contínua, sem lições, upload de páginas).
+### Solução
 
-### Implementação
+**1. Adicionar coluna `slug` à tabela `sorteio_sessoes`** (migração)
 
-**Arquivo único: `src/pages/admin/RevistasDigitais.tsx`**
+```sql
+ALTER TABLE sorteio_sessoes ADD COLUMN slug text;
+CREATE UNIQUE INDEX idx_sorteio_sessoes_slug ON sorteio_sessoes(slug) WHERE slug IS NOT NULL;
+```
 
-1. **Adicionar opção no Select** (linha ~946): incluir `<SelectItem value="infografico">Infográficos</SelectItem>`
+Isso permite que cada sessão tenha um identificador único (ex: `age26`, `vitoriosas-2026`).
 
-2. **Atualizar todas as condições `livro_digital`** para incluir `infografico` — são ~10 pontos no código onde `tipoConteudo === 'livro_digital'` ou `tipo_conteudo === 'livro_digital'` controla:
-   - Ocultar campos de tipo/trimestre/total de lições
-   - Definir `leitura_continua: true`
-   - Habilitar upload de páginas
-   - Exibir "páginas" em vez de "lições" na tabela
-   - Ocultar botão "Gerir Lições"
-   - Validação do formulário
+**2. Atualizar `SorteioAge26Landing.tsx`**
 
-3. **Criar helper para simplificar**: `const isLivroOuInfo = tipoConteudo === 'livro_digital' || tipoConteudo === 'infografico'` e substituir todas as comparações por essa variável.
+Alterar a query de sessão ativa para filtrar por `slug = 'age26'` além de `ativo = true`:
 
-4. **Tabela de listagem**: mostrar ícone/label adequado para infográficos (ex: 📊) ao lado de 📖 (livro) e 📰 (revista).
+```typescript
+const { data } = await supabase
+  .from("sorteio_sessoes")
+  .select("*")
+  .eq("ativo", true)
+  .eq("slug", "age26")
+  .maybeSingle();
+```
 
-### Nenhuma alteração no banco de dados
-O campo `tipo_conteudo` já é `text`, aceita qualquer valor.
+**3. Criação da sessão AGE26**
+
+Quando o admin criar a sessão AGE26 na página `/admin/ebd/sorteio`, deverá definir o slug como `age26`. Para facilitar, nenhuma alteração no admin é necessária agora — o slug será definido manualmente via banco ou poderá ser adicionado ao formulário admin futuramente.
+
+### Resultado
+- A página `/sorteio/age26` só exibirá dados (ganhadores, participantes, countdown) da sessão com slug `age26`
+- A página `/sorteio` original continua funcionando como antes (sem filtro de slug)
+- Múltiplos eventos podem rodar simultaneamente sem conflito
+
+### Arquivos modificados
+- Migração: adicionar coluna `slug` em `sorteio_sessoes`
+- `src/pages/public/SorteioAge26Landing.tsx` — filtrar por `slug = 'age26'`
 
