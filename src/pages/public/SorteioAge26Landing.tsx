@@ -340,6 +340,12 @@ export default function SorteioAge26Landing() {
               >
                 📝 Faça sua inscrição
               </h2>
+              {!sessaoAtiva ? (
+                <div className="text-center py-6">
+                  <Clock className="w-10 h-10 text-[#045f74]/40 mx-auto mb-3" />
+                  <p className="text-[#2c3061]/60">As inscrições ainda não foram abertas. Volte em breve!</p>
+                </div>
+              ) : (
               <form onSubmit={handleSubmit} className="space-y-4">
                 <Input placeholder="Nome completo" value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} maxLength={100} required />
                 <Input placeholder="WhatsApp (00) 00000-0000" value={form.whatsapp} onChange={(e) => setForm({ ...form, whatsapp: formatWhatsApp(e.target.value) })} maxLength={15} required />
@@ -357,6 +363,7 @@ export default function SorteioAge26Landing() {
                   {submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : "Quero participar! 🎁"}
                 </Button>
               </form>
+              )}
             </CardContent>
           </Card>
         </div>
