@@ -129,7 +129,7 @@ export default function SorteioAge26Landing() {
         .from("sorteio_sessoes")
         .select("*")
         .eq("ativo", true)
-        .limit(1)
+        .eq("slug", "age26")
         .maybeSingle();
       return data;
     },
