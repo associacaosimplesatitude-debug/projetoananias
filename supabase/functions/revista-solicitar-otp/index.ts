@@ -172,7 +172,10 @@ serve(async (req) => {
       }
 
       const digits = identificador.replace(/\D/g, "");
-      const metaPhone = digits.startsWith("55") ? digits : `55${digits}`;
+      // Brazilian numbers (10-11 digits, no DDI prefix) need 55 prepended.
+      // International numbers already include their DDI (e.g. 351... for Portugal).
+      const isBrazilian = digits.length <= 11;
+      const metaPhone = isBrazilian ? `55${digits}` : digits;
 
       const waRes = await fetch(
         `https://graph.facebook.com/v22.0/${phoneNumberId}/messages`,
