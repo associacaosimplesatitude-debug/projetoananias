@@ -12,9 +12,16 @@ declare global {
 interface StripeCardPaymentFormProps {
   clientSecret: string;
   amount: number;
+  publishableKey: string;
+  onPaymentSuccess?: (paymentIntentId: string) => void;
 }
 
-export default function StripeCardPaymentForm({ clientSecret, amount }: StripeCardPaymentFormProps) {
+export default function StripeCardPaymentForm({
+  clientSecret,
+  amount,
+  publishableKey,
+  onPaymentSuccess,
+}: StripeCardPaymentFormProps) {
   const [loading, setLoading] = useState(false);
   const [cardReady, setCardReady] = useState(false);
   const [paymentStatus, setPaymentStatus] = useState<"idle" | "success" | "error">("idle");
@@ -22,6 +29,7 @@ export default function StripeCardPaymentForm({ clientSecret, amount }: StripeCa
   const cardRef = useRef<any>(null);
   const stripeRef = useRef<any>(null);
   const mountedRef = useRef(false);
+  const containerIdRef = useRef(`stripe-card-${crypto.randomUUID().slice(0, 8)}`);
 
   const formatBRL = (v: number) =>
     new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
@@ -36,9 +44,7 @@ export default function StripeCardPaymentForm({ clientSecret, amount }: StripeCa
         return;
       }
 
-      const stripe = window.Stripe(
-        "pk_live_51TKJLCQqNlxyJH6pqBaLgJEJaXLtV7LSfb2TcryYRZ4X2FjuAB0V0kcrAx9edW0UY9JY7KDzRhE8NDxDiyGzq0Xq00cHZcKE32"
-      );
+      const stripe = window.Stripe(publishableKey);
       stripeRef.current = stripe;
 
       const elements = stripe.elements({ clientSecret });
@@ -53,18 +59,14 @@ export default function StripeCardPaymentForm({ clientSecret, amount }: StripeCa
         },
       });
 
-      const el = document.getElementById("stripe-card-element");
+      const el = document.getElementById(containerIdRef.current);
       if (el) {
-        card.mount("#stripe-card-element");
+        card.mount(`#${containerIdRef.current}`);
         cardRef.current = card;
 
         card.on("ready", () => setCardReady(true));
         card.on("change", (event: any) => {
-          if (event.error) {
-            setErrorMessage(event.error.message);
-          } else {
-            setErrorMessage("");
-          }
+          setErrorMessage(event.error ? event.error.message : "");
         });
       }
     };
@@ -76,7 +78,7 @@ export default function StripeCardPaymentForm({ clientSecret, amount }: StripeCa
         try { cardRef.current.destroy(); } catch {}
       }
     };
-  }, [clientSecret]);
+  }, [clientSecret, publishableKey]);
 
   const handlePay = async () => {
     if (!stripeRef.current || !cardRef.current) return;
@@ -94,6 +96,7 @@ export default function StripeCardPaymentForm({ clientSecret, amount }: StripeCa
         setErrorMessage(error.message || "Erro ao processar pagamento");
       } else if (paymentIntent?.status === "succeeded") {
         setPaymentStatus("success");
+        onPaymentSuccess?.(paymentIntent.id);
       } else {
         setPaymentStatus("error");
         setErrorMessage(`Status inesperado: ${paymentIntent?.status}`);
@@ -113,7 +116,7 @@ export default function StripeCardPaymentForm({ clientSecret, amount }: StripeCa
       </h3>
 
       <div
-        id="stripe-card-element"
+        id={containerIdRef.current}
         className="p-3 bg-white rounded-md border min-h-[44px]"
       />
 
@@ -122,7 +125,8 @@ export default function StripeCardPaymentForm({ clientSecret, amount }: StripeCa
       )}
 
       <p className="text-xs text-muted-foreground">
-        Cartão de teste: <span className="font-mono">4242 4242 4242 4242</span> — qualquer data futura — qualquer CVC
+        Cartão de teste: <span className="font-mono">4242 4242 4242 4242</span> — validade{" "}
+        <span className="font-mono">12/29</span> — CVC <span className="font-mono">123</span>
       </p>
 
       {paymentStatus === "success" ? (
