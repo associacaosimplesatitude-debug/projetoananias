@@ -11,6 +11,9 @@ import {
 import { CreditCard, RefreshCw, Zap, Settings, ListChecks, ArrowRight, QrCode, Copy, Clock } from "lucide-react";
 import { toast } from "sonner";
 
+// Chave publicável Stripe — segura para frontend (pk_live ou pk_test)
+const STRIPE_PK = "pk_live_51TKJLCQqNlxyJH6pqBaLgJEJaXLtV7LSfb2TcryYRZ4X2FjuAB0V0kcrAx9edW0UY9JY7KDzRhE8NDxDiyGzq0Xq00cHZcKE32";
+
 interface StripeLog {
   id: string;
   payment_intent_id: string | null;
@@ -72,6 +75,7 @@ export default function StripeTeste() {
     }
     setLoading(true);
     setResult(null);
+    setPixResult(null);
     try {
       const { data, error } = await supabase.functions.invoke("stripe-test-payment", {
         body: { amount, description: descricao || "Teste Stripe Admin", test_mode: true },
@@ -79,7 +83,6 @@ export default function StripeTeste() {
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       setResult(data);
-      setPixResult(null);
       toast.success("PaymentIntent criado com sucesso!");
     } catch (err: any) {
       toast.error(err.message || "Erro ao criar PaymentIntent");
@@ -88,10 +91,18 @@ export default function StripeTeste() {
     }
   };
 
+  const handlePaymentSuccess = (paymentIntentId: string) => {
+    toast.success(`Pagamento ${paymentIntentId} confirmado!`);
+    // Aguardar webhook processar e atualizar logs
+    setTimeout(fetchLogs, 3000);
+  };
+
   const statusBadge = (status: string) => {
     switch (status) {
       case "PAGO":
         return <Badge className="bg-green-600 text-white hover:bg-green-700">PAGO</Badge>;
+      case "TRANSFERENCIA_EXECUTADA":
+        return <Badge className="bg-blue-600 text-white hover:bg-blue-700">TRANSFERÊNCIA</Badge>;
       case "FALHOU":
         return <Badge className="bg-red-600 text-white hover:bg-red-700">FALHOU</Badge>;
       case "SESSAO_CONCLUIDA":
@@ -130,12 +141,12 @@ export default function StripeTeste() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <span className="font-medium text-muted-foreground">Connected Account:</span>
-              <p className="font-mono text-xs">acct_1TKJLCQqNlxyJH6p (Central Gospel)</p>
+              <p className="font-mono text-xs">acct_1TLch2QtDc37RJKx</p>
             </div>
             <div>
               <span className="font-medium text-muted-foreground">Webhook URL:</span>
               <p className="font-mono text-xs break-all">
-                https://nccyrvfnvjngfyfvgnww.supabase.co/functions/v1/stripe-webhook
+                {import.meta.env.VITE_SUPABASE_URL}/functions/v1/stripe-webhook
               </p>
             </div>
             <div className="md:col-span-2">
@@ -195,6 +206,16 @@ export default function StripeTeste() {
                 <p className="break-all mt-1">{result.client_secret}</p>
               </details>
 
+              {/* Card Payment Form */}
+              <div className="mt-3 pt-3 border-t">
+                <StripeCardPaymentForm
+                  clientSecret={result.client_secret}
+                  amount={result.amount}
+                  publishableKey={STRIPE_PK}
+                  onPaymentSuccess={handlePaymentSuccess}
+                />
+              </div>
+
               <div className="mt-3 pt-3 border-t">
                 <Button
                   onClick={async () => {
@@ -220,14 +241,6 @@ export default function StripeTeste() {
                   <QrCode className="h-4 w-4 mr-2" />
                   {loadingPix ? "Gerando PIX..." : "Gerar QR Code PIX"}
                 </Button>
-              </div>
-
-              {/* Card Payment Form */}
-              <div className="mt-3 pt-3 border-t">
-                <StripeCardPaymentForm
-                  clientSecret={result.client_secret}
-                  amount={result.amount}
-                />
               </div>
             </div>
           )}
