@@ -1126,6 +1126,72 @@ export type Database = {
         }
         Relationships: []
       }
+      comissoes_alfamarketing_eventos: {
+        Row: {
+          canal: string
+          created_at: string
+          data_pagamento: string
+          id: string
+          mercadopago_payment_id: string
+          mes_referencia: string
+          origem: string
+          pedido_mp_id: string
+          percentual: number
+          proposta_id: string | null
+          status: string
+          updated_at: string
+          valor_bruto: number
+          valor_comissao: number
+        }
+        Insert: {
+          canal?: string
+          created_at?: string
+          data_pagamento: string
+          id?: string
+          mercadopago_payment_id: string
+          mes_referencia: string
+          origem?: string
+          pedido_mp_id: string
+          percentual?: number
+          proposta_id?: string | null
+          status?: string
+          updated_at?: string
+          valor_bruto: number
+          valor_comissao: number
+        }
+        Update: {
+          canal?: string
+          created_at?: string
+          data_pagamento?: string
+          id?: string
+          mercadopago_payment_id?: string
+          mes_referencia?: string
+          origem?: string
+          pedido_mp_id?: string
+          percentual?: number
+          proposta_id?: string | null
+          status?: string
+          updated_at?: string
+          valor_bruto?: number
+          valor_comissao?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comissoes_alfamarketing_eventos_pedido_mp_id_fkey"
+            columns: ["pedido_mp_id"]
+            isOneToOne: false
+            referencedRelation: "ebd_shopify_pedidos_mercadopago"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comissoes_alfamarketing_eventos_proposta_id_fkey"
+            columns: ["proposta_id"]
+            isOneToOne: false
+            referencedRelation: "vendedor_propostas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       comissoes_config: {
         Row: {
           ativo: boolean | null
