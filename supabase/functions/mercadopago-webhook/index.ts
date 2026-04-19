@@ -493,4 +493,51 @@ async function processShopifyMPPedido(
       // Não interrompe o fluxo - pedido já está PAGO e Bling criado
     }
   }
+
+  // ✅ ETAPA D: REGISTRAR COMISSÃO HOUSE COMUNICAÇÃO (3%) - tabela de eventos
+  if (newStatus === 'PAGO') {
+    try {
+      const valorBruto = Number(pedido.valor_total || 0);
+      const valorComissaoHouse = Math.round(valorBruto * 0.03 * 100) / 100;
+      const dataPagamentoStr = payment.date_approved || new Date().toISOString();
+      const dataPagamentoDate = new Date(dataPagamentoStr);
+      const mesReferencia = `${dataPagamentoDate.getUTCFullYear()}-${String(dataPagamentoDate.getUTCMonth() + 1).padStart(2, '0')}-01`;
+
+      const { data: insertedRows, error: houseError } = await supabase
+        .from('comissoes_alfamarketing_eventos')
+        .upsert({
+          mercadopago_payment_id: payment.id.toString(),
+          pedido_mp_id: pedido.id,
+          proposta_id: pedido.proposta_id || null,
+          valor_bruto: valorBruto,
+          percentual: 3,
+          valor_comissao: valorComissaoHouse,
+          canal: 'mercadopago_propostas',
+          origem: 'mercadopago',
+          status: 'a_receber',
+          data_pagamento: dataPagamentoStr,
+          mes_referencia: mesReferencia,
+        }, { onConflict: 'mercadopago_payment_id', ignoreDuplicates: true })
+        .select('id');
+
+      if (houseError) {
+        console.error('[MP Webhook] erro_comissao_house', {
+          payment_id: payment.id,
+          proposta_id: pedido.proposta_id,
+          message: houseError.message,
+        });
+      } else if (!insertedRows || insertedRows.length === 0) {
+        console.log(`[MP Webhook] comissao_house_ja_registrada payment_id=${payment.id}`);
+      } else {
+        console.log(`[MP Webhook] comissao_house_registrada payment_id=${payment.id} valor=${valorComissaoHouse}`);
+      }
+    } catch (houseCatchError) {
+      console.error('[MP Webhook] erro_comissao_house_exception', {
+        payment_id: payment.id,
+        proposta_id: pedido.proposta_id,
+        message: houseCatchError instanceof Error ? houseCatchError.message : String(houseCatchError),
+      });
+      // Não propaga - webhook retorna 200 normalmente
+    }
+  }
 }
