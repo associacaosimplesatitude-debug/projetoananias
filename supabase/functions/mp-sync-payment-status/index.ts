@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { registrarComissaoHouse } from "../_shared/registrar-comissao-house.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -268,6 +269,13 @@ serve(async (req) => {
 
     if (updateError) {
       console.error(`[${requestId}] Erro ao atualizar pedido:`, updateError);
+    } else {
+      // ✅ Registrar comissão House Comunicação (3%) — idempotente via UNIQUE em mercadopago_payment_id
+      await registrarComissaoHouse(
+        supabase,
+        { ...pedido, status: 'PAGO' },
+        payment.date_approved ?? new Date().toISOString(),
+      );
     }
 
     // 7. Criar parcela paga para comissão do vendedor (Mercado Pago = pagamento à vista)
