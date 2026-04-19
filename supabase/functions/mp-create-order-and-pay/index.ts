@@ -148,11 +148,30 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const accessToken = Deno.env.get('MERCADO_PAGO_ACCESS_TOKEN');
+    const fallbackAccessToken = Deno.env.get('MERCADO_PAGO_ACCESS_TOKEN');
 
-    if (!accessToken) {
-      throw new Error('MERCADO_PAGO_ACCESS_TOKEN não configurado');
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Resolve seller token: OAuth (com split) ou fallback legado (sem split)
+    const seller = await getSellerToken(supabase);
+    let accessToken: string;
+    let useMarketplace: boolean;
+    let sellerCollectorId: string | null = null;
+
+    if (seller?.access_token) {
+      accessToken = seller.access_token;
+      useMarketplace = true;
+      sellerCollectorId = seller.collector_id;
+      console.log(`[${requestId}] [MP] modo_oauth_split`, { collector_id: seller.collector_id });
+    } else if (fallbackAccessToken) {
+      accessToken = fallbackAccessToken;
+      useMarketplace = false;
+      console.warn(`[${requestId}] [MP] modo_legado_sem_split — conectar editora via /admin/mp-oauth para ativar split de 3%`);
+    } else {
+      throw new Error('Nenhuma conta MP conectada (OAuth) e MERCADO_PAGO_ACCESS_TOKEN não configurado');
     }
+
+    const MP_FEE_PERCENT = parseFloat(Deno.env.get('MP_FEE_PERCENT') || '3');
 
     const tokenPrefix = accessToken.startsWith('TEST-')
       ? 'TEST-'
@@ -161,9 +180,8 @@ serve(async (req) => {
         : 'OTHER';
 
     const ambiente = tokenPrefix === 'TEST-' ? 'sandbox' : 'production';
-    console.log(`[${requestId}] MP ambiente:`, { ambiente, token_prefix: tokenPrefix });
+    console.log(`[${requestId}] MP ambiente:`, { ambiente, token_prefix: tokenPrefix, use_marketplace: useMarketplace });
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
     const body: PaymentRequest = await req.json();
 
     console.log(`[${requestId}] Request:`, {
