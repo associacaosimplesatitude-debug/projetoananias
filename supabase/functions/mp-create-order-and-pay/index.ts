@@ -404,23 +404,13 @@ serve(async (req) => {
       paymentData.payment_method_id = 'pix';
 
       console.log(`[${requestId}] Criando pagamento PIX...`);
-      const response = await fetch('https://api.mercadopago.com/v1/payments', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`,
-          'X-Idempotency-Key': `${pedido.id}-pix`,
-        },
-        body: JSON.stringify(paymentData),
-      });
+      const { ok, status, data } = await postMpPayment(`${pedido.id}-pix`);
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`[${requestId}] Erro Mercado Pago PIX:`, errorText);
-        throw new Error(`Erro ao criar pagamento PIX: ${response.statusText}`);
+      if (!ok) {
+        console.error(`[${requestId}] Erro Mercado Pago PIX:`, status, data);
+        throw new Error(`Erro ao criar pagamento PIX: ${data?.message || status}`);
       }
 
-      const data = await response.json();
       console.log(`[${requestId}] Pagamento PIX criado:`, data.id, 'status:', data.status);
 
       paymentResult = {
@@ -439,23 +429,13 @@ serve(async (req) => {
       };
 
       console.log(`[${requestId}] Criando boleto...`);
-      const response = await fetch('https://api.mercadopago.com/v1/payments', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`,
-          'X-Idempotency-Key': `${pedido.id}-boleto`,
-        },
-        body: JSON.stringify(paymentData),
-      });
+      const { ok, status, data } = await postMpPayment(`${pedido.id}-boleto`);
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`[${requestId}] Erro Mercado Pago Boleto:`, errorText);
-        throw new Error(`Erro ao criar boleto: ${response.statusText}`);
+      if (!ok) {
+        console.error(`[${requestId}] Erro Mercado Pago Boleto:`, status, data);
+        throw new Error(`Erro ao criar boleto: ${data?.message || status}`);
       }
 
-      const data = await response.json();
       console.log(`[${requestId}] Boleto criado:`, data.id);
 
       paymentResult = {
