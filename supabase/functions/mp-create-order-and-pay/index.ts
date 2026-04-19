@@ -275,6 +275,9 @@ serve(async (req) => {
         items: itensParaSalvar,
         payment_method: body.payment_method,
         status: 'AGUARDANDO_PAGAMENTO',
+        application_fee: useMarketplace
+          ? Math.round(valorTotal * (MP_FEE_PERCENT / 100) * 100) / 100
+          : null,
       })
       .select()
       .single();
@@ -350,6 +353,49 @@ serve(async (req) => {
         },
       },
       external_reference: pedido.id,
+    };
+
+    // Split House Comunicação (3% por padrão) — só quando OAuth ativo
+    const applicationFee = useMarketplace
+      ? Math.round(valorTotal * (MP_FEE_PERCENT / 100) * 100) / 100
+      : 0;
+    if (useMarketplace && applicationFee > 0) {
+      paymentData.application_fee = applicationFee;
+      console.log(`[${requestId}] [MP] application_fee=${applicationFee} (${MP_FEE_PERCENT}%)`);
+    }
+
+    // Helper de POST para /v1/payments com refresh reativo em 401 (apenas modo OAuth)
+    const postMpPayment = async (idempotencyKey: string): Promise<{ ok: boolean; status: number; data: any }> => {
+      const doFetch = (token: string) => fetch('https://api.mercadopago.com/v1/payments', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+          'X-Idempotency-Key': idempotencyKey,
+        },
+        body: JSON.stringify(paymentData),
+      });
+
+      let res = await doFetch(accessToken);
+      let data = await res.json().catch(() => ({}));
+
+      const looksLikeAuthError =
+        res.status === 401 ||
+        /invalid[_ ]token|expired[_ ]token|unauthor/i.test(
+          String(data?.message ?? '') + ' ' + String(data?.error ?? '')
+        );
+
+      if (!res.ok && looksLikeAuthError && useMarketplace && sellerCollectorId) {
+        console.warn(`[${requestId}] [MP] reactive_refresh on 401`, { collector_id: sellerCollectorId });
+        const refreshed = await refreshSellerToken(supabase, sellerCollectorId);
+        if (refreshed) {
+          accessToken = refreshed.access_token;
+          res = await doFetch(accessToken);
+          data = await res.json().catch(() => ({}));
+        }
+      }
+
+      return { ok: res.ok, status: res.status, data };
     };
 
     let paymentResult: any = {};
