@@ -1,16 +1,19 @@
 
-URL cadastrada e logado na House — agora precisa **deslogar** e logar na conta da **Editora Central Gospel** (seller), pois o MP bloqueia o owner do app de se conectar como seller.
+Sim — `MP_CLIENT_SECRET` deve ser da House Comunicação (dona do app `972960517601010`), pareada com o `MP_CLIENT_ID`.
 
-## Passos
-1. No MP, deslogar da House Comunicação.
-2. Logar como **Editora Central Gospel**.
-3. Acessar a URL de OAuth e autorizar.
-4. Aguardar redirect para `/admin/mp-oauth?success=true&collector_id=XXXX`.
-5. Me enviar o `collector_id` retornado.
+## Onde pegar
+1. Logar no MP como **House Comunicação** → https://www.mercadopago.com.br/developers/panel/app
+2. Abrir o app `972960517601010`
+3. Menu lateral → **Credenciais de produção**
+4. Copiar **Client Secret** (não confundir com Access Token)
 
-## URL clicável
+## Próximos passos
+1. Atualizo a secret `MP_CLIENT_SECRET` no backend
+2. Você refaz a URL de OAuth logado como **Editora Central Gospel**
+3. Callback troca code → access_token e grava em `mp_connected_accounts`
+4. Me devolve o `collector_id` retornado
 
-[**🔗 Conectar Editora Central Gospel**](https://auth.mercadopago.com.br/authorization?client_id=972960517601010&response_type=code&platform_id=mp&redirect_uri=https://nccyrvfnvjngfyfvgnww.supabase.co/functions/v1/mp-oauth-callback)
+## Observação
+`Client Secret ≠ Access Token`. São credenciais diferentes no painel. Não precisa mexer em código — só atualizar a secret.
 
-## Se der erro novamente
-Me envie print da nova tela de erro + qual conta estava logada. Aí investigo nos logs do `mp-oauth-callback` se a request chegou.
+Pode me enviar o Client Secret que disparo a atualização.
