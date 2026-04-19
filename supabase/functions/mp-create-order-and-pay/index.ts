@@ -1,6 +1,45 @@
-// v3 - CORS fix 2026-02-06
+// v4 - OAuth + application_fee (split House Comunicação)
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { refreshSellerToken } from "../_shared/mp-refresh.ts";
+
+// Busca token MP da conta conectada via OAuth (com refresh proativo < 24h).
+// Retorna null se nenhuma conta estiver conectada → caller usa fallback legado.
+async function getSellerToken(
+  supabaseAdmin: ReturnType<typeof createClient>,
+): Promise<{ access_token: string; collector_id: string } | null> {
+  const { data: rows, error } = await supabaseAdmin
+    .from('mp_connected_accounts')
+    .select('id, access_token, refresh_token, collector_id, expires_at, live_mode')
+    .order('live_mode', { ascending: false })
+    .order('created_at', { ascending: false })
+    .limit(1);
+
+  if (error || !rows || rows.length === 0) {
+    return null;
+  }
+
+  const acc = rows[0] as {
+    id: string;
+    access_token: string;
+    refresh_token: string | null;
+    collector_id: string;
+    expires_at: string | null;
+  };
+
+  const expiresAt = acc.expires_at ? new Date(acc.expires_at).getTime() : 0;
+  const needsRefresh = expiresAt > 0 && expiresAt - Date.now() < 24 * 60 * 60 * 1000;
+
+  if (needsRefresh && acc.refresh_token) {
+    console.log('[MP] proactive_refresh_token (< 24h)', { collector_id: acc.collector_id });
+    const refreshed = await refreshSellerToken(supabaseAdmin, acc.collector_id);
+    if (refreshed) {
+      return { access_token: refreshed.access_token, collector_id: acc.collector_id };
+    }
+  }
+
+  return { access_token: acc.access_token, collector_id: acc.collector_id };
+}
 
 const ALLOWED_ORIGINS = [
   'https://gestaoebd.com.br',
@@ -109,11 +148,30 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const accessToken = Deno.env.get('MERCADO_PAGO_ACCESS_TOKEN');
+    const fallbackAccessToken = Deno.env.get('MERCADO_PAGO_ACCESS_TOKEN');
 
-    if (!accessToken) {
-      throw new Error('MERCADO_PAGO_ACCESS_TOKEN não configurado');
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Resolve seller token: OAuth (com split) ou fallback legado (sem split)
+    const seller = await getSellerToken(supabase);
+    let accessToken: string;
+    let useMarketplace: boolean;
+    let sellerCollectorId: string | null = null;
+
+    if (seller?.access_token) {
+      accessToken = seller.access_token;
+      useMarketplace = true;
+      sellerCollectorId = seller.collector_id;
+      console.log(`[${requestId}] [MP] modo_oauth_split`, { collector_id: seller.collector_id });
+    } else if (fallbackAccessToken) {
+      accessToken = fallbackAccessToken;
+      useMarketplace = false;
+      console.warn(`[${requestId}] [MP] modo_legado_sem_split — conectar editora via /admin/mp-oauth para ativar split de 3%`);
+    } else {
+      throw new Error('Nenhuma conta MP conectada (OAuth) e MERCADO_PAGO_ACCESS_TOKEN não configurado');
     }
+
+    const MP_FEE_PERCENT = parseFloat(Deno.env.get('MP_FEE_PERCENT') || '3');
 
     const tokenPrefix = accessToken.startsWith('TEST-')
       ? 'TEST-'
@@ -122,9 +180,8 @@ serve(async (req) => {
         : 'OTHER';
 
     const ambiente = tokenPrefix === 'TEST-' ? 'sandbox' : 'production';
-    console.log(`[${requestId}] MP ambiente:`, { ambiente, token_prefix: tokenPrefix });
+    console.log(`[${requestId}] MP ambiente:`, { ambiente, token_prefix: tokenPrefix, use_marketplace: useMarketplace });
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
     const body: PaymentRequest = await req.json();
 
     console.log(`[${requestId}] Request:`, {
@@ -218,6 +275,9 @@ serve(async (req) => {
         items: itensParaSalvar,
         payment_method: body.payment_method,
         status: 'AGUARDANDO_PAGAMENTO',
+        application_fee: useMarketplace
+          ? Math.round(valorTotal * (MP_FEE_PERCENT / 100) * 100) / 100
+          : null,
       })
       .select()
       .single();
@@ -295,29 +355,62 @@ serve(async (req) => {
       external_reference: pedido.id,
     };
 
+    // Split House Comunicação (3% por padrão) — só quando OAuth ativo
+    const applicationFee = useMarketplace
+      ? Math.round(valorTotal * (MP_FEE_PERCENT / 100) * 100) / 100
+      : 0;
+    if (useMarketplace && applicationFee > 0) {
+      paymentData.application_fee = applicationFee;
+      console.log(`[${requestId}] [MP] application_fee=${applicationFee} (${MP_FEE_PERCENT}%)`);
+    }
+
+    // Helper de POST para /v1/payments com refresh reativo em 401 (apenas modo OAuth)
+    const postMpPayment = async (idempotencyKey: string): Promise<{ ok: boolean; status: number; data: any }> => {
+      const doFetch = (token: string) => fetch('https://api.mercadopago.com/v1/payments', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+          'X-Idempotency-Key': idempotencyKey,
+        },
+        body: JSON.stringify(paymentData),
+      });
+
+      let res = await doFetch(accessToken);
+      let data = await res.json().catch(() => ({}));
+
+      const looksLikeAuthError =
+        res.status === 401 ||
+        /invalid[_ ]token|expired[_ ]token|unauthor/i.test(
+          String(data?.message ?? '') + ' ' + String(data?.error ?? '')
+        );
+
+      if (!res.ok && looksLikeAuthError && useMarketplace && sellerCollectorId) {
+        console.warn(`[${requestId}] [MP] reactive_refresh on 401`, { collector_id: sellerCollectorId });
+        const refreshed = await refreshSellerToken(supabase, sellerCollectorId);
+        if (refreshed) {
+          accessToken = refreshed.access_token;
+          res = await doFetch(accessToken);
+          data = await res.json().catch(() => ({}));
+        }
+      }
+
+      return { ok: res.ok, status: res.status, data };
+    };
+
     let paymentResult: any = {};
 
     if (body.payment_method === 'pix') {
       paymentData.payment_method_id = 'pix';
 
       console.log(`[${requestId}] Criando pagamento PIX...`);
-      const response = await fetch('https://api.mercadopago.com/v1/payments', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`,
-          'X-Idempotency-Key': `${pedido.id}-pix`,
-        },
-        body: JSON.stringify(paymentData),
-      });
+      const { ok, status, data } = await postMpPayment(`${pedido.id}-pix`);
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`[${requestId}] Erro Mercado Pago PIX:`, errorText);
-        throw new Error(`Erro ao criar pagamento PIX: ${response.statusText}`);
+      if (!ok) {
+        console.error(`[${requestId}] Erro Mercado Pago PIX:`, status, data);
+        throw new Error(`Erro ao criar pagamento PIX: ${data?.message || status}`);
       }
 
-      const data = await response.json();
       console.log(`[${requestId}] Pagamento PIX criado:`, data.id, 'status:', data.status);
 
       paymentResult = {
@@ -336,23 +429,13 @@ serve(async (req) => {
       };
 
       console.log(`[${requestId}] Criando boleto...`);
-      const response = await fetch('https://api.mercadopago.com/v1/payments', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`,
-          'X-Idempotency-Key': `${pedido.id}-boleto`,
-        },
-        body: JSON.stringify(paymentData),
-      });
+      const { ok, status, data } = await postMpPayment(`${pedido.id}-boleto`);
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`[${requestId}] Erro Mercado Pago Boleto:`, errorText);
-        throw new Error(`Erro ao criar boleto: ${response.statusText}`);
+      if (!ok) {
+        console.error(`[${requestId}] Erro Mercado Pago Boleto:`, status, data);
+        throw new Error(`Erro ao criar boleto: ${data?.message || status}`);
       }
 
-      const data = await response.json();
       console.log(`[${requestId}] Boleto criado:`, data.id);
 
       paymentResult = {
@@ -557,26 +640,16 @@ serve(async (req) => {
       const idempotencyKey = `${pedido.id}-card-${paymentData.installments}-${amountKey}`;
       console.log(`[${requestId}] Processando pagamento cartao...`, { idempotencyKey });
 
-      const response = await fetch('https://api.mercadopago.com/v1/payments', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`,
-          'X-Idempotency-Key': idempotencyKey,
-        },
-        body: JSON.stringify(paymentData),
-      });
+      const { ok: cardOk, status: cardStatus, data: responseData } = await postMpPayment(idempotencyKey);
 
-      const responseData = await response.json().catch(() => ({}));
-      
       // Atualizar mpDebug com resposta
-      mpDebug.status = response.status;
+      mpDebug.status = cardStatus;
       mpDebug.mp_message = responseData.message || null;
       mpDebug.cause = responseData.cause || null;
       mpDebug.status_detail = responseData.status_detail || null;
-      
+
       console.log(`[${requestId}] Resposta MP:`, {
-        http_status: response.status,
+        http_status: cardStatus,
         payment_status: responseData.status,
         status_detail: responseData.status_detail,
         payment_id: responseData.id,
@@ -584,7 +657,7 @@ serve(async (req) => {
       });
 
       // Tratar erros de resposta
-      if (!response.ok || responseData.status === 'rejected') {
+      if (!cardOk || responseData.status === 'rejected') {
         console.error(`[${requestId}] Erro/Rejeicao pagamento:`, JSON.stringify(responseData));
         
         const cause = responseData.cause || [];
