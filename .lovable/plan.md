@@ -1,9 +1,16 @@
 
-Usuário só precisa da URL de conexão. Não há código a alterar — tudo já foi implementado no prompt anterior. A resposta já contém:
+URL cadastrada e logado na House — agora precisa **deslogar** e logar na conta da **Editora Central Gospel** (seller), pois o MP bloqueia o owner do app de se conectar como seller.
 
-1. URL helper para obter o `MP_CLIENT_ID`: `https://nccyrvfnvjngfyfvgnww.supabase.co/functions/v1/get-mp-client-id`
-2. Template da URL de OAuth com `redirect_uri` correto apontando pro `mp-oauth-callback` deployado.
-3. Checklist no painel MP (cadastrar Redirect URI + logar com a conta da Editora Central Gospel).
-4. Destino pós-callback: `/admin/mp-oauth?success=true&collector_id=...`.
+## Passos
+1. No MP, deslogar da House Comunicação.
+2. Logar como **Editora Central Gospel**.
+3. Acessar a URL de OAuth e autorizar.
+4. Aguardar redirect para `/admin/mp-oauth?success=true&collector_id=XXXX`.
+5. Me enviar o `collector_id` retornado.
 
-Próximo passo prático: usuário acessa a URL, autoriza com a conta da Editora, e me avisa o `collector_id` retornado. A partir daí o `mp-create-order-and-pay` passa a usar OAuth + `application_fee` automaticamente (sem mais `[MP] modo_legado_sem_split` nos logs).
+## URL clicável
+
+[**🔗 Conectar Editora Central Gospel**](https://auth.mercadopago.com.br/authorization?client_id=972960517601010&response_type=code&platform_id=mp&redirect_uri=https://nccyrvfnvjngfyfvgnww.supabase.co/functions/v1/mp-oauth-callback)
+
+## Se der erro novamente
+Me envie print da nova tela de erro + qual conta estava logada. Aí investigo nos logs do `mp-oauth-callback` se a request chegou.
