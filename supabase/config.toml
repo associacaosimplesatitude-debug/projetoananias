@@ -347,3 +347,18 @@ verify_jwt = false
 
 [functions.stripe-webhook]
 verify_jwt = false
+
+[functions.mp-oauth-callback]
+verify_jwt = false
+
+[functions.refresh-mp-tokens]
+verify_jwt = false
+
+[functions.refresh-mp-tokens-manual]
+verify_jwt = true
+
+[functions.get-mp-public-key]
+verify_jwt = false
+
+[functions.get-mp-client-id]
+verify_jwt = false
