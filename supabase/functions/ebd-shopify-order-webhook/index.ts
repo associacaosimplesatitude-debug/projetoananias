@@ -3,8 +3,36 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-shopify-hmac-sha256, x-shopify-topic, x-shopify-shop-domain",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-shopify-hmac-sha256, x-shopify-topic, x-shopify-shop-domain, x-internal-source, x-internal-secret",
 };
+
+// Constant-time string comparison to prevent timing attacks
+function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let result = 0;
+  for (let i = 0; i < a.length; i++) {
+    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return result === 0;
+}
+
+// Compute HMAC SHA256 base64 of a raw body using the Shopify webhook secret
+async function computeShopifyHmac(rawBody: string, secret: string): Promise<string> {
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw",
+    enc.encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+  const sig = await crypto.subtle.sign("HMAC", key, enc.encode(rawBody));
+  // base64
+  const bytes = new Uint8Array(sig);
+  let bin = "";
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  return btoa(bin);
+}
 
 interface ShopifyAddress {
   first_name?: string;
@@ -144,11 +172,71 @@ serve(async (req) => {
     // Get webhook topic from header
     const topic = req.headers.get("x-shopify-topic");
     const shopDomain = req.headers.get("x-shopify-shop-domain");
-    
-    console.log("Received Shopify webhook:", { topic, shopDomain });
 
-    // Parse the order payload
-    const order: ShopifyOrder = await req.json();
+    console.log("Received webhook:", { topic, shopDomain });
+
+    // === DUAL-PATH ORIGIN VALIDATION ===
+    // Path A: Shopify HMAC (legacy) — Path B: Internal secret (Central Gospel Store)
+    const rawBody = await req.text();
+
+    const shopifyHmac       = req.headers.get("x-shopify-hmac-sha256");
+    const internalSource    = req.headers.get("x-internal-source");
+    const internalSecretHdr = req.headers.get("x-internal-secret");
+
+    const SHOPIFY_SECRET  = Deno.env.get("SHOPIFY_WEBHOOK_SECRET");
+    const INTERNAL_SECRET = Deno.env.get("INTERNAL_WEBHOOK_SECRET");
+
+    let originOk = false;
+    let originType = "";
+
+    // Path A: Shopify HMAC (only enforced if both header and secret are present)
+    if (shopifyHmac && SHOPIFY_SECRET) {
+      try {
+        const computed = await computeShopifyHmac(rawBody, SHOPIFY_SECRET);
+        if (timingSafeEqual(computed, shopifyHmac)) {
+          originOk = true;
+          originType = "shopify-hmac";
+        }
+      } catch (e) {
+        console.error("HMAC compute error:", e);
+      }
+    }
+
+    // Path B: Internal source from Central Gospel Store
+    if (
+      !originOk &&
+      internalSource === "central-gospel-store" &&
+      INTERNAL_SECRET &&
+      internalSecretHdr &&
+      timingSafeEqual(internalSecretHdr, INTERNAL_SECRET)
+    ) {
+      originOk = true;
+      originType = "internal-cg-store";
+    }
+
+    // Backward-compat: if neither header was supplied at all (old behaviour),
+    // and no SHOPIFY_SECRET is configured, allow through (legacy fallback).
+    if (!originOk && !shopifyHmac && !internalSource && !SHOPIFY_SECRET) {
+      originOk = true;
+      originType = "legacy-no-auth";
+    }
+
+    if (!originOk) {
+      console.warn("Unauthorized webhook attempt", {
+        hasShopifyHmac: !!shopifyHmac,
+        hasInternalSource: internalSource,
+        hasInternalSecret: !!internalSecretHdr,
+      });
+      return new Response(
+        JSON.stringify({ error: "Unauthorized" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    console.log(`[origem aceita] ${originType}`);
+
+    // Parse the order payload (shape Shopify orders/paid — preservado)
+    const order: ShopifyOrder = JSON.parse(rawBody);
 
     // === FILTRO DE STATUS: Ignorar pedidos que NÃO são "paid" ===
     if (order.financial_status !== "paid") {
