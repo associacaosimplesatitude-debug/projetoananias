@@ -214,13 +214,6 @@ serve(async (req) => {
       originType = "internal-cg-store";
     }
 
-    // Backward-compat: if neither header was supplied at all (old behaviour),
-    // and no SHOPIFY_SECRET is configured, allow through (legacy fallback).
-    if (!originOk && !shopifyHmac && !internalSource && !SHOPIFY_SECRET) {
-      originOk = true;
-      originType = "legacy-no-auth";
-    }
-
     if (!originOk) {
       console.warn("Unauthorized webhook attempt", {
         hasShopifyHmac: !!shopifyHmac,
