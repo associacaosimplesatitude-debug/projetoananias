@@ -4226,6 +4226,7 @@ export type Database = {
       }
       ebd_shopify_pedidos_mercadopago: {
         Row: {
+          application_fee: number | null
           bling_created_at: string | null
           bling_order_id: number | null
           cliente_cpf_cnpj: string | null
@@ -4265,6 +4266,7 @@ export type Database = {
           vendedor_nome: string | null
         }
         Insert: {
+          application_fee?: number | null
           bling_created_at?: string | null
           bling_order_id?: number | null
           cliente_cpf_cnpj?: string | null
@@ -4304,6 +4306,7 @@ export type Database = {
           vendedor_nome?: string | null
         }
         Update: {
+          application_fee?: number | null
           bling_created_at?: string | null
           bling_order_id?: number | null
           cliente_cpf_cnpj?: string | null
@@ -5101,6 +5104,42 @@ export type Database = {
           descricao?: string | null
           id?: string
           nome_modulo?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      mp_connected_accounts: {
+        Row: {
+          access_token: string
+          collector_id: string
+          created_at: string
+          expires_at: string | null
+          id: string
+          live_mode: boolean | null
+          public_key: string | null
+          refresh_token: string | null
+          updated_at: string
+        }
+        Insert: {
+          access_token: string
+          collector_id: string
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          live_mode?: boolean | null
+          public_key?: string | null
+          refresh_token?: string | null
+          updated_at?: string
+        }
+        Update: {
+          access_token?: string
+          collector_id?: string
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          live_mode?: boolean | null
+          public_key?: string | null
+          refresh_token?: string | null
           updated_at?: string
         }
         Relationships: []
