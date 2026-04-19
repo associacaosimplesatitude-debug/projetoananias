@@ -1,6 +1,45 @@
-// v3 - CORS fix 2026-02-06
+// v4 - OAuth + application_fee (split House Comunicação)
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { refreshSellerToken } from "../_shared/mp-refresh.ts";
+
+// Busca token MP da conta conectada via OAuth (com refresh proativo < 24h).
+// Retorna null se nenhuma conta estiver conectada → caller usa fallback legado.
+async function getSellerToken(
+  supabaseAdmin: ReturnType<typeof createClient>,
+): Promise<{ access_token: string; collector_id: string } | null> {
+  const { data: rows, error } = await supabaseAdmin
+    .from('mp_connected_accounts')
+    .select('id, access_token, refresh_token, collector_id, expires_at, live_mode')
+    .order('live_mode', { ascending: false })
+    .order('created_at', { ascending: false })
+    .limit(1);
+
+  if (error || !rows || rows.length === 0) {
+    return null;
+  }
+
+  const acc = rows[0] as {
+    id: string;
+    access_token: string;
+    refresh_token: string | null;
+    collector_id: string;
+    expires_at: string | null;
+  };
+
+  const expiresAt = acc.expires_at ? new Date(acc.expires_at).getTime() : 0;
+  const needsRefresh = expiresAt > 0 && expiresAt - Date.now() < 24 * 60 * 60 * 1000;
+
+  if (needsRefresh && acc.refresh_token) {
+    console.log('[MP] proactive_refresh_token (< 24h)', { collector_id: acc.collector_id });
+    const refreshed = await refreshSellerToken(supabaseAdmin, acc.collector_id);
+    if (refreshed) {
+      return { access_token: refreshed.access_token, collector_id: acc.collector_id };
+    }
+  }
+
+  return { access_token: acc.access_token, collector_id: acc.collector_id };
+}
 
 const ALLOWED_ORIGINS = [
   'https://gestaoebd.com.br',
