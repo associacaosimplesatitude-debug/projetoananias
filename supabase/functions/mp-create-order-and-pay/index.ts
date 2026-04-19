@@ -640,26 +640,16 @@ serve(async (req) => {
       const idempotencyKey = `${pedido.id}-card-${paymentData.installments}-${amountKey}`;
       console.log(`[${requestId}] Processando pagamento cartao...`, { idempotencyKey });
 
-      const response = await fetch('https://api.mercadopago.com/v1/payments', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`,
-          'X-Idempotency-Key': idempotencyKey,
-        },
-        body: JSON.stringify(paymentData),
-      });
+      const { ok: cardOk, status: cardStatus, data: responseData } = await postMpPayment(idempotencyKey);
 
-      const responseData = await response.json().catch(() => ({}));
-      
       // Atualizar mpDebug com resposta
-      mpDebug.status = response.status;
+      mpDebug.status = cardStatus;
       mpDebug.mp_message = responseData.message || null;
       mpDebug.cause = responseData.cause || null;
       mpDebug.status_detail = responseData.status_detail || null;
-      
+
       console.log(`[${requestId}] Resposta MP:`, {
-        http_status: response.status,
+        http_status: cardStatus,
         payment_status: responseData.status,
         status_detail: responseData.status_detail,
         payment_id: responseData.id,
@@ -667,7 +657,7 @@ serve(async (req) => {
       });
 
       // Tratar erros de resposta
-      if (!response.ok || responseData.status === 'rejected') {
+      if (!cardOk || responseData.status === 'rejected') {
         console.error(`[${requestId}] Erro/Rejeicao pagamento:`, JSON.stringify(responseData));
         
         const cause = responseData.cause || [];
