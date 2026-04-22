@@ -1117,13 +1117,59 @@ serve(async (req) => {
         const rawPhone = order.customer?.phone 
           || order.shipping_address?.phone 
           || order.billing_address?.phone 
+          || order.customer?.default_address?.phone
+          || order.phone
           || '';
-        const digitsOnly = rawPhone.replace(/\D/g, '');
-        const whatsappLimpo = digitsOnly.startsWith('55') && digitsOnly.length >= 12
+        let digitsOnly = rawPhone.replace(/\D/g, '');
+        let whatsappLimpo = digitsOnly.startsWith('55') && digitsOnly.length >= 12
           ? digitsOnly.slice(2)
           : digitsOnly;
 
-        const temWhatsapp = whatsappLimpo && whatsappLimpo.length >= 10;
+        let temWhatsapp = whatsappLimpo && whatsappLimpo.length >= 10;
+        const emailParaFallback = (order.customer?.email || order.email || '').toLowerCase().trim();
+
+        // Fallback 1: buscar telefone em pedidos anteriores do mesmo email
+        if (!temWhatsapp && emailParaFallback) {
+          const { data: prevOrder } = await supabase
+            .from('ebd_shopify_pedidos')
+            .select('customer_phone')
+            .ilike('customer_email', emailParaFallback)
+            .not('customer_phone', 'is', null)
+            .neq('customer_phone', '')
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          const fallbackPhone = (prevOrder?.customer_phone || '').replace(/\D/g, '');
+          if (fallbackPhone.length >= 10) {
+            digitsOnly = fallbackPhone;
+            whatsappLimpo = fallbackPhone.startsWith('55') && fallbackPhone.length >= 12
+              ? fallbackPhone.slice(2)
+              : fallbackPhone;
+            temWhatsapp = true;
+            console.log(`📞 Fallback: telefone ${whatsappLimpo} recuperado de pedido anterior do email ${emailParaFallback}`);
+          }
+        }
+
+        // Fallback 2: buscar telefone em licenças anteriores do mesmo email
+        if (!temWhatsapp && emailParaFallback) {
+          const { data: prevLic } = await supabase
+            .from('revista_licencas_shopify')
+            .select('whatsapp')
+            .ilike('email', emailParaFallback)
+            .not('whatsapp', 'is', null)
+            .order('created_at', { ascending: false })
+            .limit(5);
+          const candidato = (prevLic || [])
+            .map((l: any) => (l.whatsapp || '').replace(/\D/g, ''))
+            .find((w: string) => w.length >= 10 && !w.includes('@'));
+          if (candidato) {
+            whatsappLimpo = candidato.startsWith('55') && candidato.length >= 12
+              ? candidato.slice(2)
+              : candidato;
+            temWhatsapp = true;
+            console.log(`📞 Fallback 2: telefone ${whatsappLimpo} recuperado de licença anterior do email ${emailParaFallback}`);
+          }
+        }
 
         const nomeComprador = order.customer?.first_name
           ? `${order.customer.first_name} ${order.customer.last_name || ''}`.trim()
