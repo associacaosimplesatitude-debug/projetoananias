@@ -541,18 +541,17 @@ function LicencaEditDrawer({ licenca, open, onClose, onSaved }: {
             {/* SEÇÃO 3 — Envio de acesso */}
             <div className="space-y-3">
               <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Envio de acesso</h3>
-              <div className="flex gap-2">
-                <Button variant="outline" className="flex-1 gap-2" onClick={() => resendMutation.mutate(licenca.id)} disabled={!licenca.ativo || resendMutation.isPending}>
-                  {resendMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageSquare className="h-4 w-4" />}
-                  Reenviar via WhatsApp
-                </Button>
-                {licenca.email && (
-                  <Button variant="outline" className="flex-1 gap-2" onClick={() => resendMutation.mutate(licenca.id)} disabled={!licenca.ativo || resendMutation.isPending}>
-                    {resendMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <MailIcon className="h-4 w-4" />}
-                    Reenviar via Email
-                  </Button>
-                )}
-              </div>
+              <Button
+                className="w-full gap-2"
+                onClick={() => resendMutation.mutate(licenca.id)}
+                disabled={!licenca.ativo || resendMutation.isPending}
+              >
+                {resendMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                Reenviar Credenciais
+              </Button>
+              <p className="text-xs text-muted-foreground text-center">
+                Reenvia via WhatsApp{licenca.email ? " e Email" : ""} usando os dados atuais da licença
+              </p>
             </div>
 
             <Separator />
