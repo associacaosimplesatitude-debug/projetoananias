@@ -654,7 +654,7 @@ export default function PedidosCentralGospel() {
 
       {/* Detail Dialog */}
       <PedidoCGDetailDialog
-        pedido={selectedPedido}
+        pedido={selectedPedido as any}
         open={dialogOpen}
         onOpenChange={setDialogOpen}
       />
