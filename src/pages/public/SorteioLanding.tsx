@@ -229,14 +229,22 @@ export default function SorteioLanding() {
   }, []);
 
   const proximoSorteio = useMemo(() => {
-    if (!sessaoAtiva) return null;
-    const inicio = new Date(sessaoAtiva.data_inicio).getTime();
-    const fim = new Date(sessaoAtiva.data_fim).getTime();
-    const intervalo = (sessaoAtiva.intervalo_minutos ?? 60) * 60 * 1000;
-    let proximo = inicio + intervalo;
-    while (proximo <= now && proximo < fim) proximo += intervalo;
-    return proximo <= fim ? proximo : null;
-  }, [sessaoAtiva, now]);
+    if (sessaoAtiva) {
+      const inicio = new Date(sessaoAtiva.data_inicio).getTime();
+      const fim = new Date(sessaoAtiva.data_fim).getTime();
+      const intervalo = (sessaoAtiva.intervalo_minutos ?? 60) * 60 * 1000;
+      let proximo = inicio + intervalo;
+      while (proximo <= now && proximo < fim) proximo += intervalo;
+      return proximo <= fim ? proximo : null;
+    }
+    if (proximaSessaoFutura) {
+      const inicio = new Date(proximaSessaoFutura.data_inicio).getTime();
+      const intervalo = (proximaSessaoFutura.intervalo_minutos ?? 60) * 60 * 1000;
+      // Primeiro sorteio = início da sessão + 1 intervalo
+      return inicio + intervalo;
+    }
+    return null;
+  }, [sessaoAtiva, proximaSessaoFutura, now]);
 
   const countdown = useMemo(() => {
     if (!proximoSorteio) return null;
