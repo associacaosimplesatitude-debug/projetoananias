@@ -468,10 +468,19 @@ export default function PedidosCentralGospel() {
           <p className="text-muted-foreground">Pedidos da loja centralgospel.com.br</p>
         </div>
         {isAdmin && (
-          <Button onClick={() => syncOrdersMutation.mutate()} disabled={syncOrdersMutation.isPending}>
-            <RefreshCw className={`h-4 w-4 mr-2 ${syncOrdersMutation.isPending ? "animate-spin" : ""}`} />
-            {syncOrdersMutation.isPending ? "Sincronizando..." : "Sincronizar Pedidos"}
-          </Button>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button onClick={() => syncOrdersMutation.mutate()} disabled={syncOrdersMutation.isPending}>
+                  <RefreshCw className={`h-4 w-4 mr-2 ${syncOrdersMutation.isPending ? "animate-spin" : ""}`} />
+                  {syncOrdersMutation.isPending ? "Sincronizando..." : "Sincronizar Pedidos"}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                Sincroniza apenas pedidos da Shopify. Pedidos da Nova Loja chegam automaticamente via webhook.
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         )}
       </div>
 
