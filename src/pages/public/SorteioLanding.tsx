@@ -431,37 +431,51 @@ export default function SorteioLanding() {
             Sorteio ao Vivo
           </h2>
 
-          {!sessaoAtiva ? (
+          {/* Countdown — pré-evento ou durante a sessão */}
+          {countdown && countdown.total > 0 && (
+            <Card className="border border-[#FF6B35]/40 bg-[#0f172a]/90 backdrop-blur">
+              <CardContent className="p-6 text-center">
+                <p className="text-gray-200 text-sm mb-3">
+                  {sessaoAtiva ? "Próximo sorteio em" : "Primeiro sorteio em"}
+                </p>
+                <div className="flex justify-center gap-4">
+                  {[
+                    { label: "Horas", value: countdown.h },
+                    { label: "Min", value: countdown.m },
+                    { label: "Seg", value: countdown.s },
+                  ].map((item) => (
+                    <div key={item.label} className="bg-white/10 rounded-lg px-4 py-3 min-w-[70px] border border-[#FF6B35]/20">
+                      <span className="text-3xl font-bold text-[#C9A84C] font-mono">
+                        {String(item.value).padStart(2, "0")}
+                      </span>
+                      <p className="text-gray-300 text-xs mt-1">{item.label}</p>
+                    </div>
+                  ))}
+                </div>
+                {!sessaoAtiva && proximaSessaoFutura && (
+                  <p className="text-white/60 text-xs mt-4">
+                    {new Date(proximoSorteio!).toLocaleString("pt-BR", {
+                      weekday: "long",
+                      day: "2-digit",
+                      month: "2-digit",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {!sessaoAtiva && !proximaSessaoFutura ? (
             <Card className="border-0 bg-white/10 backdrop-blur text-center">
               <CardContent className="p-8">
                 <Clock className="w-12 h-12 text-white/40 mx-auto mb-3" />
                 <p className="text-white/60 text-lg">Aguarde o próximo sorteio</p>
               </CardContent>
             </Card>
-          ) : (
+          ) : sessaoAtiva ? (
             <>
-              {/* Countdown */}
-              {countdown && countdown.total > 0 && (
-                <Card className="border border-[#FF6B35]/40 bg-[#0f172a]/90 backdrop-blur">
-                  <CardContent className="p-6 text-center">
-                    <p className="text-gray-200 text-sm mb-3">Próximo sorteio em</p>
-                    <div className="flex justify-center gap-4">
-                      {[
-                        { label: "Horas", value: countdown.h },
-                        { label: "Min", value: countdown.m },
-                        { label: "Seg", value: countdown.s },
-                      ].map((item) => (
-                        <div key={item.label} className="bg-white/10 rounded-lg px-4 py-3 min-w-[70px] border border-[#FF6B35]/20">
-                          <span className="text-3xl font-bold text-[#C9A84C] font-mono">
-                            {String(item.value).padStart(2, "0")}
-                          </span>
-                          <p className="text-gray-300 text-xs mt-1">{item.label}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
 
               {/* Current winner */}
               {ganhadoresAtuais && ganhadoresAtuais.length > 0 && ganhadoresAtuais.map((ganhador: any) => {
