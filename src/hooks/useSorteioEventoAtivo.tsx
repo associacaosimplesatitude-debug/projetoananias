@@ -7,6 +7,7 @@ export interface SorteioEvento {
   slug: string | null;
   ativo: boolean;
   banner_url: string | null;
+  imagem_premio_url: string | null;
   titulo: string | null;
   subtitulo: string | null;
   descricao: string | null;
