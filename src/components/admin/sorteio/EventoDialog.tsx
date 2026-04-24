@@ -45,6 +45,7 @@ export default function EventoDialog({ open, onOpenChange, evento }: Props) {
         nome: evento.nome ?? "",
         slug: evento.slug ?? "",
         banner_url: evento.banner_url ?? "",
+        imagem_premio_url: evento.imagem_premio_url ?? "",
         titulo: evento.titulo ?? "",
         subtitulo: evento.subtitulo ?? "",
         descricao: evento.descricao ?? "",
