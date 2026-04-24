@@ -344,11 +344,11 @@ export default function SorteioLanding() {
       {mostrandoRoleta && <RouletteOverlay nome={nomeRoleta} onDone={handleRouletteEnd} />}
 
       {/* Banner do Evento */}
-      <section className="relative w-full bg-[#0f172a]">
+      <section className="relative w-full bg-[#0f172a] flex justify-center">
         <img
           src={bannerUrl}
           alt={evento.nome}
-          className="w-full h-auto object-contain mx-auto"
+          className="w-full max-h-[520px] object-cover object-center"
         />
       </section>
 
