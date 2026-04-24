@@ -146,7 +146,7 @@ export default function EventosTab() {
                   <span>{counts?.ganhadoras[ev.id] ?? 0} ganhadoras</span>
                 </div>
 
-                <div className="flex items-center gap-2 pt-1">
+                <div className="flex items-center gap-2 pt-1 flex-wrap">
                   {ev.ativo ? (
                     <Button size="sm" variant="outline" onClick={() => toggleAtivo.mutate({ id: ev.id, ativar: false })}>
                       <PowerOff className="w-4 h-4 mr-1" /> Desativar
@@ -154,6 +154,18 @@ export default function EventosTab() {
                   ) : (
                     <Button size="sm" onClick={() => toggleAtivo.mutate({ id: ev.id, ativar: true })}>
                       <Power className="w-4 h-4 mr-1" /> Ativar
+                    </Button>
+                  )}
+                  {ev.ativo && (counts?.sessoes[ev.id] ?? 0) === 0 && (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => {
+                        window.dispatchEvent(new CustomEvent("sorteio:goto-sessoes"));
+                        setTimeout(() => window.dispatchEvent(new CustomEvent("sorteio:open-nova-sessao")), 100);
+                      }}
+                    >
+                      <Plus className="w-4 h-4 mr-1" /> Nova Sessão
                     </Button>
                   )}
                   <Button size="sm" variant="ghost" onClick={() => openEdit(ev)}>

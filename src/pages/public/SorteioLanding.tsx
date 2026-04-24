@@ -344,13 +344,12 @@ export default function SorteioLanding() {
         <img
           src={bannerUrl}
           alt={evento.nome}
-          className="w-full h-auto md:h-[480px] md:object-cover md:object-center"
+          className="w-full h-auto md:h-[520px] md:object-cover md:object-top"
         />
-        <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-b from-transparent to-[#0f172a] pointer-events-none" />
       </section>
 
       {/* Título + Contador */}
-      <section className="relative -mt-20 z-10 text-center px-4 pb-4">
+      <section className="relative z-10 text-center px-4 pt-8 pb-4">
         <h1 className="text-3xl md:text-5xl font-bold text-white leading-tight mb-3">
           {titulo}
         </h1>

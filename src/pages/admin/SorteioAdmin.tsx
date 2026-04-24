@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -33,6 +33,16 @@ function SessoesTab() {
   const [newSession, setNewSession] = useState({
     nome: "", data_inicio: "", data_fim: "", intervalo_minutos: 60, premio_padrao: "",
   });
+
+  useEffect(() => {
+    const handler = () => {
+      setEditSession(null);
+      setNewSession({ nome: "", data_inicio: "", data_fim: "", intervalo_minutos: 60, premio_padrao: "" });
+      setModalOpen(true);
+    };
+    window.addEventListener("sorteio:open-nova-sessao", handler);
+    return () => window.removeEventListener("sorteio:open-nova-sessao", handler);
+  }, []);
 
   const { data: sessoes, isLoading } = useQuery({
     queryKey: ["admin-sorteio-sessoes"],
@@ -1445,6 +1455,14 @@ function EmbaixadorasTab() {
 }
 // ─── Main Page ──────────────────────────────────────────────
 export default function SorteioAdmin() {
+  const [tab, setTab] = useState("eventos");
+
+  useEffect(() => {
+    const handler = () => setTab("sessoes");
+    window.addEventListener("sorteio:goto-sessoes", handler);
+    return () => window.removeEventListener("sorteio:goto-sessoes", handler);
+  }, []);
+
   return (
     <div className="p-4 md:p-6 space-y-6">
       <div className="flex items-center gap-3">
@@ -1457,7 +1475,7 @@ export default function SorteioAdmin() {
         </div>
       </div>
 
-      <Tabs defaultValue="eventos">
+      <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="flex w-full overflow-x-auto">
           <TabsTrigger value="eventos">Eventos</TabsTrigger>
           <TabsTrigger value="sessoes">Sessões</TabsTrigger>
