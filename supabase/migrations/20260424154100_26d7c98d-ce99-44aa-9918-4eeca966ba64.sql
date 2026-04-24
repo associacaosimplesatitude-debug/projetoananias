@@ -1,0 +1,1 @@
+ALTER TABLE public.sorteio_eventos ADD COLUMN IF NOT EXISTS imagem_premio_url text;

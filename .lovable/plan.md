@@ -1,80 +1,54 @@
-## Ajustes na página `/sorteio`
+# Corrigir página /sorteio
 
-Três correções pontuais na página pública do sorteio (`src/pages/public/SorteioLanding.tsx`).
+## Diagnóstico
 
----
+Verifiquei o banco e a página `/sorteio`:
 
-### 1. Corrigir banner cortando preletoras nas laterais
+**No banco está tudo certo:**
+- O evento **"Conferência Leoas 2026"** está marcado como ATIVO ✅
+- Tem `titulo`, `subtitulo`, `descricao`, `premio_destaque`, `texto_botao_cta`, `cor_primaria` (#D4AF37) e `banner_url` preenchidos ✅
+- O evento "AGE 2026" está inativo ✅
 
-**Problema:** O banner usa `object-cover object-top` com altura fixa (`h-[340px] md:h-[480px]`), o que corta as laterais da imagem em telas estreitas (ex.: 390px de viewport mostra só as preletoras centrais).
+**O problema está no código de `src/pages/public/SorteioLanding.tsx`:**
 
-**Solução:** Trocar para `object-contain` em mobile (mostra a imagem inteira sem corte) e manter `object-cover` em desktop, com fundo escuro casando com o tema (`bg-[#0f172a]`). Reduzir um pouco a altura mobile para evitar áreas vazias grandes.
+1. **Imagem do prêmio hardcoded** (linha 385): mostra sempre `PREMIO_URL` (Kit Gotas de Consolo da Eyshila), independente do evento ativo. Por isso, mesmo com o evento Leoas ativo, aparece o prêmio antigo.
 
-```tsx
-<section className="relative w-full bg-[#0f172a]">
-  <img
-    src={bannerUrl}
-    alt={evento.nome}
-    className="w-full h-auto md:h-[480px] md:object-cover md:object-center"
-  />
-  <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-[#0f172a] pointer-events-none" />
-</section>
+2. **Alt do prêmio hardcoded** (linha 386): "Kit Gotas de Consolo — Eyshila Santos".
+
+3. **Banner ocupa pouco espaço no desktop**: usa `object-contain` sem altura mínima — em telas largas o banner fica pequeno e o conteúdo "some" visualmente acima da dobra.
+
+4. **Banner_url atual no banco** é `logo_gestao.png` (uma logo, não a arte das pastoras Leoas) — provavelmente foi sobrescrito por engano no último upload. Vou avisar o usuário no final.
+
+## Correções
+
+### 1. `src/pages/public/SorteioLanding.tsx`
+
+**Substituir a imagem hardcoded do prêmio pelo banner do evento como imagem de prêmio**, ou usar um novo campo. Como não há campo `imagem_premio_url` na tabela, a melhor abordagem é:
+
+- Usar `evento.banner_url` quando o evento tiver banner próprio, e remover a imagem hardcoded `PREMIO_URL` do bloco de prêmio.
+- Ou (melhor): adicionar coluna `imagem_premio_url` em `sorteio_eventos` e um campo no `EventoDialog` para upload separado.
+
+**Decisão**: adicionar coluna `imagem_premio_url` (opcional). Se vazia, cai no `PREMIO_URL` antigo como fallback. Atualizar `EventoDialog` para permitir upload da imagem do prêmio.
+
+- Trocar `src={PREMIO_URL}` por `src={evento.imagem_premio_url || PREMIO_URL}`.
+- Trocar `alt="Kit Gotas de Consolo — Eyshila Santos"` por `alt={premioDestaque}`.
+
+### 2. Banner desktop
+
+Limitar altura máxima e centralizar:
+- Trocar `className="w-full h-auto object-contain mx-auto"` por `className="w-full max-h-[480px] object-cover object-center"` (em mobile mantém altura natural; em desktop limita).
+
+### 3. Migration
+
+Adicionar coluna na tabela:
+```sql
+ALTER TABLE public.sorteio_eventos ADD COLUMN imagem_premio_url text;
 ```
 
-Resultado: no mobile o banner aparece inteiro (todas as preletoras visíveis); no desktop continua imersivo cobrindo a largura.
+### 4. `EventoDialog.tsx`
 
----
+Adicionar campo de upload de "Imagem do prêmio" (mesmo padrão do upload de banner).
 
-### 2. Adicionar countdown para o primeiro sorteio (pré-evento)
+## Aviso ao usuário
 
-**Problema:** Hoje o countdown só aparece quando existe uma `sorteio_sessao` com `ativo = true`. Antes do evento começar, a tela fica sem nenhuma indicação de quanto falta para o primeiro sorteio.
-
-**Solução:** Calcular o "próximo sorteio" considerando duas situações:
-
-- **Se há sessão ativa** → comportamento atual (próximo intervalo dentro da sessão).
-- **Se não há sessão ativa** → buscar a próxima sessão futura do evento (a mais próxima onde `data_inicio > now`) e usar `data_inicio` como momento do primeiro sorteio.
-
-Mudanças:
-
-a) Nova query `proximaSessaoFutura` que busca a primeira sessão do evento ativo cujo `data_inicio` ainda não chegou:
-
-```ts
-const { data: proximaSessaoFutura } = useQuery({
-  queryKey: ["sorteio-proxima-sessao", evento?.id],
-  enabled: !!evento?.id && !sessaoAtiva,
-  queryFn: async () => {
-    const { data } = await supabase
-      .from("sorteio_sessoes")
-      .select("*")
-      .eq("evento_id", evento!.id)
-      .gt("data_inicio", new Date().toISOString())
-      .order("data_inicio", { ascending: true })
-      .limit(1)
-      .maybeSingle();
-    return data;
-  },
-  refetchInterval: 60000,
-});
-```
-
-b) Ajustar `proximoSorteio` para usar `proximaSessaoFutura.data_inicio` quando não houver sessão ativa.
-
-c) Renderizar o card de countdown também no estado "sem sessão ativa" quando há uma sessão futura agendada (substituindo o atual texto "Aguarde o próximo sorteio" por um countdown real com label "Primeiro sorteio em").
-
-Isso resolve o caso descrito: evento amanhã às 13h, primeiro sorteio às 14h → o site mostrará a contagem regressiva ainda hoje.
-
----
-
-### 3. Remover o QR Code
-
-**Problema:** Quem abre o `/sorteio` no celular não precisa escanear um QR para acessar a própria página em que já está.
-
-**Solução:** Remover por completo o bloco da seção `{/* QR Code */}` (linhas 514-526) e remover os imports não usados (`QRCodeSVG`, `Share2`).
-
----
-
-### Arquivo afetado
-
-- `src/pages/public/SorteioLanding.tsx` — única alteração necessária.
-
-Nenhuma mudança de banco, edge function ou outro componente.
+O `banner_url` atual do evento "Conferência Leoas 2026" aponta para um arquivo chamado `logo_gestao.png` (parece ser uma logo, não a arte das pastoras Leoas). Após as correções, recomendo reenviar o banner correto pelo painel admin.

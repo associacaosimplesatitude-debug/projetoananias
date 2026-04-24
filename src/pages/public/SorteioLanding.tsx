@@ -344,11 +344,11 @@ export default function SorteioLanding() {
       {mostrandoRoleta && <RouletteOverlay nome={nomeRoleta} onDone={handleRouletteEnd} />}
 
       {/* Banner do Evento */}
-      <section className="relative w-full bg-[#0f172a]">
+      <section className="relative w-full bg-[#0f172a] flex justify-center">
         <img
           src={bannerUrl}
           alt={evento.nome}
-          className="w-full h-auto object-contain mx-auto"
+          className="w-full max-h-[520px] object-cover object-center"
         />
       </section>
 
@@ -382,8 +382,8 @@ export default function SorteioLanding() {
           {/* Coluna esquerda — Prêmio */}
           <div className="flex flex-col items-center text-center space-y-5 order-1 md:order-1">
             <img
-              src={PREMIO_URL}
-              alt="Kit Gotas de Consolo — Eyshila Santos"
+              src={(evento as any)?.imagem_premio_url || PREMIO_URL}
+              alt={premioDestaque}
               className="w-64 md:w-80 rounded-2xl"
               style={{
                 boxShadow: "0 20px 60px -15px rgba(201,168,76,0.35), 0 0 0 1px rgba(201,168,76,0.15)",

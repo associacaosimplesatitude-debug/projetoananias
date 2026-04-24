@@ -20,6 +20,7 @@ const initial = {
   nome: "",
   slug: "",
   banner_url: "",
+  imagem_premio_url: "",
   titulo: "",
   subtitulo: "",
   descricao: "",
@@ -35,8 +36,9 @@ const initial = {
 export default function EventoDialog({ open, onOpenChange, evento }: Props) {
   const queryClient = useQueryClient();
   const [form, setForm] = useState(initial);
-  const [uploading, setUploading] = useState(false);
+  const [uploading, setUploading] = useState<null | "banner" | "premio">(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const fileRefPremio = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (evento) {
@@ -44,6 +46,7 @@ export default function EventoDialog({ open, onOpenChange, evento }: Props) {
         nome: evento.nome ?? "",
         slug: evento.slug ?? "",
         banner_url: evento.banner_url ?? "",
+        imagem_premio_url: evento.imagem_premio_url ?? "",
         titulo: evento.titulo ?? "",
         subtitulo: evento.subtitulo ?? "",
         descricao: evento.descricao ?? "",
@@ -60,24 +63,27 @@ export default function EventoDialog({ open, onOpenChange, evento }: Props) {
     }
   }, [evento, open]);
 
-  const handleUpload = async (file: File) => {
-    setUploading(true);
+  const handleUpload = async (file: File, kind: "banner" | "premio" = "banner") => {
+    setUploading(kind);
     try {
-      const ext = file.name.split(".").pop();
       const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-      const path = `${Date.now()}_${safeName}`;
+      const path = `${kind}_${Date.now()}_${safeName}`;
       const { error } = await supabase.storage.from("sorteio-banners").upload(path, file, {
         cacheControl: "3600",
         upsert: false,
       });
       if (error) throw error;
       const { data } = supabase.storage.from("sorteio-banners").getPublicUrl(path);
-      setForm((f) => ({ ...f, banner_url: data.publicUrl }));
-      toast.success("Banner enviado!");
+      if (kind === "banner") {
+        setForm((f) => ({ ...f, banner_url: data.publicUrl }));
+      } else {
+        setForm((f) => ({ ...f, imagem_premio_url: data.publicUrl }));
+      }
+      toast.success("Imagem enviada!");
     } catch (e: any) {
-      toast.error(e.message || "Erro ao enviar banner");
+      toast.error(e.message || "Erro ao enviar imagem");
     } finally {
-      setUploading(false);
+      setUploading(null);
     }
   };
 
@@ -88,6 +94,7 @@ export default function EventoDialog({ open, onOpenChange, evento }: Props) {
         nome: form.nome.trim(),
         slug: form.slug.trim() || null,
         banner_url: form.banner_url.trim() || null,
+        imagem_premio_url: form.imagem_premio_url.trim() || null,
         titulo: form.titulo.trim() || null,
         subtitulo: form.subtitulo.trim() || null,
         descricao: form.descricao.trim() || null,
@@ -139,8 +146,8 @@ export default function EventoDialog({ open, onOpenChange, evento }: Props) {
             <Label>Banner do evento</Label>
             <div className="flex items-center gap-3">
               <Input value={form.banner_url} onChange={(e) => setForm({ ...form, banner_url: e.target.value })} placeholder="URL da imagem" />
-              <Button type="button" variant="outline" disabled={uploading} onClick={() => fileRef.current?.click()}>
-                {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+              <Button type="button" variant="outline" disabled={uploading === "banner"} onClick={() => fileRef.current?.click()}>
+                {uploading === "banner" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
               </Button>
               <input
                 ref={fileRef}
@@ -196,6 +203,45 @@ export default function EventoDialog({ open, onOpenChange, evento }: Props) {
               <Label>Texto do botão CTA</Label>
               <Input value={form.texto_botao_cta} onChange={(e) => setForm({ ...form, texto_botao_cta: e.target.value })} placeholder="Quero participar" />
             </div>
+          </div>
+
+          <div>
+            <Label>Imagem do prêmio (foto que aparece ao lado do formulário)</Label>
+            <div className="flex items-center gap-3">
+              <Input
+                value={form.imagem_premio_url}
+                onChange={(e) => setForm({ ...form, imagem_premio_url: e.target.value })}
+                placeholder="URL da imagem do prêmio"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                disabled={uploading === "premio"}
+                onClick={() => fileRefPremio.current?.click()}
+              >
+                {uploading === "premio" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+              </Button>
+              <input
+                ref={fileRefPremio}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) handleUpload(f, "premio");
+                }}
+              />
+            </div>
+            {form.imagem_premio_url && (
+              <div className="mt-2 rounded-md overflow-hidden border bg-muted inline-block">
+                <img
+                  src={form.imagem_premio_url}
+                  alt="Preview prêmio"
+                  className="max-h-40 object-contain"
+                  onError={(e) => ((e.target as HTMLImageElement).style.display = "none")}
+                />
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
