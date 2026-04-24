@@ -20,6 +20,7 @@ const initial = {
   nome: "",
   slug: "",
   banner_url: "",
+  imagem_premio_url: "",
   titulo: "",
   subtitulo: "",
   descricao: "",
