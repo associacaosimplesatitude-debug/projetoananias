@@ -19,11 +19,36 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const expectedSecret = Deno.env.get("STORE_CG_WEBHOOK_SECRET");
-    const providedSecret = req.headers.get("x-webhook-secret");
+    const expectedSecretRaw = Deno.env.get("STORE_CG_WEBHOOK_SECRET");
+    const providedSecretRaw = req.headers.get("x-webhook-secret");
+
+    const expectedSecret = expectedSecretRaw?.trim() ?? "";
+    const providedSecret = providedSecretRaw?.trim() ?? "";
+
+    const diagnostics = {
+      received_secret_header_present: providedSecretRaw !== null,
+      received_secret_length: providedSecretRaw?.length ?? 0,
+      configured_secret_present: !!expectedSecretRaw,
+      configured_secret_length: expectedSecretRaw?.length ?? 0,
+      secrets_match:
+        !!expectedSecret && !!providedSecret && expectedSecret === providedSecret,
+      request_origin:
+        req.headers.get("origin") ?? req.headers.get("referer") ?? null,
+    };
+    console.log("receive-order-from-store-cg auth diagnostics:", diagnostics);
+
+    if (providedSecretRaw === null) {
+      return new Response(
+        JSON.stringify({ error: "missing x-webhook-secret header" }),
+        {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
 
     if (!expectedSecret || providedSecret !== expectedSecret) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      return new Response(JSON.stringify({ error: "invalid webhook secret" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
