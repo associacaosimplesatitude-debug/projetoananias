@@ -291,15 +291,35 @@ export default function SorteioLanding() {
 
   const ganhadoresNome = (g: any) => g?.sorteio_participantes?.nome ?? "Participante";
 
+  if (loadingEvento) {
+    return (
+      <div className="min-h-screen bg-[#0f172a] flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-white/60" />
+      </div>
+    );
+  }
+
+  if (!evento) {
+    return (
+      <div className="min-h-screen bg-[#0f172a] flex items-center justify-center px-4">
+        <div className="text-center text-white/70 max-w-md">
+          <Clock className="w-12 h-12 mx-auto mb-4 opacity-60" />
+          <h1 className="text-2xl font-bold text-white mb-2">Nenhum sorteio em andamento</h1>
+          <p>No momento não há nenhum evento ativo. Volte em breve!</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-[#0f172a]">
+    <div className="min-h-screen bg-[#0f172a]" style={{ ["--cor-primaria" as any]: corPrimaria }}>
       {mostrandoRoleta && <RouletteOverlay nome={nomeRoleta} onDone={handleRouletteEnd} />}
 
       {/* Banner do Evento */}
       <section className="relative w-full">
         <img
-          src={BANNER_URL}
-          alt="Vitoriosas Conference — 21 e 22 de Março"
+          src={bannerUrl}
+          alt={evento.nome}
           className="w-full h-[340px] md:h-[480px] object-cover object-top"
         />
         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-[#0f172a]" />
@@ -308,21 +328,26 @@ export default function SorteioLanding() {
       {/* Título + Contador */}
       <section className="relative -mt-20 z-10 text-center px-4 pb-4">
         <h1 className="text-3xl md:text-5xl font-bold text-white leading-tight mb-3">
-          Concorra a Prêmios <span className="text-[#C9A84C]">Incríveis!</span>
+          {titulo}
         </h1>
+        {subtitulo && (
+          <p className="text-white/80 text-base md:text-lg mb-4">{subtitulo}</p>
+        )}
         <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-full px-6 py-3 border border-white/10">
-          <Users className="w-5 h-5 text-[#C9A84C]" />
+          <Users className="w-5 h-5" style={{ color: corPrimaria }} />
           <span className="text-white font-semibold text-lg">{totalParticipantes ?? 0}</span>
           <span className="text-white/60 text-sm">inscritas</span>
         </div>
       </section>
 
       {/* Credibilidade do evento */}
-      <section className="text-center px-4 pb-8">
-        <p className="text-[#C9A84C]/80 text-sm md:text-base tracking-wide">
-          Vitoriosas Conference • 21 e 22 de Março • Rua Montevidéu, 900 — Penha, Rio de Janeiro
-        </p>
-      </section>
+      {descricao && (
+        <section className="text-center px-4 pb-8">
+          <p className="text-sm md:text-base tracking-wide" style={{ color: `${corPrimaria}cc` }}>
+            {descricao}
+          </p>
+        </section>
+      )}
 
       {/* Formulário + Prêmio — 2 colunas */}
       <section className="px-4 pb-12">
