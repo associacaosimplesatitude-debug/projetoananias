@@ -315,13 +315,13 @@ export default function SorteioLanding() {
       {mostrandoRoleta && <RouletteOverlay nome={nomeRoleta} onDone={handleRouletteEnd} />}
 
       {/* Banner do Evento */}
-      <section className="relative w-full">
+      <section className="relative w-full bg-[#0f172a]">
         <img
           src={bannerUrl}
           alt={evento.nome}
-          className="w-full h-[340px] md:h-[480px] object-cover object-top"
+          className="w-full h-auto md:h-[480px] md:object-cover md:object-center"
         />
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-[#0f172a]" />
+        <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-b from-transparent to-[#0f172a] pointer-events-none" />
       </section>
 
       {/* Título + Contador */}
