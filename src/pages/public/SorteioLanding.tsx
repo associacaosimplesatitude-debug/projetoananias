@@ -260,8 +260,9 @@ export default function SorteioLanding() {
         cidade: form.cidade.trim() || null,
         igreja: form.igreja.trim() || null,
         sessao_id: sessaoId,
+        evento_id: evento?.id ?? null,
         quer_ser_embaixadora: false,
-      });
+      } as any);
 
       if (error) {
         if (error.code === "23505") {
