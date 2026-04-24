@@ -140,11 +140,33 @@ export default function EventosTab() {
                   </div>
                 )}
 
-                <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                  <span className="flex items-center gap-1"><Users className="w-3 h-3" /> {counts?.participantes[ev.id] ?? 0} participantes</span>
-                  <span>{counts?.sessoes[ev.id] ?? 0} sessões</span>
-                  <span>{counts?.ganhadoras[ev.id] ?? 0} ganhadoras</span>
+                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <Users className="w-3 h-3" /> {counts?.participantes[ev.id] ?? 0} participantes
                 </div>
+
+                {ev.ativo && (
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => {
+                        window.dispatchEvent(new CustomEvent("sorteio:goto-sessoes"));
+                        if ((counts?.sessoes[ev.id] ?? 0) === 0) {
+                          setTimeout(() => window.dispatchEvent(new CustomEvent("sorteio:open-nova-sessao")), 100);
+                        }
+                      }}
+                    >
+                      {counts?.sessoes[ev.id] ?? 0} Sessões
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => window.dispatchEvent(new CustomEvent("sorteio:goto-sorteio"))}
+                    >
+                      {counts?.ganhadoras[ev.id] ?? 0} Ganhadoras
+                    </Button>
+                  </div>
+                )}
 
                 <div className="flex items-center gap-2 pt-1 flex-wrap">
                   {ev.ativo ? (
@@ -154,18 +176,6 @@ export default function EventosTab() {
                   ) : (
                     <Button size="sm" onClick={() => toggleAtivo.mutate({ id: ev.id, ativar: true })}>
                       <Power className="w-4 h-4 mr-1" /> Ativar
-                    </Button>
-                  )}
-                  {ev.ativo && (counts?.sessoes[ev.id] ?? 0) === 0 && (
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onClick={() => {
-                        window.dispatchEvent(new CustomEvent("sorteio:goto-sessoes"));
-                        setTimeout(() => window.dispatchEvent(new CustomEvent("sorteio:open-nova-sessao")), 100);
-                      }}
-                    >
-                      <Plus className="w-4 h-4 mr-1" /> Nova Sessão
                     </Button>
                   )}
                   <Button size="sm" variant="ghost" onClick={() => openEdit(ev)}>
