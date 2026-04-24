@@ -73,6 +73,7 @@ function SessoesTab() {
         intervalo_minutos: newSession.intervalo_minutos,
         premio_padrao: newSession.premio_padrao.trim() || null,
         ativo: false,
+        evento_id: eventoAtivo?.id ?? null,
       } as any);
       if (error) throw error;
     },
