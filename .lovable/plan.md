@@ -1,79 +1,80 @@
-## Entendi sim
+## Ajustes na página `/sorteio`
 
-Hoje o sistema tem só **sessões soltas** (`sorteio_sessoes`) — todos os participantes/embaixadoras/ganhadoras vão para o mesmo "balaio". Você quer subir um nível: criar **EVENTOS** que agrupam várias sessões e isolam os dados, e a página `/sorteio` pública passa a refletir o **evento ativo** no momento (banner + textos vêm do banco).
+Três correções pontuais na página pública do sorteio (`src/pages/public/SorteioLanding.tsx`).
 
 ---
 
-## Mapa Mental
+### 1. Corrigir banner cortando preletoras nas laterais
 
-```text
-EVENTO (novo)
-├── nome: "Congresso Leoas"
-├── slug: "congresso-leoas"
-├── datas: 25-26 abril
-├── ativo: true  ← só 1 evento ativo por vez (o que aparece em /sorteio)
-├── banner_url, titulo, subtitulo, descricao, cor_tema, premio_destaque
-│
-├── SESSÕES (várias por evento)
-│   ├── Sessão 1: 25/abr 14h-19h, intervalo 60min
-│   ├── Sessão 2: 26/abr 14h-19h, intervalo 60min
-│   │
-│   ├── PARTICIPANTES (vinculados ao EVENTO)
-│   ├── GANHADORAS (vinculadas ao EVENTO via sessão)
-│   └── EMBAIXADORAS (vinculadas ao EVENTO)
-│
-└── Quando criar próximo evento → dados antigos preservados, novo evento começa zerado
+**Problema:** O banner usa `object-cover object-top` com altura fixa (`h-[340px] md:h-[480px]`), o que corta as laterais da imagem em telas estreitas (ex.: 390px de viewport mostra só as preletoras centrais).
+
+**Solução:** Trocar para `object-contain` em mobile (mostra a imagem inteira sem corte) e manter `object-cover` em desktop, com fundo escuro casando com o tema (`bg-[#0f172a]`). Reduzir um pouco a altura mobile para evitar áreas vazias grandes.
+
+```tsx
+<section className="relative w-full bg-[#0f172a]">
+  <img
+    src={bannerUrl}
+    alt={evento.nome}
+    className="w-full h-auto md:h-[480px] md:object-cover md:object-center"
+  />
+  <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-[#0f172a] pointer-events-none" />
+</section>
 ```
 
-Fluxo público em `/sorteio`:
-```text
-Visitante acessa /sorteio
-  → busca evento WHERE ativo = true
-  → renderiza banner/textos/cores DAQUELE evento
-  → cadastro vai para participantes do EVENTO ATIVO
+Resultado: no mobile o banner aparece inteiro (todas as preletoras visíveis); no desktop continua imersivo cobrindo a largura.
+
+---
+
+### 2. Adicionar countdown para o primeiro sorteio (pré-evento)
+
+**Problema:** Hoje o countdown só aparece quando existe uma `sorteio_sessao` com `ativo = true`. Antes do evento começar, a tela fica sem nenhuma indicação de quanto falta para o primeiro sorteio.
+
+**Solução:** Calcular o "próximo sorteio" considerando duas situações:
+
+- **Se há sessão ativa** → comportamento atual (próximo intervalo dentro da sessão).
+- **Se não há sessão ativa** → buscar a próxima sessão futura do evento (a mais próxima onde `data_inicio > now`) e usar `data_inicio` como momento do primeiro sorteio.
+
+Mudanças:
+
+a) Nova query `proximaSessaoFutura` que busca a primeira sessão do evento ativo cujo `data_inicio` ainda não chegou:
+
+```ts
+const { data: proximaSessaoFutura } = useQuery({
+  queryKey: ["sorteio-proxima-sessao", evento?.id],
+  enabled: !!evento?.id && !sessaoAtiva,
+  queryFn: async () => {
+    const { data } = await supabase
+      .from("sorteio_sessoes")
+      .select("*")
+      .eq("evento_id", evento!.id)
+      .gt("data_inicio", new Date().toISOString())
+      .order("data_inicio", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    return data;
+  },
+  refetchInterval: 60000,
+});
 ```
 
----
+b) Ajustar `proximoSorteio` para usar `proximaSessaoFutura.data_inicio` quando não houver sessão ativa.
 
-## Passo a Passo
+c) Renderizar o card de countdown também no estado "sem sessão ativa" quando há uma sessão futura agendada (substituindo o atual texto "Aguarde o próximo sorteio" por um countdown real com label "Primeiro sorteio em").
 
-### 1. Banco de dados (migração)
-- Criar tabela **`sorteio_eventos`** com: `id`, `nome`, `slug`, `ativo`, `banner_url`, `titulo`, `subtitulo`, `descricao`, `premio_destaque`, `cor_primaria`, `texto_botao_cta`, `mostrar_campo_embaixadora` (bool), `data_inicio`, `data_fim`, `created_at`.
-- Adicionar coluna **`evento_id`** em `sorteio_sessoes`, `sorteio_participantes`, `sorteio_ganhadores`, `sorteio_page_views` (nullable inicialmente).
-- Criar **evento default "AGE 2026"** (migração de dados) e vincular todos os registros existentes a ele — preserva o histórico atual.
-- Trigger garantindo que apenas **1 evento fique `ativo=true`** por vez (ao ativar um, desativa os outros).
-- Remover constraint `UNIQUE(email)` e `UNIQUE(whatsapp)` em `sorteio_participantes` e trocar por **`UNIQUE(evento_id, email)`** e **`UNIQUE(evento_id, whatsapp)`** — assim a mesma pessoa pode se cadastrar em eventos diferentes.
-- RLS: leitura pública para `sorteio_eventos`; insert/update/delete só para admin/gerente_sorteio.
-
-### 2. Página `/admin/ebd/sorteio` — adicionar gestão de Eventos
-- Nova **aba "Eventos"** (primeira aba) com:
-  - Lista de eventos (cards: nome, datas, status ativo/inativo, contador de participantes/sessões).
-  - Botão **"Novo Evento"** abre dialog com: nome, slug, banner (upload), título, subtítulo, descrição, prêmio destaque, cor primária, texto do botão, toggle "mostrar campo embaixadora", datas.
-  - Botão **"Ativar"** em cada evento (torna-o o evento exibido em `/sorteio`).
-  - Botão editar/excluir.
-- **Seletor de evento** no topo da página (combo "Evento atual: Congresso Leoas") — todas as outras abas (Sessões, Participantes, Ganhadoras, Embaixadoras, Estatísticas) passam a filtrar pelo evento selecionado.
-- Aba "Sessões": ao criar sessão, vincula automaticamente ao evento selecionado.
-
-### 3. Página pública `/sorteio` (SorteioLanding.tsx)
-- Buscar `sorteio_eventos WHERE ativo = true LIMIT 1`.
-- Se não houver evento ativo: tela "Nenhum sorteio em andamento no momento".
-- Se houver: renderizar banner/textos/cores vindos do banco (substituir os hardcoded atuais — banner, título "AGE 2026", textos sobre embaixadoras etc.).
-- Form de cadastro grava `evento_id` do evento ativo no participante.
-- Toggle "quer ser embaixadora" só aparece se `mostrar_campo_embaixadora = true` no evento.
-
-### 4. Edge function `sorteio-automatico`
-- Ajustar para considerar apenas participantes **do mesmo evento** da sessão ativa (filtrar `WHERE evento_id = sessao.evento_id`).
-
-### 5. Storage
-- Usar bucket público existente (`campaign-assets` ou criar `sorteio-banners`) para upload dos banners de evento.
+Isso resolve o caso descrito: evento amanhã às 13h, primeiro sorteio às 14h → o site mostrará a contagem regressiva ainda hoje.
 
 ---
 
-## Detalhes técnicos
+### 3. Remover o QR Code
 
-- **Arquivos a criar:** migration SQL, `src/components/admin/sorteio/EventoDialog.tsx`, `src/components/admin/sorteio/EventosTab.tsx`.
-- **Arquivos a modificar:** `src/pages/admin/SorteioAdmin.tsx` (nova aba + seletor de evento global), `src/pages/public/SorteioLanding.tsx` (renderização dinâmica do evento ativo), `supabase/functions/sorteio-automatico/index.ts` (filtro por evento), tipos do form de participante.
-- **Backfill:** evento "AGE 2026" criado com `ativo=true` e todos os registros existentes recebem `evento_id` desse evento.
-- **Sem breaking changes**: dados antigos continuam acessíveis dentro do evento "AGE 2026".
+**Problema:** Quem abre o `/sorteio` no celular não precisa escanear um QR para acessar a própria página em que já está.
 
-Posso seguir com a implementação?
+**Solução:** Remover por completo o bloco da seção `{/* QR Code */}` (linhas 514-526) e remover os imports não usados (`QRCodeSVG`, `Share2`).
+
+---
+
+### Arquivo afetado
+
+- `src/pages/public/SorteioLanding.tsx` — única alteração necessária.
+
+Nenhuma mudança de banco, edge function ou outro componente.
