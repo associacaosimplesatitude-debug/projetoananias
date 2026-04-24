@@ -1,54 +1,49 @@
-# Corrigir página /sorteio
+## Problema
 
-## Diagnóstico
+A página `https://gestaoebd.com.br/sorteio` está mostrando a versão antiga em navegadores normais, mas a versão nova aparece em modo anônimo. Causa: **service worker do PWA** está servindo o HTML/JS/CSS antigo do cache.
 
-Verifiquei o banco e a página `/sorteio`:
+## Solução imediata (você pode fazer agora, sem código)
 
-**No banco está tudo certo:**
-- O evento **"Conferência Leoas 2026"** está marcado como ATIVO ✅
-- Tem `titulo`, `subtitulo`, `descricao`, `premio_destaque`, `texto_botao_cta`, `cor_primaria` (#D4AF37) e `banner_url` preenchidos ✅
-- O evento "AGE 2026" está inativo ✅
+Para visualizar a versão nova **agora mesmo** no seu navegador:
 
-**O problema está no código de `src/pages/public/SorteioLanding.tsx`:**
+1. Abra `https://gestaoebd.com.br/sorteio`
+2. Pressione **Ctrl + Shift + R** (Windows) ou **Cmd + Shift + R** (Mac) — hard refresh
+3. Se ainda aparecer a versão antiga: abra **DevTools (F12)** → aba **Application** → **Service Workers** → clique em **Unregister** → depois **Clear storage** → **Clear site data** → recarregue
 
-1. **Imagem do prêmio hardcoded** (linha 385): mostra sempre `PREMIO_URL` (Kit Gotas de Consolo da Eyshila), independente do evento ativo. Por isso, mesmo com o evento Leoas ativo, aparece o prêmio antigo.
+Isso resolve para o seu navegador. Mas o problema persistirá para **todos os outros visitantes** até que o service worker deles atualize sozinho (pode levar 1–2 visitas).
 
-2. **Alt do prêmio hardcoded** (linha 386): "Kit Gotas de Consolo — Eyshila Santos".
+## Solução definitiva no código
 
-3. **Banner ocupa pouco espaço no desktop**: usa `object-contain` sem altura mínima — em telas largas o banner fica pequeno e o conteúdo "some" visualmente acima da dobra.
+Para garantir que **todos os usuários** recebam a versão nova imediatamente, vou:
 
-4. **Banner_url atual no banco** é `logo_gestao.png` (uma logo, não a arte das pastoras Leoas) — provavelmente foi sobrescrito por engano no último upload. Vou avisar o usuário no final.
+### 1. Excluir a rota `/sorteio` do cache do service worker
 
-## Correções
+Adicionar `navigateFallbackDenylist` no `vite.config.ts` para que a rota `/sorteio` (e suas subrotas públicas) **nunca** seja servida do cache — sempre busque do servidor.
 
-### 1. `src/pages/public/SorteioLanding.tsx`
-
-**Substituir a imagem hardcoded do prêmio pelo banner do evento como imagem de prêmio**, ou usar um novo campo. Como não há campo `imagem_premio_url` na tabela, a melhor abordagem é:
-
-- Usar `evento.banner_url` quando o evento tiver banner próprio, e remover a imagem hardcoded `PREMIO_URL` do bloco de prêmio.
-- Ou (melhor): adicionar coluna `imagem_premio_url` em `sorteio_eventos` e um campo no `EventoDialog` para upload separado.
-
-**Decisão**: adicionar coluna `imagem_premio_url` (opcional). Se vazia, cai no `PREMIO_URL` antigo como fallback. Atualizar `EventoDialog` para permitir upload da imagem do prêmio.
-
-- Trocar `src={PREMIO_URL}` por `src={evento.imagem_premio_url || PREMIO_URL}`.
-- Trocar `alt="Kit Gotas de Consolo — Eyshila Santos"` por `alt={premioDestaque}`.
-
-### 2. Banner desktop
-
-Limitar altura máxima e centralizar:
-- Trocar `className="w-full h-auto object-contain mx-auto"` por `className="w-full max-h-[480px] object-cover object-center"` (em mobile mantém altura natural; em desktop limita).
-
-### 3. Migration
-
-Adicionar coluna na tabela:
-```sql
-ALTER TABLE public.sorteio_eventos ADD COLUMN imagem_premio_url text;
+```ts
+workbox: {
+  navigateFallbackDenylist: [/^\/~oauth/, /^\/sorteio/, /^\/admin/],
+  // ... resto igual
+}
 ```
 
-### 4. `EventoDialog.tsx`
+### 2. Adicionar meta tag de no-cache na landing /sorteio
 
-Adicionar campo de upload de "Imagem do prêmio" (mesmo padrão do upload de banner).
+Em `SorteioLanding.tsx`, adicionar via `useEffect` headers que instruem o navegador a não cachear o HTML dessa rota específica.
 
-## Aviso ao usuário
+### 3. Forçar atualização do service worker
 
-O `banner_url` atual do evento "Conferência Leoas 2026" aponta para um arquivo chamado `logo_gestao.png` (parece ser uma logo, não a arte das pastoras Leoas). Após as correções, recomendo reenviar o banner correto pelo painel admin.
+Já está com `registerType: "autoUpdate"` + `skipWaiting: true` + `clientsClaim: true`, então usuários que abrirem 2 vezes já receberão a versão nova automaticamente. Adicionar um `<meta name="version">` com timestamp no `index.html` ajuda a detectar mudanças.
+
+## Arquivos afetados
+
+- `vite.config.ts` — adicionar denylist
+- `src/pages/public/SorteioLanding.tsx` — meta no-cache (opcional)
+
+## Resultado esperado
+
+- Navegadores que já têm o site instalado/cacheado vão buscar a rota `/sorteio` direto do servidor sempre.
+- Próxima visita carrega a versão nova com banner correto, prêmio dinâmico, etc.
+- Você ainda precisará fazer **um hard refresh** (Ctrl+Shift+R) no seu navegador para limpar o cache antigo já existente.
+
+Posso aplicar?
