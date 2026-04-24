@@ -63,24 +63,27 @@ export default function EventoDialog({ open, onOpenChange, evento }: Props) {
     }
   }, [evento, open]);
 
-  const handleUpload = async (file: File) => {
-    setUploading(true);
+  const handleUpload = async (file: File, kind: "banner" | "premio" = "banner") => {
+    setUploading(kind);
     try {
-      const ext = file.name.split(".").pop();
       const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-      const path = `${Date.now()}_${safeName}`;
+      const path = `${kind}_${Date.now()}_${safeName}`;
       const { error } = await supabase.storage.from("sorteio-banners").upload(path, file, {
         cacheControl: "3600",
         upsert: false,
       });
       if (error) throw error;
       const { data } = supabase.storage.from("sorteio-banners").getPublicUrl(path);
-      setForm((f) => ({ ...f, banner_url: data.publicUrl }));
-      toast.success("Banner enviado!");
+      if (kind === "banner") {
+        setForm((f) => ({ ...f, banner_url: data.publicUrl }));
+      } else {
+        setForm((f) => ({ ...f, imagem_premio_url: data.publicUrl }));
+      }
+      toast.success("Imagem enviada!");
     } catch (e: any) {
-      toast.error(e.message || "Erro ao enviar banner");
+      toast.error(e.message || "Erro ao enviar imagem");
     } finally {
-      setUploading(false);
+      setUploading(null);
     }
   };
 
