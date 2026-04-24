@@ -1445,6 +1445,14 @@ function EmbaixadorasTab() {
 }
 // ─── Main Page ──────────────────────────────────────────────
 export default function SorteioAdmin() {
+  const [tab, setTab] = useState("eventos");
+
+  useEffect(() => {
+    const handler = () => setTab("sessoes");
+    window.addEventListener("sorteio:goto-sessoes", handler);
+    return () => window.removeEventListener("sorteio:goto-sessoes", handler);
+  }, []);
+
   return (
     <div className="p-4 md:p-6 space-y-6">
       <div className="flex items-center gap-3">
@@ -1457,7 +1465,7 @@ export default function SorteioAdmin() {
         </div>
       </div>
 
-      <Tabs defaultValue="eventos">
+      <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="flex w-full overflow-x-auto">
           <TabsTrigger value="eventos">Eventos</TabsTrigger>
           <TabsTrigger value="sessoes">Sessões</TabsTrigger>
