@@ -545,7 +545,7 @@ export default function SorteioLanding() {
                 </Card>
               )}
             </>
-          )}
+          ) : null}
         </div>
       </section>
 
