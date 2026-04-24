@@ -21,6 +21,8 @@ import {
   Eye, Copy,
 } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import EventosTab from "@/components/admin/sorteio/EventosTab";
+import { useSorteioEventoAtivo } from "@/hooks/useSorteioEventoAtivo";
 
 // ─── Sessões Tab ───────────────────────────────────────────
 function SessoesTab() {
