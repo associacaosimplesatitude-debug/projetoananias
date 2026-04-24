@@ -362,3 +362,6 @@ verify_jwt = false
 
 [functions.get-mp-client-id]
 verify_jwt = false
+
+[functions.receive-order-from-store-cg]
+verify_jwt = false
