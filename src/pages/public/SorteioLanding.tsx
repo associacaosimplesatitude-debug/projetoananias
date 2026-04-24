@@ -164,6 +164,23 @@ export default function SorteioLanding() {
     refetchInterval: 30000,
   });
 
+  const { data: proximaSessaoFutura } = useQuery({
+    queryKey: ["sorteio-proxima-sessao", evento?.id],
+    enabled: !!evento?.id && !sessaoAtiva,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("sorteio_sessoes")
+        .select("*")
+        .eq("evento_id", evento!.id)
+        .gt("data_inicio", new Date().toISOString())
+        .order("data_inicio", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      return data;
+    },
+    refetchInterval: 60000,
+  });
+
 
   const { data: ganhadoresAtuais } = useQuery({
     queryKey: ["sorteio-ganhadores-atuais"],
