@@ -205,6 +205,45 @@ export default function EventoDialog({ open, onOpenChange, evento }: Props) {
             </div>
           </div>
 
+          <div>
+            <Label>Imagem do prêmio (foto que aparece ao lado do formulário)</Label>
+            <div className="flex items-center gap-3">
+              <Input
+                value={form.imagem_premio_url}
+                onChange={(e) => setForm({ ...form, imagem_premio_url: e.target.value })}
+                placeholder="URL da imagem do prêmio"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                disabled={uploading === "premio"}
+                onClick={() => fileRefPremio.current?.click()}
+              >
+                {uploading === "premio" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+              </Button>
+              <input
+                ref={fileRefPremio}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) handleUpload(f, "premio");
+                }}
+              />
+            </div>
+            {form.imagem_premio_url && (
+              <div className="mt-2 rounded-md overflow-hidden border bg-muted inline-block">
+                <img
+                  src={form.imagem_premio_url}
+                  alt="Preview prêmio"
+                  className="max-h-40 object-contain"
+                  onError={(e) => ((e.target as HTMLImageElement).style.display = "none")}
+                />
+              </div>
+            )}
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div>
               <Label>Cor primária</Label>
