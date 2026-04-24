@@ -629,7 +629,16 @@ export default function PedidosCentralGospel() {
                             )}
                           </TableCell>
                         )}
-                        <TableCell className="font-medium">{pedido.order_number}</TableCell>
+                        <TableCell className="font-medium">
+                          <div className="flex items-center gap-2">
+                            <span>{pedido.order_number}</span>
+                            {pedido.origem === 'loja' ? (
+                              <Badge className="bg-amber-500 hover:bg-amber-500 text-white text-xs">Loja</Badge>
+                            ) : (
+                              <Badge variant="secondary" className="text-xs">Shopify</Badge>
+                            )}
+                          </div>
+                        </TableCell>
                         <TableCell>{formatDate(getPedidoDate(pedido))}</TableCell>
                         <TableCell>
                           <div>
