@@ -164,17 +164,7 @@ export default function SorteioLanding() {
     },
     refetchInterval: 30000,
   });
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("sorteio_sessoes")
-        .select("*")
-        .eq("ativo", true)
-        .limit(1)
-        .maybeSingle();
-      return data;
-    },
-    refetchInterval: 30000,
-  });
+
 
   const { data: ganhadoresAtuais } = useQuery({
     queryKey: ["sorteio-ganhadores-atuais"],
