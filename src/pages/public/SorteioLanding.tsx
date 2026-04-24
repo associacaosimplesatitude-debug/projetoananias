@@ -12,8 +12,9 @@ import { QRCodeSVG } from "qrcode.react";
 import { Gift, Users, Clock, Trophy, Share2, Loader2 } from "lucide-react";
 import { z } from "zod";
 import confetti from "canvas-confetti";
+import { useSorteioEventoAtivo } from "@/hooks/useSorteioEventoAtivo";
 
-const BANNER_URL = "https://nccyrvfnvjngfyfvgnww.supabase.co/storage/v1/object/public/ebd-assets/sorteio-banner.jpg";
+const FALLBACK_BANNER = "https://nccyrvfnvjngfyfvgnww.supabase.co/storage/v1/object/public/ebd-assets/sorteio-banner.jpg";
 const PREMIO_URL = "https://nccyrvfnvjngfyfvgnww.supabase.co/storage/v1/object/public/ebd-assets/sorteio-premio.webp";
 
 const participanteSchema = z.object({
