@@ -363,13 +363,12 @@ export default function SorteioLanding() {
               }}
             />
             <h3 className="text-xl font-bold text-white">🎁 Prêmio deste Sorteio</h3>
-            <p className="text-[#C9A84C] font-semibold text-lg">Kit Gotas de Consolo — Eyshila Santos</p>
-            <p className="text-white/60 text-sm max-w-xs leading-relaxed">
-              Box exclusivo com devocional, caderno espiral, marcador de página, caneta e cartela de adesivos
-            </p>
-            <Badge className="bg-[#C9A84C]/20 text-[#C9A84C] border border-[#C9A84C]/40 text-sm px-4 py-1.5 hover:bg-[#C9A84C]/30">
-              ⏱ Sorteado a cada 1 hora
-            </Badge>
+            <p className="font-semibold text-lg" style={{ color: corPrimaria }}>{premioDestaque}</p>
+            {sessaoAtiva?.intervalo_minutos && (
+              <Badge className="bg-[#C9A84C]/20 text-[#C9A84C] border border-[#C9A84C]/40 text-sm px-4 py-1.5 hover:bg-[#C9A84C]/30">
+                ⏱ Sorteado a cada {sessaoAtiva.intervalo_minutos >= 60 ? `${Math.round(sessaoAtiva.intervalo_minutos / 60)}h` : `${sessaoAtiva.intervalo_minutos}min`}
+              </Badge>
+            )}
           </div>
 
           {/* Coluna direita — Formulário */}
