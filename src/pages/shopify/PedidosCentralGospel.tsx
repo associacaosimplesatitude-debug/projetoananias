@@ -49,7 +49,7 @@ interface EbdCliente {
 
 interface ShopifyPedidoCG {
   id: string;
-  shopify_order_id: number;
+  shopify_order_id: number | string;
   order_number: string;
   status_pagamento: string;
   customer_email: string | null;
@@ -78,6 +78,8 @@ interface ShopifyPedidoCG {
   vendedor_id?: string | null;
   cliente_id?: string | null;
   comissao_aprovada?: boolean;
+  // Origem (virtual, frontend only)
+  origem?: 'shopify' | 'loja';
   // Enriched fields (frontend only)
   cliente?: EbdCliente | null;
   vendedor?: { id: string; nome: string } | null;
