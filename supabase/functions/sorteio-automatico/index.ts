@@ -83,24 +83,31 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 5. Buscar participantes elegíveis
-    const { data: participantes } = await supabase
+    // 5. Buscar participantes elegíveis (filtrados pelo evento da sessão)
+    let participantesQuery = supabase
       .from("sorteio_participantes")
-      .select("id, nome")
-      .eq("sessao_id", sessao.id);
+      .select("id, nome, evento_id");
+    if (sessao.evento_id) {
+      participantesQuery = participantesQuery.eq("evento_id", sessao.evento_id);
+    }
+    const { data: participantes } = await participantesQuery;
 
     if (!participantes || participantes.length === 0) {
       return new Response(
-        JSON.stringify({ sorteado: false, motivo: "Nenhum participante na sessão" }),
+        JSON.stringify({ sorteado: false, motivo: "Nenhum participante na sessão/evento" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Excluir quem já ganhou (status != expirado)
-    const { data: jaGanharam } = await supabase
+    // Excluir quem já ganhou neste evento (status != expirado)
+    let ganharamQuery = supabase
       .from("sorteio_ganhadores")
-      .select("participante_id")
+      .select("participante_id, evento_id")
       .neq("status", "expirado");
+    if (sessao.evento_id) {
+      ganharamQuery = ganharamQuery.eq("evento_id", sessao.evento_id);
+    }
+    const { data: jaGanharam } = await ganharamQuery;
 
     const idsGanharam = new Set((jaGanharam ?? []).map((g: any) => g.participante_id));
     const elegiveis = participantes.filter((p: any) => !idsGanharam.has(p.id));
