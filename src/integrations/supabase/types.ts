@@ -7019,10 +7019,68 @@ export type Database = {
           },
         ]
       }
+      sorteio_eventos: {
+        Row: {
+          ativo: boolean
+          banner_url: string | null
+          cor_primaria: string | null
+          created_at: string
+          data_fim: string | null
+          data_inicio: string | null
+          descricao: string | null
+          id: string
+          mostrar_campo_embaixadora: boolean
+          nome: string
+          premio_destaque: string | null
+          slug: string | null
+          subtitulo: string | null
+          texto_botao_cta: string | null
+          titulo: string | null
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          banner_url?: string | null
+          cor_primaria?: string | null
+          created_at?: string
+          data_fim?: string | null
+          data_inicio?: string | null
+          descricao?: string | null
+          id?: string
+          mostrar_campo_embaixadora?: boolean
+          nome: string
+          premio_destaque?: string | null
+          slug?: string | null
+          subtitulo?: string | null
+          texto_botao_cta?: string | null
+          titulo?: string | null
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          banner_url?: string | null
+          cor_primaria?: string | null
+          created_at?: string
+          data_fim?: string | null
+          data_inicio?: string | null
+          descricao?: string | null
+          id?: string
+          mostrar_campo_embaixadora?: boolean
+          nome?: string
+          premio_destaque?: string | null
+          slug?: string | null
+          subtitulo?: string | null
+          texto_botao_cta?: string | null
+          titulo?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       sorteio_ganhadores: {
         Row: {
           confirmado_em: string | null
           created_at: string | null
+          evento_id: string | null
           expira_em: string | null
           foto_url: string | null
           id: string
@@ -7036,6 +7094,7 @@ export type Database = {
         Insert: {
           confirmado_em?: string | null
           created_at?: string | null
+          evento_id?: string | null
           expira_em?: string | null
           foto_url?: string | null
           id?: string
@@ -7049,6 +7108,7 @@ export type Database = {
         Update: {
           confirmado_em?: string | null
           created_at?: string | null
+          evento_id?: string | null
           expira_em?: string | null
           foto_url?: string | null
           id?: string
@@ -7060,6 +7120,13 @@ export type Database = {
           status?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "sorteio_ganhadores_evento_id_fkey"
+            columns: ["evento_id"]
+            isOneToOne: false
+            referencedRelation: "sorteio_eventos"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "sorteio_ganhadores_participante_id_fkey"
             columns: ["participante_id"]
@@ -7079,6 +7146,7 @@ export type Database = {
       sorteio_page_views: {
         Row: {
           created_at: string | null
+          evento_id: string | null
           id: string
           ip_hash: string | null
           referrer: string | null
@@ -7087,6 +7155,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string | null
+          evento_id?: string | null
           id?: string
           ip_hash?: string | null
           referrer?: string | null
@@ -7095,6 +7164,7 @@ export type Database = {
         }
         Update: {
           created_at?: string | null
+          evento_id?: string | null
           id?: string
           ip_hash?: string | null
           referrer?: string | null
@@ -7102,6 +7172,13 @@ export type Database = {
           user_agent?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "sorteio_page_views_evento_id_fkey"
+            columns: ["evento_id"]
+            isOneToOne: false
+            referencedRelation: "sorteio_eventos"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "sorteio_page_views_sessao_id_fkey"
             columns: ["sessao_id"]
@@ -7116,6 +7193,7 @@ export type Database = {
           cidade: string | null
           created_at: string | null
           email: string
+          evento_id: string | null
           id: string
           igreja: string | null
           nome: string
@@ -7127,6 +7205,7 @@ export type Database = {
           cidade?: string | null
           created_at?: string | null
           email: string
+          evento_id?: string | null
           id?: string
           igreja?: string | null
           nome: string
@@ -7138,6 +7217,7 @@ export type Database = {
           cidade?: string | null
           created_at?: string | null
           email?: string
+          evento_id?: string | null
           id?: string
           igreja?: string | null
           nome?: string
@@ -7146,6 +7226,13 @@ export type Database = {
           whatsapp?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "sorteio_participantes_evento_id_fkey"
+            columns: ["evento_id"]
+            isOneToOne: false
+            referencedRelation: "sorteio_eventos"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "sorteio_participantes_sessao_id_fkey"
             columns: ["sessao_id"]
@@ -7161,6 +7248,7 @@ export type Database = {
           created_at: string | null
           data_fim: string
           data_inicio: string
+          evento_id: string | null
           id: string
           intervalo_minutos: number
           nome: string
@@ -7172,6 +7260,7 @@ export type Database = {
           created_at?: string | null
           data_fim: string
           data_inicio: string
+          evento_id?: string | null
           id?: string
           intervalo_minutos?: number
           nome: string
@@ -7183,13 +7272,22 @@ export type Database = {
           created_at?: string | null
           data_fim?: string
           data_inicio?: string
+          evento_id?: string | null
           id?: string
           intervalo_minutos?: number
           nome?: string
           premio_padrao?: string | null
           slug?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "sorteio_sessoes_evento_id_fkey"
+            columns: ["evento_id"]
+            isOneToOne: false
+            referencedRelation: "sorteio_eventos"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       stage_info_texts: {
         Row: {

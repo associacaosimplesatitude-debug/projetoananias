@@ -21,10 +21,13 @@ import {
   Eye, Copy,
 } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import EventosTab from "@/components/admin/sorteio/EventosTab";
+import { useSorteioEventoAtivo } from "@/hooks/useSorteioEventoAtivo";
 
 // ─── Sessões Tab ───────────────────────────────────────────
 function SessoesTab() {
   const queryClient = useQueryClient();
+  const { data: eventoAtivo } = useSorteioEventoAtivo();
   const [modalOpen, setModalOpen] = useState(false);
   const [editSession, setEditSession] = useState<any>(null);
   const [newSession, setNewSession] = useState({
@@ -70,6 +73,7 @@ function SessoesTab() {
         intervalo_minutos: newSession.intervalo_minutos,
         premio_padrao: newSession.premio_padrao.trim() || null,
         ativo: false,
+        evento_id: eventoAtivo?.id ?? null,
       } as any);
       if (error) throw error;
     },
@@ -1453,13 +1457,15 @@ export default function SorteioAdmin() {
         </div>
       </div>
 
-      <Tabs defaultValue="sessoes">
+      <Tabs defaultValue="eventos">
         <TabsList className="flex w-full overflow-x-auto">
+          <TabsTrigger value="eventos">Eventos</TabsTrigger>
           <TabsTrigger value="sessoes">Sessões</TabsTrigger>
           <TabsTrigger value="sorteio">Realizar Sorteio</TabsTrigger>
           <TabsTrigger value="participantes">Participantes</TabsTrigger>
           <TabsTrigger value="embaixadoras">Embaixadoras</TabsTrigger>
         </TabsList>
+        <TabsContent value="eventos"><EventosTab /></TabsContent>
         <TabsContent value="sessoes"><SessoesTab /></TabsContent>
         <TabsContent value="sorteio"><RealizarSorteioTab /></TabsContent>
         <TabsContent value="participantes"><ParticipantesTab /></TabsContent>

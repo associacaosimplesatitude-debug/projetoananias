@@ -12,8 +12,9 @@ import { QRCodeSVG } from "qrcode.react";
 import { Gift, Users, Clock, Trophy, Share2, Loader2 } from "lucide-react";
 import { z } from "zod";
 import confetti from "canvas-confetti";
+import { useSorteioEventoAtivo } from "@/hooks/useSorteioEventoAtivo";
 
-const BANNER_URL = "https://nccyrvfnvjngfyfvgnww.supabase.co/storage/v1/object/public/ebd-assets/sorteio-banner.jpg";
+const FALLBACK_BANNER = "https://nccyrvfnvjngfyfvgnww.supabase.co/storage/v1/object/public/ebd-assets/sorteio-banner.jpg";
 const PREMIO_URL = "https://nccyrvfnvjngfyfvgnww.supabase.co/storage/v1/object/public/ebd-assets/sorteio-premio.webp";
 
 const participanteSchema = z.object({
@@ -101,6 +102,7 @@ function RouletteOverlay({ nome, onDone }: { nome: string; onDone: () => void })
 
 export default function SorteioLanding() {
   const navigate = useNavigate();
+  const { data: evento, isLoading: loadingEvento } = useSorteioEventoAtivo();
   const [form, setForm] = useState({ nome: "", whatsapp: "", email: "", cidade: "", igreja: "" });
   const [submitting, setSubmitting] = useState(false);
   const [now, setNow] = useState(Date.now());
@@ -109,6 +111,13 @@ export default function SorteioLanding() {
   const ultimoGanhadorRef = useRef<string | null>(null);
   const [fotoModal, setFotoModal] = useState<string | null>(null);
 
+  const corPrimaria = evento?.cor_primaria || "#C9A84C";
+  const bannerUrl = evento?.banner_url || FALLBACK_BANNER;
+  const titulo = evento?.titulo || "Concorra a Prêmios Incríveis!";
+  const subtitulo = evento?.subtitulo || "";
+  const descricao = evento?.descricao || "";
+  const premioDestaque = evento?.premio_destaque || "Kit Gotas de Consolo — Eyshila Santos";
+  const textoBotao = evento?.texto_botao_cta || "Quero participar! 🎁";
   useEffect(() => {
     const interval = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(interval);
@@ -116,37 +125,46 @@ export default function SorteioLanding() {
 
   // Track page view (fire-and-forget)
   useEffect(() => {
+    if (!evento?.id) return;
     supabase
       .from("sorteio_page_views")
       .insert({
         user_agent: navigator.userAgent,
         referrer: document.referrer || null,
+        evento_id: evento.id,
       } as any)
       .then(() => {});
-  }, []);
+  }, [evento?.id]);
 
   const { data: totalParticipantes } = useQuery({
-    queryKey: ["sorteio-count"],
+    queryKey: ["sorteio-count", evento?.id],
+    enabled: !!evento?.id,
     queryFn: async () => {
-      const { count } = await supabase.from("sorteio_participantes").select("*", { count: "exact", head: true });
+      const { count } = await supabase
+        .from("sorteio_participantes")
+        .select("*", { count: "exact", head: true })
+        .eq("evento_id", evento!.id);
       return count ?? 0;
     },
     refetchInterval: 15000,
   });
 
   const { data: sessaoAtiva } = useQuery({
-    queryKey: ["sorteio-sessao-ativa"],
+    queryKey: ["sorteio-sessao-ativa", evento?.id],
+    enabled: !!evento?.id,
     queryFn: async () => {
       const { data } = await supabase
         .from("sorteio_sessoes")
         .select("*")
         .eq("ativo", true)
+        .eq("evento_id", evento!.id)
         .limit(1)
         .maybeSingle();
       return data;
     },
     refetchInterval: 30000,
   });
+
 
   const { data: ganhadoresAtuais } = useQuery({
     queryKey: ["sorteio-ganhadores-atuais"],
@@ -242,8 +260,9 @@ export default function SorteioLanding() {
         cidade: form.cidade.trim() || null,
         igreja: form.igreja.trim() || null,
         sessao_id: sessaoId,
+        evento_id: evento?.id ?? null,
         quer_ser_embaixadora: false,
-      });
+      } as any);
 
       if (error) {
         if (error.code === "23505") {
@@ -258,7 +277,11 @@ export default function SorteioLanding() {
       sessionStorage.setItem('sorteio_nome', primeiroNome);
       sessionStorage.setItem('sorteio_whatsapp', whatsappDigits);
       sessionStorage.setItem('sorteio_email', form.email.trim().toLowerCase());
-      navigate("/embaixadora?cadastro=ok");
+      if (evento?.mostrar_campo_embaixadora ?? true) {
+        navigate("/embaixadora?cadastro=ok");
+      } else {
+        setForm({ nome: "", whatsapp: "", email: "", cidade: "", igreja: "" });
+      }
     } catch {
       toast.error("Erro inesperado. Tente novamente.");
     } finally {
@@ -268,15 +291,35 @@ export default function SorteioLanding() {
 
   const ganhadoresNome = (g: any) => g?.sorteio_participantes?.nome ?? "Participante";
 
+  if (loadingEvento) {
+    return (
+      <div className="min-h-screen bg-[#0f172a] flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-white/60" />
+      </div>
+    );
+  }
+
+  if (!evento) {
+    return (
+      <div className="min-h-screen bg-[#0f172a] flex items-center justify-center px-4">
+        <div className="text-center text-white/70 max-w-md">
+          <Clock className="w-12 h-12 mx-auto mb-4 opacity-60" />
+          <h1 className="text-2xl font-bold text-white mb-2">Nenhum sorteio em andamento</h1>
+          <p>No momento não há nenhum evento ativo. Volte em breve!</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-[#0f172a]">
+    <div className="min-h-screen bg-[#0f172a]" style={{ ["--cor-primaria" as any]: corPrimaria }}>
       {mostrandoRoleta && <RouletteOverlay nome={nomeRoleta} onDone={handleRouletteEnd} />}
 
       {/* Banner do Evento */}
       <section className="relative w-full">
         <img
-          src={BANNER_URL}
-          alt="Vitoriosas Conference — 21 e 22 de Março"
+          src={bannerUrl}
+          alt={evento.nome}
           className="w-full h-[340px] md:h-[480px] object-cover object-top"
         />
         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-[#0f172a]" />
@@ -285,21 +328,26 @@ export default function SorteioLanding() {
       {/* Título + Contador */}
       <section className="relative -mt-20 z-10 text-center px-4 pb-4">
         <h1 className="text-3xl md:text-5xl font-bold text-white leading-tight mb-3">
-          Concorra a Prêmios <span className="text-[#C9A84C]">Incríveis!</span>
+          {titulo}
         </h1>
+        {subtitulo && (
+          <p className="text-white/80 text-base md:text-lg mb-4">{subtitulo}</p>
+        )}
         <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-full px-6 py-3 border border-white/10">
-          <Users className="w-5 h-5 text-[#C9A84C]" />
+          <Users className="w-5 h-5" style={{ color: corPrimaria }} />
           <span className="text-white font-semibold text-lg">{totalParticipantes ?? 0}</span>
           <span className="text-white/60 text-sm">inscritas</span>
         </div>
       </section>
 
       {/* Credibilidade do evento */}
-      <section className="text-center px-4 pb-8">
-        <p className="text-[#C9A84C]/80 text-sm md:text-base tracking-wide">
-          Vitoriosas Conference • 21 e 22 de Março • Rua Montevidéu, 900 — Penha, Rio de Janeiro
-        </p>
-      </section>
+      {descricao && (
+        <section className="text-center px-4 pb-8">
+          <p className="text-sm md:text-base tracking-wide" style={{ color: `${corPrimaria}cc` }}>
+            {descricao}
+          </p>
+        </section>
+      )}
 
       {/* Formulário + Prêmio — 2 colunas */}
       <section className="px-4 pb-12">
@@ -315,13 +363,12 @@ export default function SorteioLanding() {
               }}
             />
             <h3 className="text-xl font-bold text-white">🎁 Prêmio deste Sorteio</h3>
-            <p className="text-[#C9A84C] font-semibold text-lg">Kit Gotas de Consolo — Eyshila Santos</p>
-            <p className="text-white/60 text-sm max-w-xs leading-relaxed">
-              Box exclusivo com devocional, caderno espiral, marcador de página, caneta e cartela de adesivos
-            </p>
-            <Badge className="bg-[#C9A84C]/20 text-[#C9A84C] border border-[#C9A84C]/40 text-sm px-4 py-1.5 hover:bg-[#C9A84C]/30">
-              ⏱ Sorteado a cada 1 hora
-            </Badge>
+            <p className="font-semibold text-lg" style={{ color: corPrimaria }}>{premioDestaque}</p>
+            {sessaoAtiva?.intervalo_minutos && (
+              <Badge className="bg-[#C9A84C]/20 text-[#C9A84C] border border-[#C9A84C]/40 text-sm px-4 py-1.5 hover:bg-[#C9A84C]/30">
+                ⏱ Sorteado a cada {sessaoAtiva.intervalo_minutos >= 60 ? `${Math.round(sessaoAtiva.intervalo_minutos / 60)}h` : `${sessaoAtiva.intervalo_minutos}min`}
+              </Badge>
+            )}
           </div>
 
           {/* Coluna direita — Formulário */}
@@ -338,8 +385,13 @@ export default function SorteioLanding() {
                   <Input placeholder="Cidade" value={form.cidade} onChange={(e) => setForm({ ...form, cidade: e.target.value })} maxLength={100} />
                   <Input placeholder="Igreja" value={form.igreja} onChange={(e) => setForm({ ...form, igreja: e.target.value })} maxLength={100} />
                 </div>
-                <Button type="submit" disabled={submitting} className="w-full h-12 text-base font-bold bg-[#C9A84C] hover:bg-[#b8963e] text-white border-0">
-                  {submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : "Quero participar! 🎁"}
+                <Button
+                  type="submit"
+                  disabled={submitting}
+                  className="w-full h-12 text-base font-bold text-white border-0 hover:opacity-90"
+                  style={{ backgroundColor: corPrimaria }}
+                >
+                  {submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : textoBotao}
                 </Button>
               </form>
             </CardContent>
