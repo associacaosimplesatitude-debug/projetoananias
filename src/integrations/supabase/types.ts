@@ -7029,6 +7029,7 @@ export type Database = {
           data_inicio: string | null
           descricao: string | null
           id: string
+          imagem_premio_url: string | null
           mostrar_campo_embaixadora: boolean
           nome: string
           premio_destaque: string | null
@@ -7047,6 +7048,7 @@ export type Database = {
           data_inicio?: string | null
           descricao?: string | null
           id?: string
+          imagem_premio_url?: string | null
           mostrar_campo_embaixadora?: boolean
           nome: string
           premio_destaque?: string | null
@@ -7065,6 +7067,7 @@ export type Database = {
           data_inicio?: string | null
           descricao?: string | null
           id?: string
+          imagem_premio_url?: string | null
           mostrar_campo_embaixadora?: boolean
           nome?: string
           premio_destaque?: string | null
