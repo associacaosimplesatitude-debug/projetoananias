@@ -34,6 +34,16 @@ function SessoesTab() {
     nome: "", data_inicio: "", data_fim: "", intervalo_minutos: 60, premio_padrao: "",
   });
 
+  useEffect(() => {
+    const handler = () => {
+      setEditSession(null);
+      setNewSession({ nome: "", data_inicio: "", data_fim: "", intervalo_minutos: 60, premio_padrao: "" });
+      setModalOpen(true);
+    };
+    window.addEventListener("sorteio:open-nova-sessao", handler);
+    return () => window.removeEventListener("sorteio:open-nova-sessao", handler);
+  }, []);
+
   const { data: sessoes, isLoading } = useQuery({
     queryKey: ["admin-sorteio-sessoes"],
     queryFn: async () => {
