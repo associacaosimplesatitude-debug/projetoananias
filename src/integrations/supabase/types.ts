@@ -2924,6 +2924,117 @@ export type Database = {
           },
         ]
       }
+      ebd_loja_pedidos_cg: {
+        Row: {
+          cliente_id: string | null
+          codigo_rastreio: string | null
+          comissao_aprovada: boolean | null
+          created_at: string
+          customer_document: string | null
+          customer_email: string | null
+          customer_name: string | null
+          customer_phone: string | null
+          endereco_bairro: string | null
+          endereco_cep: string | null
+          endereco_cidade: string | null
+          endereco_complemento: string | null
+          endereco_estado: string | null
+          endereco_nome: string | null
+          endereco_numero: string | null
+          endereco_rua: string | null
+          endereco_telefone: string | null
+          id: string
+          loja_order_id: string
+          loja_order_number: number
+          mp_payment_id: string | null
+          order_date: string | null
+          paid_at: string | null
+          payment_method: string | null
+          status_pagamento: string
+          status_pedido: string
+          stripe_payment_id: string | null
+          updated_at: string
+          url_rastreio: string | null
+          valor_desconto: number
+          valor_frete: number
+          valor_subtotal: number
+          valor_total: number
+          vendedor_id: string | null
+        }
+        Insert: {
+          cliente_id?: string | null
+          codigo_rastreio?: string | null
+          comissao_aprovada?: boolean | null
+          created_at?: string
+          customer_document?: string | null
+          customer_email?: string | null
+          customer_name?: string | null
+          customer_phone?: string | null
+          endereco_bairro?: string | null
+          endereco_cep?: string | null
+          endereco_cidade?: string | null
+          endereco_complemento?: string | null
+          endereco_estado?: string | null
+          endereco_nome?: string | null
+          endereco_numero?: string | null
+          endereco_rua?: string | null
+          endereco_telefone?: string | null
+          id?: string
+          loja_order_id: string
+          loja_order_number: number
+          mp_payment_id?: string | null
+          order_date?: string | null
+          paid_at?: string | null
+          payment_method?: string | null
+          status_pagamento?: string
+          status_pedido?: string
+          stripe_payment_id?: string | null
+          updated_at?: string
+          url_rastreio?: string | null
+          valor_desconto?: number
+          valor_frete?: number
+          valor_subtotal?: number
+          valor_total?: number
+          vendedor_id?: string | null
+        }
+        Update: {
+          cliente_id?: string | null
+          codigo_rastreio?: string | null
+          comissao_aprovada?: boolean | null
+          created_at?: string
+          customer_document?: string | null
+          customer_email?: string | null
+          customer_name?: string | null
+          customer_phone?: string | null
+          endereco_bairro?: string | null
+          endereco_cep?: string | null
+          endereco_cidade?: string | null
+          endereco_complemento?: string | null
+          endereco_estado?: string | null
+          endereco_nome?: string | null
+          endereco_numero?: string | null
+          endereco_rua?: string | null
+          endereco_telefone?: string | null
+          id?: string
+          loja_order_id?: string
+          loja_order_number?: number
+          mp_payment_id?: string | null
+          order_date?: string | null
+          paid_at?: string | null
+          payment_method?: string | null
+          status_pagamento?: string
+          status_pedido?: string
+          stripe_payment_id?: string | null
+          updated_at?: string
+          url_rastreio?: string | null
+          valor_desconto?: number
+          valor_frete?: number
+          valor_subtotal?: number
+          valor_total?: number
+          vendedor_id?: string | null
+        }
+        Relationships: []
+      }
       ebd_materiais: {
         Row: {
           arquivo_url: string | null
