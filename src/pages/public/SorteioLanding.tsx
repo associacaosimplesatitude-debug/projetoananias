@@ -8,8 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { QRCodeSVG } from "qrcode.react";
-import { Gift, Users, Clock, Trophy, Share2, Loader2 } from "lucide-react";
+import { Gift, Users, Clock, Trophy, Loader2 } from "lucide-react";
 import { z } from "zod";
 import confetti from "canvas-confetti";
 import { useSorteioEventoAtivo } from "@/hooks/useSorteioEventoAtivo";
@@ -165,6 +164,23 @@ export default function SorteioLanding() {
     refetchInterval: 30000,
   });
 
+  const { data: proximaSessaoFutura } = useQuery({
+    queryKey: ["sorteio-proxima-sessao", evento?.id],
+    enabled: !!evento?.id && !sessaoAtiva,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("sorteio_sessoes")
+        .select("*")
+        .eq("evento_id", evento!.id)
+        .gt("data_inicio", new Date().toISOString())
+        .order("data_inicio", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      return data;
+    },
+    refetchInterval: 60000,
+  });
+
 
   const { data: ganhadoresAtuais } = useQuery({
     queryKey: ["sorteio-ganhadores-atuais"],
@@ -213,14 +229,22 @@ export default function SorteioLanding() {
   }, []);
 
   const proximoSorteio = useMemo(() => {
-    if (!sessaoAtiva) return null;
-    const inicio = new Date(sessaoAtiva.data_inicio).getTime();
-    const fim = new Date(sessaoAtiva.data_fim).getTime();
-    const intervalo = (sessaoAtiva.intervalo_minutos ?? 60) * 60 * 1000;
-    let proximo = inicio + intervalo;
-    while (proximo <= now && proximo < fim) proximo += intervalo;
-    return proximo <= fim ? proximo : null;
-  }, [sessaoAtiva, now]);
+    if (sessaoAtiva) {
+      const inicio = new Date(sessaoAtiva.data_inicio).getTime();
+      const fim = new Date(sessaoAtiva.data_fim).getTime();
+      const intervalo = (sessaoAtiva.intervalo_minutos ?? 60) * 60 * 1000;
+      let proximo = inicio + intervalo;
+      while (proximo <= now && proximo < fim) proximo += intervalo;
+      return proximo <= fim ? proximo : null;
+    }
+    if (proximaSessaoFutura) {
+      const inicio = new Date(proximaSessaoFutura.data_inicio).getTime();
+      const intervalo = (proximaSessaoFutura.intervalo_minutos ?? 60) * 60 * 1000;
+      // Primeiro sorteio = início da sessão + 1 intervalo
+      return inicio + intervalo;
+    }
+    return null;
+  }, [sessaoAtiva, proximaSessaoFutura, now]);
 
   const countdown = useMemo(() => {
     if (!proximoSorteio) return null;
@@ -316,13 +340,13 @@ export default function SorteioLanding() {
       {mostrandoRoleta && <RouletteOverlay nome={nomeRoleta} onDone={handleRouletteEnd} />}
 
       {/* Banner do Evento */}
-      <section className="relative w-full">
+      <section className="relative w-full bg-[#0f172a]">
         <img
           src={bannerUrl}
           alt={evento.nome}
-          className="w-full h-[340px] md:h-[480px] object-cover object-top"
+          className="w-full h-auto md:h-[480px] md:object-cover md:object-center"
         />
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-[#0f172a]" />
+        <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-b from-transparent to-[#0f172a] pointer-events-none" />
       </section>
 
       {/* Título + Contador */}
@@ -407,37 +431,51 @@ export default function SorteioLanding() {
             Sorteio ao Vivo
           </h2>
 
-          {!sessaoAtiva ? (
+          {/* Countdown — pré-evento ou durante a sessão */}
+          {countdown && countdown.total > 0 && (
+            <Card className="border border-[#FF6B35]/40 bg-[#0f172a]/90 backdrop-blur">
+              <CardContent className="p-6 text-center">
+                <p className="text-gray-200 text-sm mb-3">
+                  {sessaoAtiva ? "Próximo sorteio em" : "Primeiro sorteio em"}
+                </p>
+                <div className="flex justify-center gap-4">
+                  {[
+                    { label: "Horas", value: countdown.h },
+                    { label: "Min", value: countdown.m },
+                    { label: "Seg", value: countdown.s },
+                  ].map((item) => (
+                    <div key={item.label} className="bg-white/10 rounded-lg px-4 py-3 min-w-[70px] border border-[#FF6B35]/20">
+                      <span className="text-3xl font-bold text-[#C9A84C] font-mono">
+                        {String(item.value).padStart(2, "0")}
+                      </span>
+                      <p className="text-gray-300 text-xs mt-1">{item.label}</p>
+                    </div>
+                  ))}
+                </div>
+                {!sessaoAtiva && proximaSessaoFutura && (
+                  <p className="text-white/60 text-xs mt-4">
+                    {new Date(proximoSorteio!).toLocaleString("pt-BR", {
+                      weekday: "long",
+                      day: "2-digit",
+                      month: "2-digit",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {!sessaoAtiva && !proximaSessaoFutura ? (
             <Card className="border-0 bg-white/10 backdrop-blur text-center">
               <CardContent className="p-8">
                 <Clock className="w-12 h-12 text-white/40 mx-auto mb-3" />
                 <p className="text-white/60 text-lg">Aguarde o próximo sorteio</p>
               </CardContent>
             </Card>
-          ) : (
+          ) : sessaoAtiva ? (
             <>
-              {/* Countdown */}
-              {countdown && countdown.total > 0 && (
-                <Card className="border border-[#FF6B35]/40 bg-[#0f172a]/90 backdrop-blur">
-                  <CardContent className="p-6 text-center">
-                    <p className="text-gray-200 text-sm mb-3">Próximo sorteio em</p>
-                    <div className="flex justify-center gap-4">
-                      {[
-                        { label: "Horas", value: countdown.h },
-                        { label: "Min", value: countdown.m },
-                        { label: "Seg", value: countdown.s },
-                      ].map((item) => (
-                        <div key={item.label} className="bg-white/10 rounded-lg px-4 py-3 min-w-[70px] border border-[#FF6B35]/20">
-                          <span className="text-3xl font-bold text-[#C9A84C] font-mono">
-                            {String(item.value).padStart(2, "0")}
-                          </span>
-                          <p className="text-gray-300 text-xs mt-1">{item.label}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
 
               {/* Current winner */}
               {ganhadoresAtuais && ganhadoresAtuais.length > 0 && ganhadoresAtuais.map((ganhador: any) => {
@@ -507,22 +545,8 @@ export default function SorteioLanding() {
                 </Card>
               )}
             </>
-          )}
+          ) : null}
         </div>
-      </section>
-
-      {/* QR Code */}
-      <section className="px-4 pb-16">
-        <Card className="max-w-sm mx-auto border-0 bg-white/10 backdrop-blur text-center">
-          <CardContent className="p-8 space-y-4">
-            <Share2 className="w-8 h-8 text-[#C9A84C] mx-auto" />
-            <p className="text-white font-semibold">Compartilhe com amigas!</p>
-            <div className="bg-white rounded-xl p-4 inline-block">
-              <QRCodeSVG value="https://gestaoebd.lovable.app/sorteio" size={160} fgColor="#0f172a" bgColor="#ffffff" />
-            </div>
-            <p className="text-white/50 text-sm">Escaneie o QR Code para acessar</p>
-          </CardContent>
-        </Card>
       </section>
 
       {/* Modal de foto ampliada */}
