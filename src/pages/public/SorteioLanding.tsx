@@ -510,20 +510,6 @@ export default function SorteioLanding() {
         </div>
       </section>
 
-      {/* QR Code */}
-      <section className="px-4 pb-16">
-        <Card className="max-w-sm mx-auto border-0 bg-white/10 backdrop-blur text-center">
-          <CardContent className="p-8 space-y-4">
-            <Share2 className="w-8 h-8 text-[#C9A84C] mx-auto" />
-            <p className="text-white font-semibold">Compartilhe com amigas!</p>
-            <div className="bg-white rounded-xl p-4 inline-block">
-              <QRCodeSVG value="https://gestaoebd.lovable.app/sorteio" size={160} fgColor="#0f172a" bgColor="#ffffff" />
-            </div>
-            <p className="text-white/50 text-sm">Escaneie o QR Code para acessar</p>
-          </CardContent>
-        </Card>
-      </section>
-
       {/* Modal de foto ampliada */}
       <Dialog open={!!fotoModal} onOpenChange={() => setFotoModal(null)}>
         <DialogContent className="sm:max-w-lg p-2 bg-black/90 border-0">
