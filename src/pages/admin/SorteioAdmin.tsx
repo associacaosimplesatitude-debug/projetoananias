@@ -27,6 +27,7 @@ import { useSorteioEventoAtivo } from "@/hooks/useSorteioEventoAtivo";
 // ─── Sessões Tab ───────────────────────────────────────────
 function SessoesTab() {
   const queryClient = useQueryClient();
+  const { data: eventoAtivo } = useSorteioEventoAtivo();
   const [modalOpen, setModalOpen] = useState(false);
   const [editSession, setEditSession] = useState<any>(null);
   const [newSession, setNewSession] = useState({
