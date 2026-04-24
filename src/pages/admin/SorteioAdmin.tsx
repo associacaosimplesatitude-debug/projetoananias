@@ -1457,13 +1457,15 @@ export default function SorteioAdmin() {
         </div>
       </div>
 
-      <Tabs defaultValue="sessoes">
+      <Tabs defaultValue="eventos">
         <TabsList className="flex w-full overflow-x-auto">
+          <TabsTrigger value="eventos">Eventos</TabsTrigger>
           <TabsTrigger value="sessoes">Sessões</TabsTrigger>
           <TabsTrigger value="sorteio">Realizar Sorteio</TabsTrigger>
           <TabsTrigger value="participantes">Participantes</TabsTrigger>
           <TabsTrigger value="embaixadoras">Embaixadoras</TabsTrigger>
         </TabsList>
+        <TabsContent value="eventos"><EventosTab /></TabsContent>
         <TabsContent value="sessoes"><SessoesTab /></TabsContent>
         <TabsContent value="sorteio"><RealizarSorteioTab /></TabsContent>
         <TabsContent value="participantes"><ParticipantesTab /></TabsContent>
