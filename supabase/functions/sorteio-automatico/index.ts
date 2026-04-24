@@ -128,6 +128,7 @@ Deno.serve(async (req) => {
     const { error: insertErr } = await supabase.from("sorteio_ganhadores").insert({
       participante_id: winner.id,
       sessao_id: sessao.id,
+      evento_id: sessao.evento_id ?? null,
       status: "aguardando",
       premio_descricao: sessao.premio_padrao || null,
       expira_em: expiraEm,
