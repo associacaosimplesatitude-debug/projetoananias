@@ -183,12 +183,14 @@ export default function SorteioLanding() {
 
 
   const { data: ganhadoresAtuais } = useQuery({
-    queryKey: ["sorteio-ganhadores-atuais"],
+    queryKey: ["sorteio-ganhadores-atuais", evento?.id],
+    enabled: !!evento?.id,
     queryFn: async () => {
       const { data } = await supabase
         .from("sorteio_ganhadores")
         .select("*, sorteio_participantes(nome)")
         .eq("status", "aguardando")
+        .eq("evento_id", evento!.id)
         .order("sorteado_em", { ascending: false });
       return (data ?? []) as any[];
     },
@@ -196,12 +198,14 @@ export default function SorteioLanding() {
   });
 
   const { data: historico } = useQuery({
-    queryKey: ["sorteio-historico"],
+    queryKey: ["sorteio-historico", evento?.id],
+    enabled: !!evento?.id,
     queryFn: async () => {
       const { data } = await supabase
         .from("sorteio_ganhadores")
         .select("*, sorteio_participantes(nome)")
         .eq("status", "retirado")
+        .eq("evento_id", evento!.id)
         .order("sorteado_em", { ascending: false })
         .limit(5);
       return (data ?? []) as any[];
@@ -344,7 +348,7 @@ export default function SorteioLanding() {
         <img
           src={bannerUrl}
           alt={evento.nome}
-          className="w-full h-auto md:h-[520px] md:object-cover md:object-top"
+          className="w-full h-auto object-contain mx-auto"
         />
       </section>
 
