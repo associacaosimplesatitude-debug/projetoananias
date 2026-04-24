@@ -102,6 +102,7 @@ function RouletteOverlay({ nome, onDone }: { nome: string; onDone: () => void })
 
 export default function SorteioLanding() {
   const navigate = useNavigate();
+  const { data: evento, isLoading: loadingEvento } = useSorteioEventoAtivo();
   const [form, setForm] = useState({ nome: "", whatsapp: "", email: "", cidade: "", igreja: "" });
   const [submitting, setSubmitting] = useState(false);
   const [now, setNow] = useState(Date.now());
@@ -110,6 +111,13 @@ export default function SorteioLanding() {
   const ultimoGanhadorRef = useRef<string | null>(null);
   const [fotoModal, setFotoModal] = useState<string | null>(null);
 
+  const corPrimaria = evento?.cor_primaria || "#C9A84C";
+  const bannerUrl = evento?.banner_url || FALLBACK_BANNER;
+  const titulo = evento?.titulo || "Concorra a Prêmios Incríveis!";
+  const subtitulo = evento?.subtitulo || "";
+  const descricao = evento?.descricao || "";
+  const premioDestaque = evento?.premio_destaque || "Kit Gotas de Consolo — Eyshila Santos";
+  const textoBotao = evento?.texto_botao_cta || "Quero participar! 🎁";
   useEffect(() => {
     const interval = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(interval);
