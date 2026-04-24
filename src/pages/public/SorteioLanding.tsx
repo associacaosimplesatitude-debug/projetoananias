@@ -382,8 +382,8 @@ export default function SorteioLanding() {
           {/* Coluna esquerda — Prêmio */}
           <div className="flex flex-col items-center text-center space-y-5 order-1 md:order-1">
             <img
-              src={PREMIO_URL}
-              alt="Kit Gotas de Consolo — Eyshila Santos"
+              src={(evento as any)?.imagem_premio_url || PREMIO_URL}
+              alt={premioDestaque}
               className="w-64 md:w-80 rounded-2xl"
               style={{
                 boxShadow: "0 20px 60px -15px rgba(201,168,76,0.35), 0 0 0 1px rgba(201,168,76,0.15)",
