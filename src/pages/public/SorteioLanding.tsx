@@ -125,26 +125,45 @@ export default function SorteioLanding() {
 
   // Track page view (fire-and-forget)
   useEffect(() => {
+    if (!evento?.id) return;
     supabase
       .from("sorteio_page_views")
       .insert({
         user_agent: navigator.userAgent,
         referrer: document.referrer || null,
+        evento_id: evento.id,
       } as any)
       .then(() => {});
-  }, []);
+  }, [evento?.id]);
 
   const { data: totalParticipantes } = useQuery({
-    queryKey: ["sorteio-count"],
+    queryKey: ["sorteio-count", evento?.id],
+    enabled: !!evento?.id,
     queryFn: async () => {
-      const { count } = await supabase.from("sorteio_participantes").select("*", { count: "exact", head: true });
+      const { count } = await supabase
+        .from("sorteio_participantes")
+        .select("*", { count: "exact", head: true })
+        .eq("evento_id", evento!.id);
       return count ?? 0;
     },
     refetchInterval: 15000,
   });
 
   const { data: sessaoAtiva } = useQuery({
-    queryKey: ["sorteio-sessao-ativa"],
+    queryKey: ["sorteio-sessao-ativa", evento?.id],
+    enabled: !!evento?.id,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("sorteio_sessoes")
+        .select("*")
+        .eq("ativo", true)
+        .eq("evento_id", evento!.id)
+        .limit(1)
+        .maybeSingle();
+      return data;
+    },
+    refetchInterval: 30000,
+  });
     queryFn: async () => {
       const { data } = await supabase
         .from("sorteio_sessoes")
