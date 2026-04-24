@@ -36,8 +36,9 @@ const initial = {
 export default function EventoDialog({ open, onOpenChange, evento }: Props) {
   const queryClient = useQueryClient();
   const [form, setForm] = useState(initial);
-  const [uploading, setUploading] = useState(false);
+  const [uploading, setUploading] = useState<null | "banner" | "premio">(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const fileRefPremio = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (evento) {
