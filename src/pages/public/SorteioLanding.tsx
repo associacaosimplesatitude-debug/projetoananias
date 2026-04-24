@@ -385,8 +385,13 @@ export default function SorteioLanding() {
                   <Input placeholder="Cidade" value={form.cidade} onChange={(e) => setForm({ ...form, cidade: e.target.value })} maxLength={100} />
                   <Input placeholder="Igreja" value={form.igreja} onChange={(e) => setForm({ ...form, igreja: e.target.value })} maxLength={100} />
                 </div>
-                <Button type="submit" disabled={submitting} className="w-full h-12 text-base font-bold bg-[#C9A84C] hover:bg-[#b8963e] text-white border-0">
-                  {submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : "Quero participar! 🎁"}
+                <Button
+                  type="submit"
+                  disabled={submitting}
+                  className="w-full h-12 text-base font-bold text-white border-0 hover:opacity-90"
+                  style={{ backgroundColor: corPrimaria }}
+                >
+                  {submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : textoBotao}
                 </Button>
               </form>
             </CardContent>
