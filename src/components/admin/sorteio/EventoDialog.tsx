@@ -145,8 +145,8 @@ export default function EventoDialog({ open, onOpenChange, evento }: Props) {
             <Label>Banner do evento</Label>
             <div className="flex items-center gap-3">
               <Input value={form.banner_url} onChange={(e) => setForm({ ...form, banner_url: e.target.value })} placeholder="URL da imagem" />
-              <Button type="button" variant="outline" disabled={uploading} onClick={() => fileRef.current?.click()}>
-                {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+              <Button type="button" variant="outline" disabled={uploading === "banner"} onClick={() => fileRef.current?.click()}>
+                {uploading === "banner" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
               </Button>
               <input
                 ref={fileRef}
