@@ -277,7 +277,11 @@ export default function SorteioLanding() {
       sessionStorage.setItem('sorteio_nome', primeiroNome);
       sessionStorage.setItem('sorteio_whatsapp', whatsappDigits);
       sessionStorage.setItem('sorteio_email', form.email.trim().toLowerCase());
-      navigate("/embaixadora?cadastro=ok");
+      if (evento?.mostrar_campo_embaixadora ?? true) {
+        navigate("/embaixadora?cadastro=ok");
+      } else {
+        setForm({ nome: "", whatsapp: "", email: "", cidade: "", igreja: "" });
+      }
     } catch {
       toast.error("Erro inesperado. Tente novamente.");
     } finally {
