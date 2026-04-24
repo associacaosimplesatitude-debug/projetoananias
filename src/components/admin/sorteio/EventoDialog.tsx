@@ -94,6 +94,7 @@ export default function EventoDialog({ open, onOpenChange, evento }: Props) {
         nome: form.nome.trim(),
         slug: form.slug.trim() || null,
         banner_url: form.banner_url.trim() || null,
+        imagem_premio_url: form.imagem_premio_url.trim() || null,
         titulo: form.titulo.trim() || null,
         subtitulo: form.subtitulo.trim() || null,
         descricao: form.descricao.trim() || null,
