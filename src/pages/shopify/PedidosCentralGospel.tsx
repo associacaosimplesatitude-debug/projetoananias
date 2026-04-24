@@ -15,6 +15,7 @@ import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
 import { PedidoCGDetailDialog } from "@/components/admin/PedidoCGDetailDialog";
 
@@ -48,7 +49,7 @@ interface EbdCliente {
 
 interface ShopifyPedidoCG {
   id: string;
-  shopify_order_id: number;
+  shopify_order_id: number | string;
   order_number: string;
   status_pagamento: string;
   customer_email: string | null;
@@ -77,6 +78,8 @@ interface ShopifyPedidoCG {
   vendedor_id?: string | null;
   cliente_id?: string | null;
   comissao_aprovada?: boolean;
+  // Origem (virtual, frontend only)
+  origem?: 'shopify' | 'loja';
   // Enriched fields (frontend only)
   cliente?: EbdCliente | null;
   vendedor?: { id: string; nome: string } | null;
@@ -134,20 +137,19 @@ export default function PedidosCentralGospel() {
     },
   });
 
-  // Realtime subscription for automatic updates
+  // Realtime subscription for automatic updates (both tables)
   useEffect(() => {
     const channel = supabase
-      .channel('ebd-shopify-pedidos-cg-realtime')
+      .channel('ebd-pedidos-cg-unified-realtime')
       .on(
         'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'ebd_shopify_pedidos_cg'
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["shopify-pedidos-cg"] });
-        }
+        { event: '*', schema: 'public', table: 'ebd_shopify_pedidos_cg' },
+        () => queryClient.invalidateQueries({ queryKey: ["shopify-pedidos-cg"] })
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'ebd_loja_pedidos_cg' },
+        () => queryClient.invalidateQueries({ queryKey: ["shopify-pedidos-cg"] })
       )
       .subscribe();
 
@@ -185,14 +187,64 @@ export default function PedidosCentralGospel() {
   const { data: pedidos = [], isLoading } = useQuery({
     queryKey: ["shopify-pedidos-cg"],
     queryFn: async () => {
-      const { data: allPedidos, error: pedidosError } = await supabase
-        .from("ebd_shopify_pedidos_cg")
-        .select("*")
-        .order("created_at", { ascending: false });
+      const [shopifyRes, lojaRes] = await Promise.all([
+        supabase
+          .from("ebd_shopify_pedidos_cg")
+          .select("*")
+          .order("created_at", { ascending: false }),
+        (supabase as any)
+          .from("ebd_loja_pedidos_cg")
+          .select("*")
+          .order("created_at", { ascending: false }),
+      ]);
 
-      if (pedidosError) throw pedidosError;
+      if (shopifyRes.error) throw shopifyRes.error;
+      if (lojaRes.error) {
+        console.error("Erro ao carregar pedidos da nova loja:", lojaRes.error);
+      }
 
-      return (allPedidos || []) as ShopifyPedidoCG[];
+      const shopifyPedidos: ShopifyPedidoCG[] = (shopifyRes.data || []).map((p: any) => ({
+        ...p,
+        origem: 'shopify' as const,
+      }));
+
+      const lojaPedidos: ShopifyPedidoCG[] = (lojaRes.data || []).map((p: any) => ({
+        id: p.id,
+        shopify_order_id: p.loja_order_id,
+        order_number: String(p.loja_order_number),
+        status_pagamento: p.status_pagamento,
+        customer_email: p.customer_email,
+        customer_name: p.customer_name,
+        valor_total: Number(p.valor_total) || 0,
+        valor_frete: Number(p.valor_frete) || 0,
+        codigo_rastreio: p.codigo_rastreio,
+        url_rastreio: p.url_rastreio,
+        created_at: p.created_at,
+        order_date: p.order_date,
+        updated_at: p.updated_at,
+        customer_document: p.customer_document,
+        endereco_rua: p.endereco_rua,
+        endereco_numero: p.endereco_numero,
+        endereco_complemento: p.endereco_complemento,
+        endereco_bairro: p.endereco_bairro,
+        endereco_cidade: p.endereco_cidade,
+        endereco_estado: p.endereco_estado,
+        endereco_cep: p.endereco_cep,
+        endereco_nome: p.endereco_nome,
+        endereco_telefone: p.endereco_telefone,
+        vendedor_id: p.vendedor_id,
+        cliente_id: p.cliente_id,
+        comissao_aprovada: p.comissao_aprovada,
+        origem: 'loja' as const,
+      }));
+
+      const merged = [...shopifyPedidos, ...lojaPedidos].sort((a, b) => {
+        const da = new Date(a.created_at).getTime();
+        const db = new Date(b.created_at).getTime();
+        return db - da;
+      });
+
+      return merged;
     },
   });
 
@@ -416,10 +468,19 @@ export default function PedidosCentralGospel() {
           <p className="text-muted-foreground">Pedidos da loja centralgospel.com.br</p>
         </div>
         {isAdmin && (
-          <Button onClick={() => syncOrdersMutation.mutate()} disabled={syncOrdersMutation.isPending}>
-            <RefreshCw className={`h-4 w-4 mr-2 ${syncOrdersMutation.isPending ? "animate-spin" : ""}`} />
-            {syncOrdersMutation.isPending ? "Sincronizando..." : "Sincronizar Pedidos"}
-          </Button>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button onClick={() => syncOrdersMutation.mutate()} disabled={syncOrdersMutation.isPending}>
+                  <RefreshCw className={`h-4 w-4 mr-2 ${syncOrdersMutation.isPending ? "animate-spin" : ""}`} />
+                  {syncOrdersMutation.isPending ? "Sincronizando..." : "Sincronizar Pedidos"}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                Sincroniza apenas pedidos da Shopify. Pedidos da Nova Loja chegam automaticamente via webhook.
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         )}
       </div>
 
@@ -568,7 +629,16 @@ export default function PedidosCentralGospel() {
                             )}
                           </TableCell>
                         )}
-                        <TableCell className="font-medium">{pedido.order_number}</TableCell>
+                        <TableCell className="font-medium">
+                          <div className="flex items-center gap-2">
+                            <span>{pedido.order_number}</span>
+                            {pedido.origem === 'loja' ? (
+                              <Badge className="bg-amber-500 hover:bg-amber-500 text-white text-xs">Loja</Badge>
+                            ) : (
+                              <Badge variant="secondary" className="text-xs">Shopify</Badge>
+                            )}
+                          </div>
+                        </TableCell>
                         <TableCell>{formatDate(getPedidoDate(pedido))}</TableCell>
                         <TableCell>
                           <div>
@@ -651,7 +721,7 @@ export default function PedidosCentralGospel() {
 
       {/* Detail Dialog */}
       <PedidoCGDetailDialog
-        pedido={selectedPedido}
+        pedido={selectedPedido as any}
         open={dialogOpen}
         onOpenChange={setDialogOpen}
       />
