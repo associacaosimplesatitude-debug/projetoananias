@@ -156,7 +156,7 @@ serve(async (req) => {
       if (!lic) throw new Error("Licença não encontrada");
 
       const titulo = (lic as any).revistas_digitais?.titulo || "Revista";
-      const urlAcesso = "https://revistas.centralgospel.com.br/revista/acesso";
+      const urlAcesso = "https://gestaoebd.com.br/revista/acesso";
 
       // Envio WhatsApp
       if (lic.whatsapp) {
