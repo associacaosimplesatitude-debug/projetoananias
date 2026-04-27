@@ -1312,7 +1312,7 @@ serve(async (req) => {
           try {
             const resendApiKey = Deno.env.get('RESEND_API_KEY');
             if (resendApiKey) {
-              const urlAcessoEmail = 'https://revistas.centralgospel.com.br/revista/acesso';
+              const urlAcessoEmail = 'https://gestaoebd.com.br/revista/acesso';
               const emailRes = await fetch('https://api.resend.com/emails', {
                 method: 'POST',
                 headers: {
