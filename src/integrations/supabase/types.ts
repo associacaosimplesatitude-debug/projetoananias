@@ -5808,7 +5808,7 @@ export type Database = {
           chave_pix: string | null
           codigo_pagamento: string | null
           created_at: string
-          expira_em: string
+          expira_em: string | null
           id: string
           inicio_em: string
           link_pagamento: string | null
@@ -5830,7 +5830,7 @@ export type Database = {
           chave_pix?: string | null
           codigo_pagamento?: string | null
           created_at?: string
-          expira_em: string
+          expira_em?: string | null
           id?: string
           inicio_em?: string
           link_pagamento?: string | null
@@ -5852,7 +5852,7 @@ export type Database = {
           chave_pix?: string | null
           codigo_pagamento?: string | null
           created_at?: string
-          expira_em?: string
+          expira_em?: string | null
           id?: string
           inicio_em?: string
           link_pagamento?: string | null
