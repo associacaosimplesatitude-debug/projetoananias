@@ -20,7 +20,7 @@ export function RequireSuperintendente() {
 
   if (!user) {
     const redirect = encodeURIComponent(location.pathname + location.search);
-    return <Navigate to={`/auth?redirect=${redirect}`} replace />;
+    return <Navigate to={`/superintendente/login?redirect=${redirect}`} replace />;
   }
 
   if (!isSuperintendente) {
