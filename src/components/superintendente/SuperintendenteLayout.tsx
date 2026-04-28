@@ -1,5 +1,5 @@
 import { Link, Outlet, useLocation } from "react-router-dom";
-import { Home, LogOut, Menu } from "lucide-react";
+import { Home, LogOut, Menu, BookOpen, LifeBuoy } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -11,8 +11,23 @@ const NAV_BG = "#1B3A5C";
 const NAV_TEXT = "#FFFFFF";
 const ACCENT = "#FFC107";
 
-const menuItems = [
+type MenuItem = {
+  path: string;
+  label: string;
+  icon: any;
+  exact?: boolean;
+  external?: boolean;
+};
+
+const menuItems: MenuItem[] = [
   { path: "/superintendente", label: "Início", icon: Home, exact: true },
+  { path: "/superintendente", label: "Meus Pacotes", icon: BookOpen, exact: true },
+  {
+    path: "mailto:atendimento@editoracentralgospel.com.br",
+    label: "Suporte",
+    icon: LifeBuoy,
+    external: true,
+  },
 ];
 
 export function SuperintendenteLayout() {
@@ -26,22 +41,38 @@ export function SuperintendenteLayout() {
 
   const NavList = ({ onClick }: { onClick?: () => void }) => (
     <nav className="flex flex-col md:flex-row md:items-center gap-1">
-      {menuItems.map((item) => {
+      {menuItems.map((item, idx) => {
         const Icon = item.icon;
-        const active = isActive(item.path, item.exact);
+        const active = !item.external && isActive(item.path, item.exact);
+        const className = cn(
+          "flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors",
+          active ? "" : "opacity-80 hover:opacity-100"
+        );
+        const style = {
+          backgroundColor: active ? ACCENT : "transparent",
+          color: active ? "#1B3A5C" : NAV_TEXT,
+        };
+        if (item.external) {
+          return (
+            <a
+              key={`${item.path}-${idx}`}
+              href={item.path}
+              onClick={onClick}
+              className={className}
+              style={style}
+            >
+              <Icon className="w-4 h-4" />
+              <span>{item.label}</span>
+            </a>
+          );
+        }
         return (
           <Link
-            key={item.path}
+            key={`${item.path}-${idx}`}
             to={item.path}
             onClick={onClick}
-            className={cn(
-              "flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors",
-              active ? "text-[color:var(--se-text)]" : "opacity-80 hover:opacity-100"
-            )}
-            style={{
-              backgroundColor: active ? ACCENT : "transparent",
-              color: active ? "#1B3A5C" : NAV_TEXT,
-            }}
+            className={className}
+            style={style}
           >
             <Icon className="w-4 h-4" />
             <span>{item.label}</span>
