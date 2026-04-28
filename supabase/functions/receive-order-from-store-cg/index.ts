@@ -18,26 +18,6 @@ function generatePassword(length = 12): string {
   return out;
 }
 
-function calcExpiraEm(plan: string): string {
-  const today = new Date();
-  let days = 90;
-  if (plan === "semestral") days = 180;
-  else if (plan === "anual") days = 365;
-  const exp = new Date(today.getTime() + days * 24 * 60 * 60 * 1000);
-  return exp.toISOString().slice(0, 10);
-}
-
-function formatBR(dateISO: string): string {
-  const [y, m, d] = dateISO.split("-");
-  return `${d}/${m}/${y}`;
-}
-
-function planLabel(plan: string): string {
-  if (plan === "semestral") return "6 meses";
-  if (plan === "anual") return "1 ano";
-  return "3 meses";
-}
-
 async function sendWelcomeEmail(opts: {
   to: string;
   nome: string;
