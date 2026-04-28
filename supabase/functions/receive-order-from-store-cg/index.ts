@@ -44,8 +44,6 @@ async function sendWelcomeEmail(opts: {
   qtd: number;
   revistaAlunoNome: string | null;
   revistaProfNome: string | null;
-  plan: string;
-  expiraEm: string;
   isNewUser: boolean;
   password?: string;
   email: string;
@@ -89,8 +87,10 @@ async function sendWelcomeEmail(opts: {
         <h3 style="margin:0 0 8px;color:#1e3a8a;font-size:16px;">Resumo do seu pacote</h3>
         <p style="margin:6px 0;font-size:14px;line-height:1.5;">
           Você adquiriu <strong>${opts.qtd} licença${opts.qtd > 1 ? "s" : ""}</strong> da
-          <strong>${revistas}</strong>, válida${opts.qtd > 1 ? "s" : ""} por
-          <strong>${planLabel(opts.plan)}</strong> (até <strong>${formatBR(opts.expiraEm)}</strong>).
+          <strong>${revistas}</strong>.
+        </p>
+        <p style="margin:10px 0 0;font-size:14px;line-height:1.5;color:#1e3a8a;">
+          <strong>Acesso vitalício às licenças adquiridas</strong> — você e seus alunos terão acesso à revista ${revistas} para sempre, mesmo após o fim do trimestre.
         </p>
       </div>
 
