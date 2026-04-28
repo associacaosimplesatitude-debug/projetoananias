@@ -345,8 +345,6 @@ async function provisionSuperintendente(
         qtd: qtdTotal,
         revistaAlunoNome: nomeAluno,
         revistaProfNome: nomeProf,
-        plan,
-        expiraEm,
         isNewUser,
         password: tempPassword,
       });
