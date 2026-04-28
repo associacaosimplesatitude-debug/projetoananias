@@ -148,10 +148,7 @@ async function provisionSuperintendente(
     if (!nome) throw new Error("customer.name ausente no payload");
 
     // Plan duration
-    const rawPlan = (payload.plan_duration ?? seItems[0]?.plan_duration ?? "trimestral") as string;
-    const plan = ["trimestral", "semestral", "anual"].includes(rawPlan) ? rawPlan : "trimestral";
     const inicioEm = new Date().toISOString().slice(0, 10);
-    const expiraEm = calcExpiraEm(plan);
 
     // ─── Find or create superintendente in ebd_clientes ───
     console.log(`${LOG_PREFIX} buscando ebd_cliente por email=${email}`);
@@ -288,7 +285,7 @@ async function provisionSuperintendente(
       const { data: novoPlano, error: planoErr } = await supabase
         .from("revista_planos")
         .insert({
-          nome: `Pacote ${qtdTotal}`,
+          nome: `Pacote ${qtdTotal} (vitalicio)`,
           quantidade_licencas: qtdTotal,
           preco_trimestral: 0,
           preco_semestral: 0,
@@ -325,12 +322,12 @@ async function provisionSuperintendente(
         revista_aluno_id: revistaAlunoId,
         revista_professor_id: revistaProfId,
         pacote_id: pacoteId,
-        plano: plan,
+        plano: "vitalicio",
         quantidade_total: qtdTotal,
         quantidade_usada: 0,
         status: "ativa",
         inicio_em: inicioEm,
-        expira_em: expiraEm,
+        expira_em: null,
         loja_order_id: lojaOrderUuid,
         origem: "nova_loja_cg",
       };
