@@ -2950,6 +2950,8 @@ export type Database = {
           order_date: string | null
           paid_at: string | null
           payment_method: string | null
+          provisionamento_erro: string | null
+          provisionamento_status: string | null
           status_pagamento: string
           status_pedido: string
           stripe_payment_id: string | null
@@ -2986,6 +2988,8 @@ export type Database = {
           order_date?: string | null
           paid_at?: string | null
           payment_method?: string | null
+          provisionamento_erro?: string | null
+          provisionamento_status?: string | null
           status_pagamento?: string
           status_pedido?: string
           stripe_payment_id?: string | null
@@ -3022,6 +3026,8 @@ export type Database = {
           order_date?: string | null
           paid_at?: string | null
           payment_method?: string | null
+          provisionamento_erro?: string | null
+          provisionamento_status?: string | null
           status_pagamento?: string
           status_pedido?: string
           stripe_payment_id?: string | null
@@ -5806,6 +5812,8 @@ export type Database = {
           id: string
           inicio_em: string
           link_pagamento: string | null
+          loja_order_id: string | null
+          origem: string | null
           pacote_id: string | null
           plano: string
           qrcode_url: string | null
@@ -5826,6 +5834,8 @@ export type Database = {
           id?: string
           inicio_em?: string
           link_pagamento?: string | null
+          loja_order_id?: string | null
+          origem?: string | null
           pacote_id?: string | null
           plano?: string
           qrcode_url?: string | null
@@ -5846,6 +5856,8 @@ export type Database = {
           id?: string
           inicio_em?: string
           link_pagamento?: string | null
+          loja_order_id?: string | null
+          origem?: string | null
           pacote_id?: string | null
           plano?: string
           qrcode_url?: string | null
