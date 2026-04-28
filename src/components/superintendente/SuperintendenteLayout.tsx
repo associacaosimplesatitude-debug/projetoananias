@@ -1,5 +1,5 @@
 import { Link, Outlet, useLocation } from "react-router-dom";
-import { Home, LogOut, Menu } from "lucide-react";
+import { Home, LogOut, Menu, BookOpen, LifeBuoy } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -11,8 +11,23 @@ const NAV_BG = "#1B3A5C";
 const NAV_TEXT = "#FFFFFF";
 const ACCENT = "#FFC107";
 
-const menuItems = [
+type MenuItem = {
+  path: string;
+  label: string;
+  icon: any;
+  exact?: boolean;
+  external?: boolean;
+};
+
+const menuItems: MenuItem[] = [
   { path: "/superintendente", label: "Início", icon: Home, exact: true },
+  { path: "/superintendente", label: "Meus Pacotes", icon: BookOpen, exact: true },
+  {
+    path: "mailto:atendimento@editoracentralgospel.com.br",
+    label: "Suporte",
+    icon: LifeBuoy,
+    external: true,
+  },
 ];
 
 export function SuperintendenteLayout() {
