@@ -6,6 +6,405 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "x-webhook-secret, content-type",
 };
 
+const LOG_PREFIX = "[receive-order-from-store-cg][superintendente]";
+const PAINEL_URL = "https://gestaoebd.com.br/login";
+
+function generatePassword(length = 12): string {
+  const chars = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
+  let out = "";
+  const bytes = new Uint8Array(length);
+  crypto.getRandomValues(bytes);
+  for (let i = 0; i < length; i++) out += chars[bytes[i] % chars.length];
+  return out;
+}
+
+function calcExpiraEm(plan: string): string {
+  const today = new Date();
+  let days = 90;
+  if (plan === "semestral") days = 180;
+  else if (plan === "anual") days = 365;
+  const exp = new Date(today.getTime() + days * 24 * 60 * 60 * 1000);
+  return exp.toISOString().slice(0, 10);
+}
+
+function formatBR(dateISO: string): string {
+  const [y, m, d] = dateISO.split("-");
+  return `${d}/${m}/${y}`;
+}
+
+function planLabel(plan: string): string {
+  if (plan === "semestral") return "6 meses";
+  if (plan === "anual") return "1 ano";
+  return "3 meses";
+}
+
+async function sendWelcomeEmail(opts: {
+  to: string;
+  nome: string;
+  qtd: number;
+  revistaAlunoNome: string | null;
+  revistaProfNome: string | null;
+  plan: string;
+  expiraEm: string;
+  isNewUser: boolean;
+  password?: string;
+  email: string;
+}): Promise<void> {
+  const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
+  if (!RESEND_API_KEY) {
+    console.warn(`${LOG_PREFIX} RESEND_API_KEY ausente — pulando email`);
+    return;
+  }
+
+  const revistas = [opts.revistaAlunoNome, opts.revistaProfNome]
+    .filter(Boolean)
+    .join(" + ") || "revista digital";
+
+  const credenciaisHtml = opts.isNewUser
+    ? `
+      <div style="background:#fff7ed;border-left:4px solid #f59e0b;padding:16px 20px;margin:20px 0;border-radius:6px;">
+        <h3 style="margin:0 0 12px;color:#92400e;font-size:16px;">Suas credenciais de acesso</h3>
+        <p style="margin:6px 0;font-size:14px;"><strong>Email:</strong> ${opts.email}</p>
+        <p style="margin:6px 0;font-size:14px;"><strong>Senha temporária:</strong> <code style="background:#fff;padding:4px 8px;border-radius:4px;font-family:monospace;">${opts.password}</code></p>
+        <p style="margin:12px 0 0;font-size:13px;color:#92400e;">⚠️ Por segurança, altere esta senha após o primeiro acesso.</p>
+      </div>`
+    : "";
+
+  const html = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head><meta charset="utf-8"><title>Bem-vindo ao Plano Superintendente</title></head>
+<body style="margin:0;padding:0;background:#f4f4f5;font-family:Arial,sans-serif;color:#27272a;">
+  <div style="max-width:600px;margin:0 auto;background:#ffffff;">
+    <div style="background:linear-gradient(135deg,#1e3a8a 0%,#1e40af 100%);padding:32px 24px;text-align:center;">
+      <h1 style="color:#ffffff;margin:0;font-size:24px;">Bem-vindo ao Plano Superintendente</h1>
+      <p style="color:#dbeafe;margin:8px 0 0;font-size:14px;">Editora Central Gospel</p>
+    </div>
+    <div style="padding:32px 24px;">
+      <p style="font-size:16px;margin:0 0 16px;">Olá <strong>${opts.nome}</strong>,</p>
+      <p style="font-size:15px;line-height:1.6;margin:0 0 20px;">
+        Sua compra foi confirmada e seu acesso ao painel do Superintendente já está ativo.
+      </p>
+
+      <div style="background:#f0f9ff;border-left:4px solid #1e40af;padding:16px 20px;margin:20px 0;border-radius:6px;">
+        <h3 style="margin:0 0 8px;color:#1e3a8a;font-size:16px;">Resumo do seu pacote</h3>
+        <p style="margin:6px 0;font-size:14px;line-height:1.5;">
+          Você adquiriu <strong>${opts.qtd} licença${opts.qtd > 1 ? "s" : ""}</strong> da
+          <strong>${revistas}</strong>, válida${opts.qtd > 1 ? "s" : ""} por
+          <strong>${planLabel(opts.plan)}</strong> (até <strong>${formatBR(opts.expiraEm)}</strong>).
+        </p>
+      </div>
+
+      ${credenciaisHtml}
+
+      <div style="text-align:center;margin:32px 0;">
+        <a href="${PAINEL_URL}" style="display:inline-block;background:#1e40af;color:#ffffff;padding:14px 32px;text-decoration:none;border-radius:6px;font-weight:bold;font-size:15px;">Acessar Painel</a>
+      </div>
+
+      <p style="font-size:14px;line-height:1.6;color:#52525b;margin:20px 0 0;">
+        No painel você poderá distribuir as licenças aos seus alunos cadastrando
+        nome, email e WhatsApp de cada um.
+      </p>
+    </div>
+    <div style="background:#fafafa;padding:20px 24px;text-align:center;border-top:1px solid #e4e4e7;">
+      <p style="margin:0;font-size:12px;color:#71717a;">
+        © ${new Date().getFullYear()} Editora Central Gospel — Todos os direitos reservados
+      </p>
+      <p style="margin:6px 0 0;font-size:12px;color:#a1a1aa;">
+        Este é um email automático, por favor não responda.
+      </p>
+    </div>
+  </div>
+</body>
+</html>`;
+
+  const resp = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${RESEND_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from: "Editora Central Gospel <painel@painel.editoracentralgospel.com.br>",
+      to: [opts.to],
+      subject: "Bem-vindo ao Plano Superintendente — Editora Central Gospel",
+      html,
+    }),
+  });
+
+  if (!resp.ok) {
+    const body = await resp.text();
+    throw new Error(`Resend HTTP ${resp.status}: ${body}`);
+  }
+  console.log(`${LOG_PREFIX} email enviado para ${opts.to}`);
+}
+
+async function provisionSuperintendente(
+  supabase: ReturnType<typeof createClient>,
+  payload: any,
+  lojaOrderRowId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const items: any[] = Array.isArray(payload.items) ? payload.items : [];
+    const seItems = items.filter(
+      (it) => it?.via_superintendente === true && it?.is_digital === true,
+    );
+
+    if (seItems.length === 0) {
+      console.log(`${LOG_PREFIX} pedido sem itens SE digitais — nao_aplicavel`);
+      await supabase
+        .from("ebd_loja_pedidos_cg")
+        .update({ provisionamento_status: "nao_aplicavel" })
+        .eq("id", lojaOrderRowId);
+      return { ok: true };
+    }
+
+    const customer = payload.customer ?? {};
+    const email = (customer.email ?? "").trim().toLowerCase();
+    const nome = (customer.name ?? "").trim();
+    const telefone = (customer.phone ?? "").replace(/\D/g, "");
+    const cpfDoc = (customer.document ?? "").replace(/\D/g, "");
+
+    if (!email) throw new Error("customer.email ausente no payload");
+    if (!nome) throw new Error("customer.name ausente no payload");
+
+    // Plan duration
+    const rawPlan = (payload.plan_duration ?? seItems[0]?.plan_duration ?? "trimestral") as string;
+    const plan = ["trimestral", "semestral", "anual"].includes(rawPlan) ? rawPlan : "trimestral";
+    const inicioEm = new Date().toISOString().slice(0, 10);
+    const expiraEm = calcExpiraEm(plan);
+
+    // ─── Find or create superintendente in ebd_clientes ───
+    console.log(`${LOG_PREFIX} buscando ebd_cliente por email=${email}`);
+    let { data: existingCliente } = await supabase
+      .from("ebd_clientes")
+      .select("id, superintendente_user_id, nome_igreja")
+      .eq("email_superintendente", email)
+      .maybeSingle();
+
+    let userId: string | null = existingCliente?.superintendente_user_id ?? null;
+    let clienteId: string | null = existingCliente?.id ?? null;
+    let isNewUser = false;
+    let tempPassword: string | undefined;
+
+    // ─── Find or create auth user ───
+    if (!userId) {
+      // Look up auth user by email via listUsers pagination
+      let foundUser: any = null;
+      let page = 1;
+      while (!foundUser) {
+        const { data: usersPage, error } = await supabase.auth.admin.listUsers({
+          page,
+          perPage: 1000,
+        });
+        if (error) throw error;
+        foundUser = usersPage?.users?.find(
+          (u: any) => u.email?.toLowerCase() === email,
+        );
+        if (foundUser || !usersPage?.users?.length || usersPage.users.length < 1000) break;
+        page++;
+      }
+
+      if (foundUser) {
+        userId = foundUser.id;
+        console.log(`${LOG_PREFIX} auth user já existe: ${userId}`);
+      } else {
+        tempPassword = generatePassword(12);
+        const { data: newUser, error: createErr } = await supabase.auth.admin.createUser({
+          email,
+          password: tempPassword,
+          email_confirm: true,
+          user_metadata: { full_name: nome },
+        });
+        if (createErr) throw new Error(`Erro ao criar auth.user: ${createErr.message}`);
+        userId = newUser.user!.id;
+        isNewUser = true;
+        console.log(`${LOG_PREFIX} auth user criado: ${userId}`);
+
+        // Profile (best-effort)
+        await supabase.from("profiles").upsert(
+          { id: userId, email, full_name: nome },
+          { onConflict: "id" },
+        );
+      }
+    }
+
+    // ─── Upsert ebd_clientes ───
+    if (!clienteId) {
+      const insertData: any = {
+        nome_igreja: nome,
+        nome_superintendente: nome,
+        email_superintendente: email,
+        superintendente_user_id: userId,
+        status_ativacao_ebd: true,
+        tipo_cliente: "Igreja",
+      };
+      if (telefone) insertData.telefone = telefone;
+      if (cpfDoc) insertData.cpf = cpfDoc;
+      if (tempPassword) insertData.senha_temporaria = tempPassword;
+
+      const { data: novoCliente, error: insErr } = await supabase
+        .from("ebd_clientes")
+        .insert(insertData)
+        .select("id")
+        .single();
+      if (insErr) throw new Error(`Erro ao criar ebd_cliente: ${insErr.message}`);
+      clienteId = novoCliente.id;
+      console.log(`${LOG_PREFIX} ebd_cliente criado: ${clienteId}`);
+    } else {
+      const updateData: any = {
+        status_ativacao_ebd: true,
+        superintendente_user_id: userId,
+      };
+      if (tempPassword) updateData.senha_temporaria = tempPassword;
+      await supabase.from("ebd_clientes").update(updateData).eq("id", clienteId);
+      console.log(`${LOG_PREFIX} ebd_cliente reaproveitado: ${clienteId}`);
+    }
+
+    // ─── Resolve SKUs → revista_aluno_id / revista_professor_id ───
+    const skus = [...new Set(seItems.map((it) => String(it.sku ?? "")).filter(Boolean))];
+    let mappingBySku: Record<string, { revista_digital_id: string | null; product_title: string | null }> = {};
+    if (skus.length > 0) {
+      const { data: mappings } = await supabase
+        .from("ebd_produto_revista_mapping")
+        .select("sku, revista_digital_id, product_title")
+        .in("sku", skus);
+      for (const m of mappings ?? []) {
+        if (m.sku) mappingBySku[m.sku] = { revista_digital_id: m.revista_digital_id, product_title: m.product_title };
+      }
+    }
+
+    // ─── Group items: aluno vs professor ───
+    let revistaAlunoId: string | null = null;
+    let revistaProfId: string | null = null;
+    let qtdTotal = 0;
+    let nomeAluno: string | null = null;
+    let nomeProf: string | null = null;
+
+    for (const it of seItems) {
+      const qty = Number(it.quantity ?? 1) || 1;
+      qtdTotal += qty;
+      const map = mappingBySku[String(it.sku ?? "")];
+      const matType = String(it.material_type ?? "aluno").toLowerCase();
+      if (matType === "professor") {
+        if (map?.revista_digital_id) revistaProfId = map.revista_digital_id;
+        if (map?.product_title) nomeProf = map.product_title;
+      } else {
+        if (map?.revista_digital_id) revistaAlunoId = map.revista_digital_id;
+        if (map?.product_title) nomeAluno = map.product_title;
+      }
+    }
+
+    // ─── Resolve pacote_id (find or create) ───
+    let pacoteId: string | null = null;
+    const { data: planoExistente } = await supabase
+      .from("revista_planos")
+      .select("id")
+      .eq("quantidade_licencas", qtdTotal)
+      .eq("ativo", true)
+      .maybeSingle();
+    if (planoExistente) {
+      pacoteId = planoExistente.id;
+    } else {
+      const { data: novoPlano, error: planoErr } = await supabase
+        .from("revista_planos")
+        .insert({
+          nome: `Pacote ${qtdTotal}`,
+          quantidade_licencas: qtdTotal,
+          preco_trimestral: 0,
+          preco_semestral: 0,
+          preco_anual: 0,
+          ativo: true,
+        })
+        .select("id")
+        .single();
+      if (planoErr) console.warn(`${LOG_PREFIX} falha criando plano dinâmico: ${planoErr.message}`);
+      else pacoteId = novoPlano.id;
+    }
+
+    // ─── Idempotent upsert into revista_licencas via loja_order_id ───
+    const lojaOrderUuid = payload.order_id as string;
+    const { data: existingLic } = await supabase
+      .from("revista_licencas")
+      .select("id, quantidade_total")
+      .eq("loja_order_id", lojaOrderUuid)
+      .maybeSingle();
+
+    if (existingLic) {
+      if (existingLic.quantidade_total !== qtdTotal) {
+        await supabase
+          .from("revista_licencas")
+          .update({ quantidade_total: qtdTotal, updated_at: new Date().toISOString() })
+          .eq("id", existingLic.id);
+        console.log(`${LOG_PREFIX} licença existente atualizada (qtd ${existingLic.quantidade_total}→${qtdTotal})`);
+      } else {
+        console.log(`${LOG_PREFIX} licença já existente, idempotente — sem alterações`);
+      }
+    } else {
+      const licInsert: any = {
+        superintendente_id: clienteId,
+        revista_aluno_id: revistaAlunoId,
+        revista_professor_id: revistaProfId,
+        pacote_id: pacoteId,
+        plano: plan,
+        quantidade_total: qtdTotal,
+        quantidade_usada: 0,
+        status: "ativa",
+        inicio_em: inicioEm,
+        expira_em: expiraEm,
+        loja_order_id: lojaOrderUuid,
+        origem: "nova_loja_cg",
+      };
+      const { error: licErr } = await supabase.from("revista_licencas").insert(licInsert);
+      if (licErr) throw new Error(`Erro ao criar revista_licenca: ${licErr.message}`);
+      console.log(`${LOG_PREFIX} licença criada — qtd=${qtdTotal} plano=${plan}`);
+    }
+
+    // ─── Email de boas-vindas ───
+    try {
+      await sendWelcomeEmail({
+        to: email,
+        email,
+        nome,
+        qtd: qtdTotal,
+        revistaAlunoNome: nomeAluno,
+        revistaProfNome: nomeProf,
+        plan,
+        expiraEm,
+        isNewUser,
+        password: tempPassword,
+      });
+    } catch (emailErr) {
+      console.warn(`${LOG_PREFIX} falha enviando email (não bloqueia): ${(emailErr as Error).message}`);
+    }
+
+    // ─── WhatsApp: sem template SE pronto, pula com warning ───
+    console.warn(`${LOG_PREFIX} WhatsApp: nenhum template SE compatível — pulado (será implementado em prompt separado)`);
+
+    await supabase
+      .from("ebd_loja_pedidos_cg")
+      .update({
+        provisionamento_status: "ok",
+        provisionamento_erro: null,
+        cliente_id: clienteId,
+      })
+      .eq("id", lojaOrderRowId);
+
+    console.log(`${LOG_PREFIX} provisionamento concluído com sucesso`);
+    return { ok: true };
+  } catch (err) {
+    const msg = (err as Error).message ?? "erro desconhecido";
+    console.error(`${LOG_PREFIX} ERRO no provisionamento: ${msg}`, err);
+    await supabase
+      .from("ebd_loja_pedidos_cg")
+      .update({
+        provisionamento_status: "erro",
+        provisionamento_erro: msg.slice(0, 1000),
+      })
+      .eq("id", lojaOrderRowId);
+    return { ok: false, error: msg };
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -25,25 +424,10 @@ Deno.serve(async (req) => {
     const expectedSecret = expectedSecretRaw?.trim() ?? "";
     const providedSecret = providedSecretRaw?.trim() ?? "";
 
-    const diagnostics = {
-      received_secret_header_present: providedSecretRaw !== null,
-      received_secret_length: providedSecretRaw?.length ?? 0,
-      configured_secret_present: !!expectedSecretRaw,
-      configured_secret_length: expectedSecretRaw?.length ?? 0,
-      secrets_match:
-        !!expectedSecret && !!providedSecret && expectedSecret === providedSecret,
-      request_origin:
-        req.headers.get("origin") ?? req.headers.get("referer") ?? null,
-    };
-    console.log("receive-order-from-store-cg auth diagnostics:", diagnostics);
-
     if (providedSecretRaw === null) {
       return new Response(
         JSON.stringify({ error: "missing x-webhook-secret header" }),
-        {
-          status: 401,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
@@ -75,10 +459,7 @@ Deno.serve(async (req) => {
     if (!order_id || order_number === undefined || order_number === null) {
       return new Response(
         JSON.stringify({ error: "order_id and order_number are required" }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
@@ -127,18 +508,23 @@ Deno.serve(async (req) => {
 
     if (error) throw error;
 
-    return new Response(JSON.stringify({ success: true, id: data.id }), {
-      status: 200,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    // ─── Provisionamento SE (não bloqueia 200) ───
+    const result = await provisionSuperintendente(supabase, payload, data.id);
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        id: data.id,
+        provisionamento: result.ok ? "ok" : "erro",
+        ...(result.error ? { provisionamento_erro: result.error } : {}),
+      }),
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
   } catch (err) {
     console.error("receive-order-from-store-cg error:", err, (err as Error)?.stack);
     return new Response(
       JSON.stringify({ error: (err as Error).message ?? "Internal error" }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      },
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }
 });
