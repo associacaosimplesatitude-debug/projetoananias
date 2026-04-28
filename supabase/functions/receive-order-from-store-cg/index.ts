@@ -333,7 +333,7 @@ async function provisionSuperintendente(
       };
       const { error: licErr } = await supabase.from("revista_licencas").insert(licInsert);
       if (licErr) throw new Error(`Erro ao criar revista_licenca: ${licErr.message}`);
-      console.log(`${LOG_PREFIX} licença criada — qtd=${qtdTotal} plano=${plan}`);
+      console.log(`${LOG_PREFIX} licença criada — qtd=${qtdTotal} plano=vitalicio`);
     }
 
     // ─── Email de boas-vindas ───
