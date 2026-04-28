@@ -1,0 +1,1 @@
+DELETE FROM revista_licenca_alunos WHERE id = 'cb7232e5-fc9a-4257-9471-02ac5bc0e908';
