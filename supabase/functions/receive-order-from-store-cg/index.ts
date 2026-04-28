@@ -18,34 +18,12 @@ function generatePassword(length = 12): string {
   return out;
 }
 
-function calcExpiraEm(plan: string): string {
-  const today = new Date();
-  let days = 90;
-  if (plan === "semestral") days = 180;
-  else if (plan === "anual") days = 365;
-  const exp = new Date(today.getTime() + days * 24 * 60 * 60 * 1000);
-  return exp.toISOString().slice(0, 10);
-}
-
-function formatBR(dateISO: string): string {
-  const [y, m, d] = dateISO.split("-");
-  return `${d}/${m}/${y}`;
-}
-
-function planLabel(plan: string): string {
-  if (plan === "semestral") return "6 meses";
-  if (plan === "anual") return "1 ano";
-  return "3 meses";
-}
-
 async function sendWelcomeEmail(opts: {
   to: string;
   nome: string;
   qtd: number;
   revistaAlunoNome: string | null;
   revistaProfNome: string | null;
-  plan: string;
-  expiraEm: string;
   isNewUser: boolean;
   password?: string;
   email: string;
@@ -89,8 +67,10 @@ async function sendWelcomeEmail(opts: {
         <h3 style="margin:0 0 8px;color:#1e3a8a;font-size:16px;">Resumo do seu pacote</h3>
         <p style="margin:6px 0;font-size:14px;line-height:1.5;">
           Você adquiriu <strong>${opts.qtd} licença${opts.qtd > 1 ? "s" : ""}</strong> da
-          <strong>${revistas}</strong>, válida${opts.qtd > 1 ? "s" : ""} por
-          <strong>${planLabel(opts.plan)}</strong> (até <strong>${formatBR(opts.expiraEm)}</strong>).
+          <strong>${revistas}</strong>.
+        </p>
+        <p style="margin:10px 0 0;font-size:14px;line-height:1.5;color:#1e3a8a;">
+          <strong>Acesso vitalício às licenças adquiridas</strong> — você e seus alunos terão acesso à revista ${revistas} para sempre, mesmo após o fim do trimestre.
         </p>
       </div>
 
@@ -168,10 +148,7 @@ async function provisionSuperintendente(
     if (!nome) throw new Error("customer.name ausente no payload");
 
     // Plan duration
-    const rawPlan = (payload.plan_duration ?? seItems[0]?.plan_duration ?? "trimestral") as string;
-    const plan = ["trimestral", "semestral", "anual"].includes(rawPlan) ? rawPlan : "trimestral";
     const inicioEm = new Date().toISOString().slice(0, 10);
-    const expiraEm = calcExpiraEm(plan);
 
     // ─── Find or create superintendente in ebd_clientes ───
     console.log(`${LOG_PREFIX} buscando ebd_cliente por email=${email}`);
@@ -308,7 +285,7 @@ async function provisionSuperintendente(
       const { data: novoPlano, error: planoErr } = await supabase
         .from("revista_planos")
         .insert({
-          nome: `Pacote ${qtdTotal}`,
+          nome: `Pacote ${qtdTotal} (vitalicio)`,
           quantidade_licencas: qtdTotal,
           preco_trimestral: 0,
           preco_semestral: 0,
@@ -345,18 +322,18 @@ async function provisionSuperintendente(
         revista_aluno_id: revistaAlunoId,
         revista_professor_id: revistaProfId,
         pacote_id: pacoteId,
-        plano: plan,
+        plano: "vitalicio",
         quantidade_total: qtdTotal,
         quantidade_usada: 0,
         status: "ativa",
         inicio_em: inicioEm,
-        expira_em: expiraEm,
+        expira_em: null,
         loja_order_id: lojaOrderUuid,
         origem: "nova_loja_cg",
       };
       const { error: licErr } = await supabase.from("revista_licencas").insert(licInsert);
       if (licErr) throw new Error(`Erro ao criar revista_licenca: ${licErr.message}`);
-      console.log(`${LOG_PREFIX} licença criada — qtd=${qtdTotal} plano=${plan}`);
+      console.log(`${LOG_PREFIX} licença criada — qtd=${qtdTotal} plano=vitalicio`);
     }
 
     // ─── Email de boas-vindas ───
@@ -368,8 +345,6 @@ async function provisionSuperintendente(
         qtd: qtdTotal,
         revistaAlunoNome: nomeAluno,
         revistaProfNome: nomeProf,
-        plan,
-        expiraEm,
         isNewUser,
         password: tempPassword,
       });

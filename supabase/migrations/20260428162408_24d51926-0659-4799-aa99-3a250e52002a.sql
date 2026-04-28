@@ -1,0 +1,1 @@
+ALTER TABLE public.revista_licencas ALTER COLUMN expira_em DROP NOT NULL;
