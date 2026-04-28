@@ -282,8 +282,8 @@ function SuperintendentTab() {
                     <TableCell className="capitalize">{l.plano}</TableCell>
                     <TableCell>{l.quantidade_usada}/{l.quantidade_total}</TableCell>
                     <TableCell><Badge variant={statusColor(l.status)}>{l.status}</Badge></TableCell>
-                    <TableCell>{format(new Date(l.inicio_em), "dd/MM/yyyy")}</TableCell>
-                    <TableCell>{format(new Date(l.expira_em), "dd/MM/yyyy")}</TableCell>
+                    <TableCell>{l.inicio_em ? format(new Date(l.inicio_em), "dd/MM/yyyy") : "—"}</TableCell>
+                    <TableCell>{l.expira_em ? format(new Date(l.expira_em), "dd/MM/yyyy") : "Vitalício"}</TableCell>
                     <TableCell>{l.revista_aluno?.titulo || "—"}</TableCell>
                     <TableCell>{l.revista_professor?.titulo || "—"}</TableCell>
                   </TableRow>
