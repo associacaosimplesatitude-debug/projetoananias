@@ -162,6 +162,11 @@ import RevistaLeitura from "./pages/revista/RevistaLeitura";
 import LeitorAcesso from "./pages/leitor/LeitorAcesso";
 import LeitorLeitura from "./pages/leitor/LeitorLeitura";
 
+// Portal do Superintendente
+import { SuperintendenteLayout } from "./components/superintendente/SuperintendenteLayout";
+import { RequireSuperintendente } from "./components/superintendente/RequireSuperintendente";
+import SuperintendenteHome from "./pages/superintendente/SuperintendenteHome";
+
 // Aluno Module Pages
 import AlunoHome from "./pages/ebd/aluno/AlunoHome";
 import AlunoTurma from "./pages/ebd/aluno/AlunoTurma";
@@ -295,6 +300,14 @@ const App = () => (
               <Route path="/leitor/acesso" element={<LeitorAcesso />} />
               <Route path="/leitor/leitura" element={<LeitorLeitura />} />
               <Route path="/escolha" element={<EscolhaVersao />} />
+
+              {/* Portal do Superintendente */}
+              <Route element={<RequireSuperintendente />}>
+                <Route path="/superintendente" element={<SuperintendenteLayout />}>
+                  <Route index element={<SuperintendenteHome />} />
+                </Route>
+              </Route>
+
             <Route
               path="/*"
               element={
