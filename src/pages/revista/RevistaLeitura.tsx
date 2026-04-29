@@ -794,9 +794,9 @@ export default function RevistaLeitura() {
             <h1 style={{ fontSize: 24, fontWeight: 700, color: "#1B3A5C", margin: "0 0 8px" }}>
               Lição concluída!
             </h1>
-            <p style={{ color: "#6b7280", fontSize: 16, margin: "0 0 32px" }}>
-              {licaoAberta.titulo || `Lição ${licaoAberta.numero}`}
-            </p>
+              <p style={{ color: "#6b7280", fontSize: 16, margin: "0 0 32px" }}>
+                {getLicaoDisplayTitle(licaoAberta)}
+              </p>
 
             {/* Quiz card or result */}
             {conclusaoQuizRespondido ? (
@@ -832,7 +832,7 @@ export default function RevistaLeitura() {
                 <button
                   onClick={() => {
                     setQuizLicaoId(licaoAberta.id);
-                    setQuizLicaoTitulo(licaoAberta.titulo || `Lição ${licaoAberta.numero}`);
+                    setQuizLicaoTitulo(getLicaoDisplayTitle(licaoAberta));
                     setQuizAberto(true);
                   }}
                   style={{
@@ -942,11 +942,8 @@ export default function RevistaLeitura() {
           style={{ backgroundColor: '#1c1915' }}
         >
           <div className="flex items-center gap-3 min-w-0">
-            <span className="text-sm shrink-0" style={{ color: '#f6ba32', opacity: 0.7 }}>
-              Lição {licaoAberta.numero}
-            </span>
             <span className="font-medium text-sm truncate" style={{ color: '#f6ba32' }}>
-              {licaoAberta.titulo || `Lição ${licaoAberta.numero}`}
+              {getLicaoDisplayTitle(licaoAberta)}
             </span>
           </div>
           <div className="flex items-center gap-1 shrink-0">
