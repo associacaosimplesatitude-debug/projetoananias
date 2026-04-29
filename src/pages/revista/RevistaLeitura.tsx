@@ -67,6 +67,11 @@ interface ProgressoSalvo {
   pagina: number;
 }
 
+const getLicaoDisplayTitle = (licao: Pick<Licao, "titulo" | "numero">) => {
+  const titulo = licao.titulo?.trim();
+  return titulo && titulo.length > 0 ? titulo : `Lição ${licao.numero}`;
+};
+
 function callAdminPublic(action: string, params: Record<string, unknown> = {}) {
   return supabase.functions.invoke("revista-licencas-shopify-admin", {
     body: { action, ...params },
@@ -695,7 +700,7 @@ export default function RevistaLeitura() {
                     fontWeight: '500',
                     borderTop: '1px solid rgba(0,0,0,0.1)'
                   }}>
-                    Lição {licao.numero} — {licao.titulo}
+                    {getLicaoDisplayTitle(licao)}
                   </div>
                   {(licao.paginas || []).map((url: string, i: number) => (
                     <img
@@ -789,9 +794,9 @@ export default function RevistaLeitura() {
             <h1 style={{ fontSize: 24, fontWeight: 700, color: "#1B3A5C", margin: "0 0 8px" }}>
               Lição concluída!
             </h1>
-            <p style={{ color: "#6b7280", fontSize: 16, margin: "0 0 32px" }}>
-              {licaoAberta.titulo || `Lição ${licaoAberta.numero}`}
-            </p>
+              <p style={{ color: "#6b7280", fontSize: 16, margin: "0 0 32px" }}>
+                {getLicaoDisplayTitle(licaoAberta)}
+              </p>
 
             {/* Quiz card or result */}
             {conclusaoQuizRespondido ? (
@@ -827,7 +832,7 @@ export default function RevistaLeitura() {
                 <button
                   onClick={() => {
                     setQuizLicaoId(licaoAberta.id);
-                    setQuizLicaoTitulo(licaoAberta.titulo || `Lição ${licaoAberta.numero}`);
+                    setQuizLicaoTitulo(getLicaoDisplayTitle(licaoAberta));
                     setQuizAberto(true);
                   }}
                   style={{
@@ -937,11 +942,8 @@ export default function RevistaLeitura() {
           style={{ backgroundColor: '#1c1915' }}
         >
           <div className="flex items-center gap-3 min-w-0">
-            <span className="text-sm shrink-0" style={{ color: '#f6ba32', opacity: 0.7 }}>
-              Lição {licaoAberta.numero}
-            </span>
             <span className="font-medium text-sm truncate" style={{ color: '#f6ba32' }}>
-              {licaoAberta.titulo || `Lição ${licaoAberta.numero}`}
+              {getLicaoDisplayTitle(licaoAberta)}
             </span>
           </div>
           <div className="flex items-center gap-1 shrink-0">
@@ -1557,13 +1559,10 @@ export default function RevistaLeitura() {
                       <div style={{ padding: "16px 20px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                         <div>
                           <p style={{ fontSize: 18, fontWeight: 600, margin: 0, color: modoNoturno ? "#fff" : "#111", display: "flex", alignItems: "center", gap: 6 }}>
-                            Lição {licao.numero}
+                            {getLicaoDisplayTitle(licao)}
                             {anotacoesLicaoMap[licao.id] && (
                               <span style={{ fontSize: 14, color: "#FFC107" }} title="Tem anotações">📝</span>
                             )}
-                          </p>
-                          <p style={{ fontSize: 16, margin: "4px 0 0", color: modoNoturno ? "rgba(255,255,255,0.6)" : "#6b7280" }}>
-                            {licao.titulo}
                           </p>
                         </div>
                         <BookOpen style={{ width: 20, height: 20, color: modoNoturno ? "rgba(255,255,255,0.4)" : "#9ca3af" }} />
