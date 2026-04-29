@@ -122,6 +122,28 @@ export default function RevistasDigitais() {
     enabled: !!managingLicoes,
   });
 
+  // Páginas do livro/infográfico em edição (para preview no modal de edição)
+  const isLivroOuInfografico = tipoConteudo === 'livro_digital' || tipoConteudo === 'infografico';
+  const { data: livroPaginas, isLoading: loadingLivroPaginas } = useQuery({
+    queryKey: ["revista-livro-paginas", editingRevista?.id],
+    queryFn: async () => {
+      if (!editingRevista) return [] as string[];
+      const { data, error } = await supabase
+        .from("revista_licoes")
+        .select("paginas")
+        .eq("revista_id", editingRevista.id)
+        .order("numero");
+      if (error) throw error;
+      const all: string[] = [];
+      (data || []).forEach((l: any) => {
+        if (Array.isArray(l.paginas)) all.push(...l.paginas);
+      });
+      return all;
+    },
+    enabled: !!editingRevista && isLivroOuInfografico,
+  });
+  const [showAllPages, setShowAllPages] = useState(false);
+
   // Quiz status per lição
   const { data: quizMap, refetch: refetchQuiz } = useQuery({
     queryKey: ["revista-licao-quiz", managingLicoes?.id],
@@ -1120,49 +1142,149 @@ export default function RevistasDigitais() {
                 )}
               </div>
 
-              {/* Upload de Páginas para Livro Digital / Infográfico */}
-              {(tipoConteudo === 'livro_digital' || tipoConteudo === 'infografico') && editingRevista && (
-                <div className="pt-2 border-t">
-                  <Label className="text-xs">{tipoConteudo === 'infografico' ? 'Páginas do Infográfico' : 'Páginas do Livro'}</Label>
-                  <p className="text-[10px] text-muted-foreground mb-2">
-                    Selecione as imagens das páginas (serão ordenadas pelo nome do arquivo)
-                  </p>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full gap-1 text-xs"
-                    disabled={uploadingPages}
-                    onClick={(e) => { e.stopPropagation(); pagesInputRef.current?.click(); }}
-                  >
-                    {uploadingPages ? <Loader2 className="h-3 w-3 animate-spin" /> : <ImageIcon className="h-3 w-3" />}
-                    {uploadingPages ? `Enviando ${pagesProgress.current} de ${pagesProgress.total}...` : "🖼️ Selecionar Páginas"}
-                  </Button>
-                  <input
-                    ref={pagesInputRef}
-                    type="file"
-                    multiple
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) => {
-                      const files = Array.from(e.target.files || []);
-                      if (files.length === 0) return;
-                      handlePagesUpload(files, editingRevista.id);
-                      e.target.value = "";
-                    }}
-                  />
-                  {uploadingPages && (
-                    <div className="mt-2 space-y-1">
-                      <Progress value={(pagesProgress.current / pagesProgress.total) * 100} className="h-2" />
-                      <p className="text-[10px] text-muted-foreground text-center">
-                        {pagesProgress.current} / {pagesProgress.total}
-                      </p>
+              {/* Páginas do Livro Digital / Infográfico — preview + upload */}
+              {(tipoConteudo === 'livro_digital' || tipoConteudo === 'infografico') && editingRevista && (() => {
+                const totalPaginas = livroPaginas?.length || 0;
+                const temPaginas = totalPaginas > 0;
+                const PREVIEW_LIMIT = 12;
+                const paginasVisiveis = showAllPages ? (livroPaginas || []) : (livroPaginas || []).slice(0, PREVIEW_LIMIT);
+                const restantes = Math.max(0, totalPaginas - PREVIEW_LIMIT);
+                const tituloBloco = tipoConteudo === 'infografico' ? 'Páginas do Infográfico' : 'Páginas do Livro';
+
+                return (
+                  <div className="pt-3 border-t space-y-3">
+                    <Label className="text-xs">{tituloBloco}</Label>
+
+                    {/* Card-resumo visual */}
+                    <div className={`rounded-lg border p-3 flex items-center gap-3 ${
+                      temPaginas ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200'
+                    }`}>
+                      <div className={`h-10 w-10 rounded-md flex items-center justify-center shrink-0 ${
+                        temPaginas ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
+                      }`}>
+                        <FileText className="h-5 w-5" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        {loadingLivroPaginas ? (
+                          <p className="text-sm font-medium text-muted-foreground">Carregando páginas...</p>
+                        ) : (
+                          <>
+                            <p className="text-sm font-semibold">
+                              {temPaginas ? `${totalPaginas} ${totalPaginas === 1 ? 'página cadastrada' : 'páginas cadastradas'}` : 'Nenhuma página cadastrada'}
+                            </p>
+                            <p className="text-[11px] text-muted-foreground">
+                              {temPaginas
+                                ? 'As imagens abaixo são as páginas reais do conteúdo.'
+                                : 'Use o botão abaixo para enviar as imagens das páginas.'}
+                            </p>
+                          </>
+                        )}
+                      </div>
+                      {temPaginas && (
+                        <Badge variant="outline" className="bg-white text-green-700 border-green-300 shrink-0">
+                          {totalPaginas}
+                        </Badge>
+                      )}
                     </div>
-                  )}
-                  {pagesResult && (
-                    <p className="text-[10px] text-green-600 mt-1">✅ {pagesResult}</p>
-                  )}
-                </div>
-              )}
+
+                    {/* Grid de miniaturas */}
+                    {temPaginas && (
+                      <div>
+                        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
+                          {paginasVisiveis.map((url, i) => (
+                            <a
+                              key={`${url}-${i}`}
+                              href={url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="group relative aspect-[3/4] rounded-md overflow-hidden border bg-muted hover:ring-2 hover:ring-primary transition"
+                              title={`Página ${i + 1} — abrir`}
+                            >
+                              <img
+                                src={url}
+                                alt={`Página ${i + 1}`}
+                                loading="lazy"
+                                className="w-full h-full object-cover"
+                              />
+                              <span className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[10px] font-medium text-center py-0.5">
+                                {i + 1}
+                              </span>
+                            </a>
+                          ))}
+                          {!showAllPages && restantes > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => setShowAllPages(true)}
+                              className="aspect-[3/4] rounded-md border-2 border-dashed bg-muted/50 hover:bg-muted flex flex-col items-center justify-center text-xs font-medium text-muted-foreground hover:text-foreground transition"
+                            >
+                              <span className="text-base font-bold">+{restantes}</span>
+                              <span className="text-[10px]">ver todas</span>
+                            </button>
+                          )}
+                        </div>
+                        {showAllPages && totalPaginas > PREVIEW_LIMIT && (
+                          <button
+                            type="button"
+                            onClick={() => setShowAllPages(false)}
+                            className="mt-2 text-[11px] text-primary hover:underline"
+                          >
+                            Mostrar apenas as primeiras {PREVIEW_LIMIT}
+                          </button>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Botão de upload */}
+                    <div>
+                      <p className="text-[10px] text-muted-foreground mb-1">
+                        {temPaginas
+                          ? 'Atenção: ao enviar novas páginas, as atuais serão substituídas.'
+                          : 'Selecione as imagens das páginas (serão ordenadas pelo nome do arquivo).'}
+                      </p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full gap-1 text-xs"
+                        disabled={uploadingPages}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (temPaginas && !confirm(`Isso vai substituir as ${totalPaginas} páginas atuais. Continuar?`)) return;
+                          pagesInputRef.current?.click();
+                        }}
+                      >
+                        {uploadingPages ? <Loader2 className="h-3 w-3 animate-spin" /> : <ImageIcon className="h-3 w-3" />}
+                        {uploadingPages
+                          ? `Enviando ${pagesProgress.current} de ${pagesProgress.total}...`
+                          : temPaginas ? "🔄 Substituir páginas" : "🖼️ Selecionar Páginas"}
+                      </Button>
+                      <input
+                        ref={pagesInputRef}
+                        type="file"
+                        multiple
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const files = Array.from(e.target.files || []);
+                          if (files.length === 0) return;
+                          handlePagesUpload(files, editingRevista.id);
+                          e.target.value = "";
+                        }}
+                      />
+                      {uploadingPages && (
+                        <div className="mt-2 space-y-1">
+                          <Progress value={(pagesProgress.current / pagesProgress.total) * 100} className="h-2" />
+                          <p className="text-[10px] text-muted-foreground text-center">
+                            {pagesProgress.current} / {pagesProgress.total}
+                          </p>
+                        </div>
+                      )}
+                      {pagesResult && (
+                        <p className="text-[10px] text-green-600 mt-1">✅ {pagesResult}</p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           </div>
         </DialogContent>
