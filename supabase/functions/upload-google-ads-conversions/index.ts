@@ -310,14 +310,14 @@ serve(async (req) => {
       for (const r of rowsEc) {
         const email = (r.customer_email || "").trim().toLowerCase();
         const valor = Number(r.valor_total || 0);
-        if (!email || !r.order_date) {
+        if (!email || !r.created_at) {
           semEmail++;
           continue;
         }
         const hashedEmail = await sha256Hex(email);
         conversions.push({
           conversionAction: `customers/${creds.customer_id}/conversionActions/${creds.conversion_action_id}`,
-          conversionDateTime: formatDateTimeSP(r.order_date),
+          conversionDateTime: formatDateTimeSP(r.created_at),
           conversionValue: valor,
           currencyCode: "BRL",
           userIdentifiers: [{ hashedEmail }],
