@@ -831,7 +831,6 @@ export default function RevistasDigitais() {
                         className="h-5 w-5 text-muted-foreground cursor-grab active:cursor-grabbing shrink-0"
                         aria-label="Arrastar para reordenar"
                       />
-                      <Badge className="bg-orange-500 hover:bg-orange-600 text-white">Lição {licao.numero}</Badge>
                       <Badge variant={licao.paginas.length > 0 ? "default" : "secondary"}>
                         {licao.paginas.length > 0 ? `${licao.paginas.length} páginas` : "Sem páginas"}
                       </Badge>
