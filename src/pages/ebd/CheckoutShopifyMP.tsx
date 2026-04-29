@@ -652,12 +652,19 @@ export default function CheckoutShopifyMP() {
         clearCart();
         navigate('/ebd/order-success');
       } else {
-        toast.error('Pagamento não aprovado. Por favor, tente novamente.');
+        toast.error('Pagamento não aprovado. Por favor, tente novamente ou pague via PIX.', {
+          duration: 12000,
+        });
       }
       
     } catch (error) {
       console.error('Erro ao processar cartão:', error);
-      toast.error(error instanceof Error ? error.message : 'Erro ao processar pagamento');
+      const msg = error instanceof Error ? error.message : 'Erro ao processar pagamento';
+      // Mensagem longa e visível com sugestão de fallback PIX para o cliente
+      toast.error(msg, {
+        duration: 15000,
+        description: 'Se o cartão continuar sendo recusado, tente pagar via PIX no topo da tela.',
+      });
     } finally {
       setIsProcessing(false);
     }
