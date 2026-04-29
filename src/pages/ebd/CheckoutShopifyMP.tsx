@@ -710,6 +710,43 @@ export default function CheckoutShopifyMP() {
     );
   }
 
+  // Loader enquanto a proposta carrega — evita renderizar resumo com R$ 0,00
+  if (isPropostaFlow && isLoadingProposta) {
+    return (
+      <div className="container mx-auto p-6">
+        <div className="max-w-md mx-auto text-center py-12">
+          <Loader2 className="h-10 w-10 animate-spin mx-auto mb-4 text-primary" />
+          <h2 className="text-lg font-semibold mb-1">Carregando seu pedido…</h2>
+          <p className="text-sm text-muted-foreground">
+            Estamos buscando os dados da sua proposta. Isso leva poucos segundos.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Se a edge function falhou, mostrar erro com botão de retry — não deixar o cliente
+  // clicar em "Finalizar Pedido" com R$ 0,00 na tela
+  if (isPropostaFlow && checkoutError) {
+    return (
+      <div className="container mx-auto p-6">
+        <div className="max-w-md mx-auto text-center py-12">
+          <AlertCircle className="h-12 w-12 mx-auto mb-4 text-destructive" />
+          <h2 className="text-xl font-bold mb-2">Não conseguimos carregar seu pedido</h2>
+          <p className="text-sm text-muted-foreground mb-6">
+            Pode ter sido uma instabilidade momentânea. Tente novamente em alguns
+            segundos. Se o problema continuar, contate o vendedor que enviou o link.
+          </p>
+          <div className="flex gap-2 justify-center">
+            <Button onClick={() => window.location.reload()}>
+              Tentar novamente
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // Se não há proposta E carrinho está vazio, mostrar mensagem
   const hasItems = propostaToken ? (proposta?.itens?.length > 0) : (cartItems.length > 0);
   
