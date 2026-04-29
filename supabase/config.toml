@@ -365,3 +365,6 @@ verify_jwt = false
 
 [functions.receive-order-from-store-cg]
 verify_jwt = false
+
+[functions.cron-upload-google-ads-conversions]
+verify_jwt = false
