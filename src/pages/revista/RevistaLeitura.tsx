@@ -67,6 +67,11 @@ interface ProgressoSalvo {
   pagina: number;
 }
 
+const getLicaoDisplayTitle = (licao: Pick<Licao, "titulo" | "numero">) => {
+  const titulo = licao.titulo?.trim();
+  return titulo && titulo.length > 0 ? titulo : `Lição ${licao.numero}`;
+};
+
 function callAdminPublic(action: string, params: Record<string, unknown> = {}) {
   return supabase.functions.invoke("revista-licencas-shopify-admin", {
     body: { action, ...params },
@@ -695,7 +700,7 @@ export default function RevistaLeitura() {
                     fontWeight: '500',
                     borderTop: '1px solid rgba(0,0,0,0.1)'
                   }}>
-                    Lição {licao.numero} — {licao.titulo}
+                    {getLicaoDisplayTitle(licao)}
                   </div>
                   {(licao.paginas || []).map((url: string, i: number) => (
                     <img
