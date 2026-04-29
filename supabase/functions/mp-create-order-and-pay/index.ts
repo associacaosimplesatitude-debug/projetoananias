@@ -134,6 +134,33 @@ const createCardErrorResponse = (
   );
 };
 
+// Helper para marcar um pedido como REJEITADO quando o MP recusa o pagamento.
+// Isso evita acumular pedidos órfãos AGUARDANDO_PAGAMENTO sem mercadopago_payment_id.
+async function markPedidoRejected(
+  supabase: ReturnType<typeof createClient>,
+  pedidoId: string,
+  reason: string,
+  requestId: string,
+) {
+  try {
+    const { error } = await supabase
+      .from('ebd_shopify_pedidos_mercadopago')
+      .update({
+        status: 'REJEITADO',
+        payment_status: 'rejected',
+        sync_error: reason.slice(0, 500),
+      })
+      .eq('id', pedidoId);
+    if (error) {
+      console.error(`[${requestId}] Falha ao marcar pedido ${pedidoId} como REJEITADO:`, error);
+    } else {
+      console.log(`[${requestId}] Pedido ${pedidoId} marcado como REJEITADO: ${reason}`);
+    }
+  } catch (e) {
+    console.error(`[${requestId}] Exceção ao marcar pedido como REJEITADO:`, e);
+  }
+}
+
 serve(async (req) => {
   const origin = req.headers.get('Origin');
   const corsHeaders = getCorsHeaders(origin);
