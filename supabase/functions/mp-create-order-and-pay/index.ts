@@ -557,6 +557,7 @@ serve(async (req) => {
           errorMessage = 'Ano de validade invalido.';
         }
         
+        await markPedidoRejected(supabase, pedido.id, `Cartão recusado (token): ${errorMessage}`, requestId);
         return createCardErrorResponse(errorMessage, mpDebug, requestId, corsHeaders);
       }
 
