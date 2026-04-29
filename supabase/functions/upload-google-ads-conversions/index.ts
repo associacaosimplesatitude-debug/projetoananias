@@ -262,7 +262,7 @@ serve(async (req) => {
       const rowsMp = await fetchAllRows(
         supabaseAdmin,
         "ebd_shopify_pedidos_mercadopago",
-        "cliente_email, valor_total, updated_at",
+        "id, cliente_email, valor_total, updated_at, mercadopago_payment_id",
         (q: any) =>
           q
             .eq("status", "PAGO")
@@ -279,11 +279,13 @@ serve(async (req) => {
           continue;
         }
         const hashedEmail = await sha256Hex(email);
+        const orderId = String(r.mercadopago_payment_id || r.id);
         conversions.push({
           conversionAction: `customers/${creds.customer_id}/conversionActions/${creds.conversion_action_id}`,
           conversionDateTime: formatDateTimeSP(r.updated_at),
           conversionValue: valor,
           currencyCode: "BRL",
+          orderId,
           userIdentifiers: [{ hashedEmail }],
         });
         valid++;
@@ -298,7 +300,7 @@ serve(async (req) => {
       const rowsEc = await fetchAllRows(
         supabaseAdmin,
         "ebd_shopify_pedidos",
-        "customer_email, valor_total, created_at",
+        "id, customer_email, valor_total, created_at, shopify_order_id, order_number",
         (q: any) =>
           q
             .eq("status_pagamento", "paid")
@@ -315,11 +317,13 @@ serve(async (req) => {
           continue;
         }
         const hashedEmail = await sha256Hex(email);
+        const orderId = String(r.shopify_order_id || r.order_number || r.id);
         conversions.push({
           conversionAction: `customers/${creds.customer_id}/conversionActions/${creds.conversion_action_id}`,
           conversionDateTime: formatDateTimeSP(r.created_at),
           conversionValue: valor,
           currencyCode: "BRL",
+          orderId,
           userIdentifiers: [{ hashedEmail }],
         });
         valid++;
@@ -350,6 +354,23 @@ serve(async (req) => {
       erros_partial_failure: allErrors.slice(0, 50),
       validate_only: validateOnly,
     };
+
+    // Gravar log de execução
+    try {
+      const triggerSource = req.headers.get("x-trigger-source") || "manual";
+      await supabaseAdmin.from("google_ads_conversion_logs").insert({
+        period_start: start_date,
+        period_end: end_date,
+        canal,
+        enviados: conversions.length,
+        aceitos,
+        erros: allErrors.slice(0, 50),
+        trigger: triggerSource,
+        raw_response: result,
+      });
+    } catch (logErr) {
+      console.error("Falha ao gravar google_ads_conversion_logs:", logErr);
+    }
 
     return new Response(JSON.stringify(result), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
