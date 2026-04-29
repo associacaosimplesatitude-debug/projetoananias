@@ -1395,7 +1395,12 @@ export default function RevistasDigitais() {
 
       {/* Preview de páginas — livro digital / infográfico */}
       <Dialog open={!!previewRevista} onOpenChange={(o) => { if (!o) { setPreviewRevista(null); setLightboxIndex(null); } }}>
-        <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
+        <DialogContent
+          className="max-w-5xl max-h-[90vh] overflow-hidden flex flex-col"
+          onPointerDownOutside={(e) => { if (lightboxIndex !== null) e.preventDefault(); }}
+          onInteractOutside={(e) => { if (lightboxIndex !== null) e.preventDefault(); }}
+          onEscapeKeyDown={(e) => { if (lightboxIndex !== null) e.preventDefault(); }}
+        >
           <DialogHeader>
             <DialogTitle className="flex items-center gap-3">
               {previewRevista?.capa_url && (
