@@ -1377,6 +1377,9 @@ export default function RevistasDigitais() {
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right space-x-1">
+                    {((r as any).tipo_conteudo === 'livro_digital' || (r as any).tipo_conteudo === 'infografico') && (
+                      <Button size="sm" variant="ghost" onClick={() => setPreviewRevista(r)} title="Visualizar páginas"><Eye className="h-4 w-4" /></Button>
+                    )}
                     <Button size="sm" variant="ghost" onClick={() => openEdit(r)} title="Editar"><Pencil className="h-4 w-4" /></Button>
                     {(r as any).tipo_conteudo !== 'livro_digital' && (r as any).tipo_conteudo !== 'infografico' && (
                       <Button size="sm" variant="ghost" onClick={() => setManagingLicoes(r)} title="Gerir Lições"><Image className="h-4 w-4" /></Button>
