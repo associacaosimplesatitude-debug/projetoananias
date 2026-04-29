@@ -1559,13 +1559,10 @@ export default function RevistaLeitura() {
                       <div style={{ padding: "16px 20px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                         <div>
                           <p style={{ fontSize: 18, fontWeight: 600, margin: 0, color: modoNoturno ? "#fff" : "#111", display: "flex", alignItems: "center", gap: 6 }}>
-                            Lição {licao.numero}
+                            {getLicaoDisplayTitle(licao)}
                             {anotacoesLicaoMap[licao.id] && (
                               <span style={{ fontSize: 14, color: "#FFC107" }} title="Tem anotações">📝</span>
                             )}
-                          </p>
-                          <p style={{ fontSize: 16, margin: "4px 0 0", color: modoNoturno ? "rgba(255,255,255,0.6)" : "#6b7280" }}>
-                            {licao.titulo}
                           </p>
                         </div>
                         <BookOpen style={{ width: 20, height: 20, color: modoNoturno ? "rgba(255,255,255,0.4)" : "#9ca3af" }} />
