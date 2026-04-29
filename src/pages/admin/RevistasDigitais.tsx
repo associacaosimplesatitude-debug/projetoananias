@@ -824,32 +824,54 @@ export default function RevistasDigitais() {
               } ${dragOverLicaoId === licao.id ? "ring-2 ring-primary" : ""}`}
             >
               <CardContent className="p-4">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1 space-y-3">
-                    <div className="flex items-center gap-2">
-                      <GripVertical
-                        className="h-5 w-5 text-muted-foreground cursor-grab active:cursor-grabbing shrink-0"
-                        aria-label="Arrastar para reordenar"
-                      />
-                      <Badge variant={licao.paginas.length > 0 ? "default" : "secondary"}>
-                        {licao.paginas.length > 0 ? `${licao.paginas.length} páginas` : "Sem páginas"}
-                      </Badge>
-                      {reorderingLicoes && (
-                        <span className="text-xs text-muted-foreground inline-flex items-center gap-1">
-                          <Loader2 className="h-3 w-3 animate-spin" /> Reordenando...
-                        </span>
-                      )}
-                    </div>
-                    <Input
-                      defaultValue={licao.titulo || ""}
-                      onBlur={(e) => {
-                        if (e.target.value !== licao.titulo) {
-                          updateLicaoMutation.mutate({ id: licao.id, titulo: e.target.value });
-                        }
-                      }}
-                      placeholder="Título da lição"
-                      className="font-medium"
-                    />
+                 <div className="flex items-start justify-between gap-4">
+                   <div className="flex-1 space-y-3">
+                     <div className="flex items-center gap-2">
+                       <GripVertical
+                         className="h-5 w-5 text-muted-foreground cursor-grab active:cursor-grabbing shrink-0"
+                         aria-label="Arrastar para reordenar"
+                       />
+                       <Badge variant={licao.paginas.length > 0 ? "default" : "secondary"}>
+                         {licao.paginas.length > 0 ? `${licao.paginas.length} páginas` : "Sem páginas"}
+                       </Badge>
+                       {reorderingLicoes && (
+                         <span className="text-xs text-muted-foreground inline-flex items-center gap-1">
+                           <Loader2 className="h-3 w-3 animate-spin" /> Reordenando...
+                         </span>
+                       )}
+                     </div>
+                     <div className="flex items-center gap-3">
+                       {licao.paginas.length > 0 ? (
+                         <a
+                           href={licao.paginas[0]}
+                           target="_blank"
+                           rel="noopener noreferrer"
+                           className="shrink-0 block"
+                           title="Abrir primeira página"
+                         >
+                           <img
+                             src={licao.paginas[0]}
+                             alt={`Pré-visualização de ${licao.titulo || "lição"}`}
+                             className="h-16 w-12 object-cover rounded border bg-muted"
+                             loading="lazy"
+                           />
+                         </a>
+                       ) : (
+                         <div className="h-16 w-12 rounded border border-dashed bg-muted flex items-center justify-center shrink-0">
+                           <ImageIcon className="h-5 w-5 text-muted-foreground" />
+                         </div>
+                       )}
+                       <Input
+                         defaultValue={licao.titulo || ""}
+                         onBlur={(e) => {
+                           if (e.target.value !== licao.titulo) {
+                             updateLicaoMutation.mutate({ id: licao.id, titulo: e.target.value });
+                           }
+                         }}
+                         placeholder="Título da lição"
+                         className="font-medium"
+                       />
+                     </div>
 
                     {/* Thumbnails das páginas com reordenação */}
                     {licao.paginas.length > 0 && (
