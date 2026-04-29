@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
-import { ArrowLeft, CreditCard, QrCode, MapPin, Check, Edit, Loader2, ShoppingCart, Truck, FileText, Copy, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, CreditCard, QrCode, MapPin, Check, Edit, Loader2, ShoppingCart, Truck, FileText, Copy, AlertTriangle, AlertCircle } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -652,12 +652,19 @@ export default function CheckoutShopifyMP() {
         clearCart();
         navigate('/ebd/order-success');
       } else {
-        toast.error('Pagamento não aprovado. Por favor, tente novamente.');
+        toast.error('Pagamento não aprovado. Por favor, tente novamente ou pague via PIX.', {
+          duration: 12000,
+        });
       }
       
     } catch (error) {
       console.error('Erro ao processar cartão:', error);
-      toast.error(error instanceof Error ? error.message : 'Erro ao processar pagamento');
+      const msg = error instanceof Error ? error.message : 'Erro ao processar pagamento';
+      // Mensagem longa e visível com sugestão de fallback PIX para o cliente
+      toast.error(msg, {
+        duration: 15000,
+        description: 'Se o cartão continuar sendo recusado, tente pagar via PIX no topo da tela.',
+      });
     } finally {
       setIsProcessing(false);
     }
@@ -706,6 +713,43 @@ export default function CheckoutShopifyMP() {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
+
+  // Loader enquanto a proposta carrega — evita renderizar resumo com R$ 0,00
+  if (isPropostaFlow && isLoadingProposta) {
+    return (
+      <div className="container mx-auto p-6">
+        <div className="max-w-md mx-auto text-center py-12">
+          <Loader2 className="h-10 w-10 animate-spin mx-auto mb-4 text-primary" />
+          <h2 className="text-lg font-semibold mb-1">Carregando seu pedido…</h2>
+          <p className="text-sm text-muted-foreground">
+            Estamos buscando os dados da sua proposta. Isso leva poucos segundos.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Se a edge function falhou, mostrar erro com botão de retry — não deixar o cliente
+  // clicar em "Finalizar Pedido" com R$ 0,00 na tela
+  if (isPropostaFlow && checkoutError) {
+    return (
+      <div className="container mx-auto p-6">
+        <div className="max-w-md mx-auto text-center py-12">
+          <AlertCircle className="h-12 w-12 mx-auto mb-4 text-destructive" />
+          <h2 className="text-xl font-bold mb-2">Não conseguimos carregar seu pedido</h2>
+          <p className="text-sm text-muted-foreground mb-6">
+            Pode ter sido uma instabilidade momentânea. Tente novamente em alguns
+            segundos. Se o problema continuar, contate o vendedor que enviou o link.
+          </p>
+          <div className="flex gap-2 justify-center">
+            <Button onClick={() => window.location.reload()}>
+              Tentar novamente
+            </Button>
+          </div>
+        </div>
       </div>
     );
   }
@@ -1323,11 +1367,20 @@ export default function CheckoutShopifyMP() {
                       <span className="text-primary">R$ {total.toFixed(2)}</span>
                     </div>
                     
+                    {subtotal <= 0 && (
+                      <div className="rounded-md bg-amber-50 border border-amber-200 p-3 text-xs text-amber-800 flex items-start gap-2">
+                        <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                        <span>
+                          Aguardando o carregamento do valor do pedido. Se persistir,
+                          recarregue a página ou contate o vendedor.
+                        </span>
+                      </div>
+                    )}
                     <Button
                       type="submit"
                       className="w-full"
                       size="lg"
-                      disabled={isProcessing || isCalculatingShipping}
+                      disabled={isProcessing || isCalculatingShipping || subtotal <= 0 || checkoutItems.length === 0}
                     >
                       {isProcessing ? (
                         <>

@@ -134,6 +134,33 @@ const createCardErrorResponse = (
   );
 };
 
+// Helper para marcar um pedido como REJEITADO quando o MP recusa o pagamento.
+// Isso evita acumular pedidos órfãos AGUARDANDO_PAGAMENTO sem mercadopago_payment_id.
+async function markPedidoRejected(
+  supabase: ReturnType<typeof createClient>,
+  pedidoId: string,
+  reason: string,
+  requestId: string,
+) {
+  try {
+    const { error } = await supabase
+      .from('ebd_shopify_pedidos_mercadopago')
+      .update({
+        status: 'REJEITADO',
+        payment_status: 'rejected',
+        sync_error: reason.slice(0, 500),
+      })
+      .eq('id', pedidoId);
+    if (error) {
+      console.error(`[${requestId}] Falha ao marcar pedido ${pedidoId} como REJEITADO:`, error);
+    } else {
+      console.log(`[${requestId}] Pedido ${pedidoId} marcado como REJEITADO: ${reason}`);
+    }
+  } catch (e) {
+    console.error(`[${requestId}] Exceção ao marcar pedido como REJEITADO:`, e);
+  }
+}
+
 serve(async (req) => {
   const origin = req.headers.get('Origin');
   const corsHeaders = getCorsHeaders(origin);
@@ -408,6 +435,7 @@ serve(async (req) => {
 
       if (!ok) {
         console.error(`[${requestId}] Erro Mercado Pago PIX:`, status, data);
+        await markPedidoRejected(supabase, pedido.id, `PIX recusado: ${data?.message || status}`, requestId);
         throw new Error(`Erro ao criar pagamento PIX: ${data?.message || status}`);
       }
 
@@ -433,6 +461,7 @@ serve(async (req) => {
 
       if (!ok) {
         console.error(`[${requestId}] Erro Mercado Pago Boleto:`, status, data);
+        await markPedidoRejected(supabase, pedido.id, `Boleto recusado: ${data?.message || status}`, requestId);
         throw new Error(`Erro ao criar boleto: ${data?.message || status}`);
       }
 
@@ -528,6 +557,7 @@ serve(async (req) => {
           errorMessage = 'Ano de validade invalido.';
         }
         
+        await markPedidoRejected(supabase, pedido.id, `Cartão recusado (token): ${errorMessage}`, requestId);
         return createCardErrorResponse(errorMessage, mpDebug, requestId, corsHeaders);
       }
 
@@ -609,6 +639,7 @@ serve(async (req) => {
           } else {
             mpDebug.error_reason = 'payment_method_not_found';
             console.log(`[${requestId}] ERRO: Nao foi possivel identificar bandeira do cartao (BIN: ${tokenBin})`);
+            await markPedidoRejected(supabase, pedido.id, 'Cartão recusado: bandeira não identificada', requestId);
             return createCardErrorResponse(
               'Não foi possível identificar a bandeira do cartão. Verifique o número.',
               mpDebug,
@@ -696,6 +727,7 @@ serve(async (req) => {
             responseData.message || 'Erro ao processar pagamento.');
         }
         
+        await markPedidoRejected(supabase, pedido.id, `Cartão recusado: ${responseData.status_detail || friendlyMessage}`, requestId);
         return createCardErrorResponse(friendlyMessage, mpDebug, requestId, corsHeaders);
       }
 
