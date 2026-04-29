@@ -639,6 +639,7 @@ serve(async (req) => {
           } else {
             mpDebug.error_reason = 'payment_method_not_found';
             console.log(`[${requestId}] ERRO: Nao foi possivel identificar bandeira do cartao (BIN: ${tokenBin})`);
+            await markPedidoRejected(supabase, pedido.id, 'Cartão recusado: bandeira não identificada', requestId);
             return createCardErrorResponse(
               'Não foi possível identificar a bandeira do cartão. Verifique o número.',
               mpDebug,
