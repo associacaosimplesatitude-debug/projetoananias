@@ -1360,11 +1360,20 @@ export default function CheckoutShopifyMP() {
                       <span className="text-primary">R$ {total.toFixed(2)}</span>
                     </div>
                     
+                    {subtotal <= 0 && (
+                      <div className="rounded-md bg-amber-50 border border-amber-200 p-3 text-xs text-amber-800 flex items-start gap-2">
+                        <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                        <span>
+                          Aguardando o carregamento do valor do pedido. Se persistir,
+                          recarregue a página ou contate o vendedor.
+                        </span>
+                      </div>
+                    )}
                     <Button
                       type="submit"
                       className="w-full"
                       size="lg"
-                      disabled={isProcessing || isCalculatingShipping}
+                      disabled={isProcessing || isCalculatingShipping || subtotal <= 0 || checkoutItems.length === 0}
                     >
                       {isProcessing ? (
                         <>
