@@ -435,6 +435,7 @@ serve(async (req) => {
 
       if (!ok) {
         console.error(`[${requestId}] Erro Mercado Pago PIX:`, status, data);
+        await markPedidoRejected(supabase, pedido.id, `PIX recusado: ${data?.message || status}`, requestId);
         throw new Error(`Erro ao criar pagamento PIX: ${data?.message || status}`);
       }
 
