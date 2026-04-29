@@ -1,77 +1,41 @@
 ## Diagnóstico
 
-Analisei a proposta do Genilton Amâncio Tavares (token `8d9f2953-...` e anteriores) e o que acontece é o seguinte.
+Investiguei o código atual de `src/pages/admin/RevistasDigitais.tsx` e o badge laranja "Lição {numero}" **já foi removido** em commit anterior (`cf63e955`). O código atual (linhas 829–842) renderiza apenas:
 
-### 1. Os dados estão CORRETOS no banco e no backend ✅
+- Ícone de arrastar (GripVertical)
+- Badge "5 páginas" / "Sem páginas" (variante padrão do tema, que pode aparecer com tom escuro/dourado)
+- Indicador "Reordenando..." quando aplicável
 
-Banco (`vendedor_propostas`):
-- `valor_produtos = R$ 348,00`
-- `desconto_percentual = 15%`
-- `valor_total = R$ 295,80`
-- `itens` contém os 2 produtos com `quantity: 20` e `quantity: 8`
+Não existe mais nenhum `<Badge>Lição {licao.numero}</Badge>` no arquivo.
 
-Testei a edge function `mp-checkout-init` chamando direto e ela retorna a resposta certa (valores e array de itens corretos). Ou seja, **o problema não é falta de dado** — o servidor está respondendo corretamente.
+A imagem enviada provavelmente reflete um **cache do navegador / Service Worker** com a versão antiga (há um erro de Service Worker registrado: redirect bloqueado em `/sw.js`, o que impede a atualização do bundle).
 
-### 2. Os 6 pedidos do Genilton ESTÃO sendo criados, mas o pagamento é recusado pelo Mercado Pago ❌
+## Plano de ação
 
-Tabela `ebd_shopify_pedidos_mercadopago` mostra **6 tentativas hoje** todas com:
-- `valor_total = R$ 295,80` (valor correto, recalculado pelo backend)
-- `payment_method = card`
-- `status = AGUARDANDO_PAGAMENTO`
-- `payment_status = pending`
-- `mercadopago_payment_id = vazio` (MP nunca devolveu ID de pagamento)
+### 1. Auditoria final do código (garantia)
+Rodar busca em todo `src/` por qualquer ocorrência remanescente de badge "Lição N" com classe laranja em telas administrativas e em componentes filhos do fluxo `/admin/ebd/revistas-digitais`. Se encontrar, remover mantendo apenas o título da lição (input).
 
-Isso significa que a edge function `mp-create-order-and-pay`:
-1. Recebe o request do cliente
-2. Cria o pedido local com o valor correto
-3. Chama o Mercado Pago
-4. Mercado Pago **rejeita** o cartão (provavelmente `cc_rejected_high_risk` por antifraude depois de várias tentativas, `cc_rejected_other_reason` ou cartão sem limite/inválido)
-5. A função devolve um erro amigável, mas o pedido fica órfão na tabela
+### 2. Forçar invalidação do Service Worker / cache do PWA
+O console mostra:
+```
+Failed to update a ServiceWorker ... script resource is behind a redirect
+```
+Isso significa que o navegador continua servindo a versão antiga da página administrativa.
 
-Como nós não vemos isso em teste é simples: o cartão de teste não cai em antifraude. O cartão real do Genilton está sendo barrado pela operadora ou pelo antifraude do Mercado Pago.
+Ações:
+- Inspecionar `public/sw.js` e o registro do Service Worker em `index.html` / `main.tsx`.
+- Garantir que rotas administrativas (`/admin/*`) **não** sejam interceptadas pelo SW (já é boa prática — só PWA do leitor deve ser cacheada).
+- Adicionar `self.skipWaiting()` + `clients.claim()` no SW e bumpar a versão para forçar atualização imediata em todos os clients.
 
-### 3. Por que o cliente vê R$ 0,00 nos prints
+### 3. Comunicar ao usuário
+Após o deploy, instruir um hard refresh (Ctrl+Shift+R) ou desinstalar o SW pelas DevTools para validar que a tag "Lição 4" laranja sumiu.
 
-Como a página renderiza a tela antes do `checkoutData` chegar (e a query usa o token via edge function), durante o carregamento `proposta` fica `null` e `checkoutItems.length` = 0, `subtotal` = 0. Se a chamada à edge function falha por qualquer motivo transitório (rede do cliente, JWT expirado no `auth/getUser`, ou timeout), a tela permanece em "R$ 0,00" mas mostra os itens da proposta (esses vêm de outro fluxo de cache do React Query).
+## Resultado esperado
 
-Não há tratamento visível de erro: hoje o `useQuery` falha em silêncio. O cliente clica em "Finalizar Pedido" mesmo com R$ 0 e a função `mp-create-order-and-pay` recalcula o valor real (R$ 295,80) no servidor e tenta cobrar. Por isso vemos pedidos de R$ 295,80 sendo criados mesmo o cliente vendo R$ 0.
+No card de cada lição em `/admin/ebd/revistas-digitais` ao gerenciar lições, restará apenas:
+- Ícone de arrastar
+- Badge "N páginas"
+- Miniatura da primeira página
+- Input com o título escrito (ex.: "Lição 02 – A Graça Salvadora e Seus Efeitos — Efésios 2–3")
 
-## Plano de correção
-
-### Passo 1 — Mostrar erro/loader claro quando o checkout não conseguir carregar
-Em `src/pages/ebd/CheckoutShopifyMP.tsx`:
-- Mostrar um loader enquanto `isLoadingCheckout` for verdadeiro, em vez de já renderizar o resumo com R$ 0,00.
-- Se `checkoutError` ocorrer, exibir uma tela de erro com botão "Tentar novamente" em vez de deixar o cliente clicar em Finalizar com valores zerados.
-- Desabilitar o botão "Finalizar Pedido" quando `subtotal <= 0` ou `checkoutItems.length === 0`, com tooltip "Aguardando carregamento do pedido…".
-
-### Passo 2 — Logar e expor o motivo da recusa do Mercado Pago para o cliente
-Hoje a função já mapeia `status_detail` para mensagens amigáveis (`cc_rejected_high_risk`, etc.), mas o cliente provavelmente está vendo só "Erro ao processar pagamento" porque o catch genérico no front engole o detalhe.
-
-Em `processCardPayment` (CheckoutShopifyMP.tsx), exibir a mensagem retornada por `result.error` em um toast de longa duração e também num bloco persistente abaixo do formulário, para que o cliente saiba o motivo (ex.: "Cartão recusado pelo antifraude — tente outro cartão ou pague via PIX").
-
-### Passo 3 — Limpar pedidos órfãos automaticamente
-Hoje, cada clique em Finalizar gera um pedido `AGUARDANDO_PAGAMENTO` sem `mercadopago_payment_id` que nunca será pago — poluindo o admin e contando errado em relatórios.
-
-Opções (escolher uma na hora de implementar):
-- **A)** Só inserir o pedido em `ebd_shopify_pedidos_mercadopago` **depois** do MP devolver `payment_id` ✅ (corrigir de verdade)
-- **B)** Manter ordem atual, mas no catch de rejeição, deletar o pedido recém-criado (ou marcá-lo `status = REJEITADO`)
-- Recomendo **A** — apenas reordenar a função: criar pedido após sucesso da chamada MP.
-
-### Passo 4 — Fazer um cleanup dos 6 pedidos órfãos do Genilton
-Atualizar os 6 pedidos do Genilton sem `mercadopago_payment_id` (criados hoje) para `status = REJEITADO` ou apagá-los, para não atrapalhar relatórios de retenção/comissão.
-
-### Passo 5 — Sugerir ao Genilton pagar via PIX
-A causa raiz é o cartão dele. Vendo o histórico, **PIX está funcionando 100%** para outros clientes hoje (vários `f7977e10-...`, `722a3cfc-...`, `8a660998-...` aprovados). Recomendar ao vendedor que a Elaine peça ao Genilton para finalizar via PIX em vez de cartão.
-
-## Arquivos que serão tocados
-
-- `src/pages/ebd/CheckoutShopifyMP.tsx` — loader/erro robustos, desabilitar botão se valor zero, melhorar exibição de erro de cartão
-- `supabase/functions/mp-create-order-and-pay/index.ts` — reordenar fluxo para criar pedido só após pagamento aceito (Passo 3A)
-- Migration / SQL pontual — limpar os 6 pedidos órfãos do Genilton (Passo 4)
-
-## O que NÃO vou mexer
-
-- Lógica de cálculo de subtotal/desconto (está correta, validei contra o banco)
-- `mp-checkout-init` (testei, retorna dados corretos)
-- Schema das tabelas
-- Fluxo de aprovação da proposta em `PropostaDigital.tsx`
+Sem qualquer pílula laranja "Lição {numero}".
