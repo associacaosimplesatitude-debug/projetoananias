@@ -73,6 +73,9 @@ export default function RevistasDigitais() {
 
   // Drag state for lesson pages
   const [draggingPageIdx, setDraggingPageIdx] = useState<{ licaoId: string; idx: number } | null>(null);
+  const [draggingLicaoId, setDraggingLicaoId] = useState<string | null>(null);
+  const [dragOverLicaoId, setDragOverLicaoId] = useState<string | null>(null);
+  const [reorderingLicoes, setReorderingLicoes] = useState(false);
   const [uploadingPdf, setUploadingPdf] = useState<string | null>(null);
   const [generatingQuiz, setGeneratingQuiz] = useState<string | null>(null);
   const [extractingRefs, setExtractingRefs] = useState<string | null>(null);
@@ -637,7 +640,47 @@ export default function RevistasDigitais() {
     queryClient.invalidateQueries({ queryKey: ["revista-licoes"] });
   };
 
-  // Add lição mutation
+  const reorderLicoes = async (fromId: string, toId: string) => {
+    if (!licoes || !managingLicoes || fromId === toId) return;
+    const fromIdx = licoes.findIndex(l => l.id === fromId);
+    const toIdx = licoes.findIndex(l => l.id === toId);
+    if (fromIdx === -1 || toIdx === -1) return;
+
+    const newList = [...licoes];
+    const [moved] = newList.splice(fromIdx, 1);
+    newList.splice(toIdx, 0, moved);
+
+    // Optimistic UI
+    const renumbered = newList.map((l, i) => ({ ...l, numero: i + 1 }));
+    queryClient.setQueryData(["revista-licoes", managingLicoes.id], renumbered);
+
+    setReorderingLicoes(true);
+    try {
+      // Two-phase to avoid (revista_id, numero) unique conflicts:
+      // 1) move all rows to negative temp numeros
+      for (let i = 0; i < licoes.length; i++) {
+        const { error } = await supabase
+          .from("revista_licoes")
+          .update({ numero: -(i + 1) })
+          .eq("id", licoes[i].id);
+        if (error) throw error;
+      }
+      // 2) apply final numeros (1..N) following new order
+      for (let i = 0; i < renumbered.length; i++) {
+        const { error } = await supabase
+          .from("revista_licoes")
+          .update({ numero: i + 1 })
+          .eq("id", renumbered[i].id);
+        if (error) throw error;
+      }
+      toast.success("Ordem das lições atualizada");
+    } catch (e: any) {
+      toast.error(e?.message || "Erro ao reordenar lições");
+    } finally {
+      setReorderingLicoes(false);
+      queryClient.invalidateQueries({ queryKey: ["revista-licoes", managingLicoes.id] });
+    }
+  };
   const addLicaoMutation = useMutation({
     mutationFn: async () => {
       if (!managingLicoes) return;
@@ -748,15 +791,55 @@ export default function RevistasDigitais() {
 
         <div className="space-y-4">
           {licoes?.map((licao) => (
-            <Card key={licao.id} className="overflow-hidden">
+            <Card
+              key={licao.id}
+              draggable={!reorderingLicoes}
+              onDragStart={(e) => {
+                setDraggingLicaoId(licao.id);
+                e.dataTransfer.effectAllowed = "move";
+              }}
+              onDragOver={(e) => {
+                if (!draggingLicaoId || draggingLicaoId === licao.id) return;
+                e.preventDefault();
+                e.dataTransfer.dropEffect = "move";
+                if (dragOverLicaoId !== licao.id) setDragOverLicaoId(licao.id);
+              }}
+              onDragLeave={() => {
+                if (dragOverLicaoId === licao.id) setDragOverLicaoId(null);
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                if (draggingLicaoId && draggingLicaoId !== licao.id) {
+                  reorderLicoes(draggingLicaoId, licao.id);
+                }
+                setDraggingLicaoId(null);
+                setDragOverLicaoId(null);
+              }}
+              onDragEnd={() => {
+                setDraggingLicaoId(null);
+                setDragOverLicaoId(null);
+              }}
+              className={`overflow-hidden transition-all ${
+                draggingLicaoId === licao.id ? "opacity-50" : ""
+              } ${dragOverLicaoId === licao.id ? "ring-2 ring-primary" : ""}`}
+            >
               <CardContent className="p-4">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 space-y-3">
                     <div className="flex items-center gap-2">
+                      <GripVertical
+                        className="h-5 w-5 text-muted-foreground cursor-grab active:cursor-grabbing shrink-0"
+                        aria-label="Arrastar para reordenar"
+                      />
                       <Badge className="bg-orange-500 hover:bg-orange-600 text-white">Lição {licao.numero}</Badge>
                       <Badge variant={licao.paginas.length > 0 ? "default" : "secondary"}>
                         {licao.paginas.length > 0 ? `${licao.paginas.length} páginas` : "Sem páginas"}
                       </Badge>
+                      {reorderingLicoes && (
+                        <span className="text-xs text-muted-foreground inline-flex items-center gap-1">
+                          <Loader2 className="h-3 w-3 animate-spin" /> Reordenando...
+                        </span>
+                      )}
                     </div>
                     <Input
                       defaultValue={licao.titulo || ""}
