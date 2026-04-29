@@ -298,26 +298,26 @@ serve(async (req) => {
       const rowsEc = await fetchAllRows(
         supabaseAdmin,
         "ebd_shopify_pedidos",
-        "customer_email, valor_total, order_date",
+        "customer_email, valor_total, created_at",
         (q: any) =>
           q
             .eq("status_pagamento", "paid")
-            .gte("order_date", `${start_date}T00:00:00`)
-            .lt("order_date", `${endExclusive}T00:00:00`),
+            .gte("created_at", `${start_date}T00:00:00`)
+            .lt("created_at", `${endExclusive}T00:00:00`),
       );
       let semEmail = 0;
       let valid = 0;
       for (const r of rowsEc) {
         const email = (r.customer_email || "").trim().toLowerCase();
         const valor = Number(r.valor_total || 0);
-        if (!email || !r.order_date) {
+        if (!email || !r.created_at) {
           semEmail++;
           continue;
         }
         const hashedEmail = await sha256Hex(email);
         conversions.push({
           conversionAction: `customers/${creds.customer_id}/conversionActions/${creds.conversion_action_id}`,
-          conversionDateTime: formatDateTimeSP(r.order_date),
+          conversionDateTime: formatDateTimeSP(r.created_at),
           conversionValue: valor,
           currencyCode: "BRL",
           userIdentifiers: [{ hashedEmail }],
