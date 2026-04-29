@@ -727,6 +727,7 @@ serve(async (req) => {
             responseData.message || 'Erro ao processar pagamento.');
         }
         
+        await markPedidoRejected(supabase, pedido.id, `Cartão recusado: ${responseData.status_detail || friendlyMessage}`, requestId);
         return createCardErrorResponse(friendlyMessage, mpDebug, requestId, corsHeaders);
       }
 
