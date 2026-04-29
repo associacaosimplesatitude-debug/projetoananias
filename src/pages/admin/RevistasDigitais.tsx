@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useMemo } from "react";
+import { useState, useCallback, useRef, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Plus, BookOpen, Pencil, Image, Trash2, Upload, Eye, Save, ArrowLeft, GripVertical, ImagePlus, FileText, Loader2, ImageIcon, Bot, CheckCircle, PencilLine } from "lucide-react";
+import { Plus, BookOpen, Pencil, Image, Trash2, Upload, Eye, Save, ArrowLeft, GripVertical, ImagePlus, FileText, Loader2, ImageIcon, Bot, CheckCircle, PencilLine, ChevronLeft, ChevronRight, X } from "lucide-react";
 import QuizEditor from "@/components/revista/QuizEditor";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
@@ -143,6 +143,41 @@ export default function RevistasDigitais() {
     enabled: !!editingRevista && isLivroOuInfografico,
   });
   const [showAllPages, setShowAllPages] = useState(false);
+
+  // Preview de páginas (livro/infográfico) — modal só de visualização
+  const [previewRevista, setPreviewRevista] = useState<Revista | null>(null);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const { data: previewPaginas = [], isLoading: previewLoading } = useQuery({
+    queryKey: ["revista-preview-paginas", previewRevista?.id],
+    queryFn: async () => {
+      if (!previewRevista) return [] as string[];
+      const { data, error } = await supabase
+        .from("revista_licoes")
+        .select("paginas")
+        .eq("revista_id", previewRevista.id)
+        .order("numero");
+      if (error) throw error;
+      const all: string[] = [];
+      (data || []).forEach((l: any) => {
+        if (Array.isArray(l.paginas)) all.push(...l.paginas);
+      });
+      return all;
+    },
+    enabled: !!previewRevista,
+  });
+
+  useEffect(() => {
+    if (lightboxIndex === null) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setLightboxIndex(null);
+      else if (e.key === "ArrowLeft") setLightboxIndex((i) => (i !== null && i > 0 ? i - 1 : i));
+      else if (e.key === "ArrowRight")
+        setLightboxIndex((i) => (i !== null && i < previewPaginas.length - 1 ? i + 1 : i));
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [lightboxIndex, previewPaginas.length]);
+
 
   // Quiz status per lição
   const { data: quizMap, refetch: refetchQuiz } = useQuery({
@@ -1342,6 +1377,9 @@ export default function RevistasDigitais() {
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right space-x-1">
+                    {((r as any).tipo_conteudo === 'livro_digital' || (r as any).tipo_conteudo === 'infografico') && (
+                      <Button size="sm" variant="ghost" onClick={() => setPreviewRevista(r)} title="Visualizar páginas"><Eye className="h-4 w-4" /></Button>
+                    )}
                     <Button size="sm" variant="ghost" onClick={() => openEdit(r)} title="Editar"><Pencil className="h-4 w-4" /></Button>
                     {(r as any).tipo_conteudo !== 'livro_digital' && (r as any).tipo_conteudo !== 'infografico' && (
                       <Button size="sm" variant="ghost" onClick={() => setManagingLicoes(r)} title="Gerir Lições"><Image className="h-4 w-4" /></Button>
@@ -1354,6 +1392,109 @@ export default function RevistasDigitais() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Preview de páginas — livro digital / infográfico */}
+      <Dialog open={!!previewRevista} onOpenChange={(o) => { if (!o) { setPreviewRevista(null); setLightboxIndex(null); } }}>
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-3">
+              {previewRevista?.capa_url && (
+                <img src={previewRevista.capa_url} alt="" className="w-10 h-14 object-cover rounded shadow" />
+              )}
+              <div className="flex-1 min-w-0">
+                <div className="truncate">{previewRevista?.titulo}</div>
+                {previewRevista?.autor && (
+                  <div className="text-xs font-normal text-muted-foreground truncate">{previewRevista.autor}</div>
+                )}
+              </div>
+              <Badge variant="secondary" className="shrink-0">
+                {previewLoading ? "..." : `${previewPaginas.length} páginas`}
+              </Badge>
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto -mx-6 px-6">
+            {previewLoading ? (
+              <div className="flex items-center justify-center py-20">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : previewPaginas.length === 0 ? (
+              <div className="text-center py-16 text-muted-foreground">
+                <ImageIcon className="h-10 w-10 mx-auto mb-3 opacity-50" />
+                <p>Nenhuma página cadastrada ainda.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 pb-4">
+                {previewPaginas.map((url, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => setLightboxIndex(i)}
+                    className="relative group aspect-[3/4] bg-muted rounded-md overflow-hidden border hover:ring-2 hover:ring-primary transition-all"
+                  >
+                    <img
+                      src={url}
+                      alt={`Página ${i + 1}`}
+                      className="w-full h-full object-cover"
+                      loading="lazy"
+                    />
+                    <span className="absolute top-1 left-1 bg-black/70 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded">
+                      {i + 1}
+                    </span>
+                    <span className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                      <Eye className="h-5 w-5 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Lightbox fullscreen */}
+      {lightboxIndex !== null && previewPaginas[lightboxIndex] && (
+        <div className="fixed inset-0 z-[60] bg-black/95 flex items-center justify-center" onClick={() => setLightboxIndex(null)}>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); setLightboxIndex(null); }}
+            className="absolute top-4 right-4 text-white/80 hover:text-white p-2"
+            title="Fechar (Esc)"
+          >
+            <X className="h-6 w-6" />
+          </button>
+          {lightboxIndex > 0 && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setLightboxIndex(lightboxIndex - 1); }}
+              className="absolute left-4 top-1/2 -translate-y-1/2 text-white/80 hover:text-white bg-black/40 hover:bg-black/60 rounded-full p-3"
+              title="Anterior (←)"
+            >
+              <ChevronLeft className="h-6 w-6" />
+            </button>
+          )}
+          {lightboxIndex < previewPaginas.length - 1 && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setLightboxIndex(lightboxIndex + 1); }}
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-white/80 hover:text-white bg-black/40 hover:bg-black/60 rounded-full p-3"
+              title="Próxima (→)"
+            >
+              <ChevronRight className="h-6 w-6" />
+            </button>
+          )}
+          <img
+            src={previewPaginas[lightboxIndex]}
+            alt={`Página ${lightboxIndex + 1}`}
+            className="max-h-[92vh] max-w-[92vw] object-contain"
+            onClick={(e) => e.stopPropagation()}
+            draggable={false}
+          />
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-white/80 text-sm bg-black/50 px-3 py-1 rounded-full">
+            {lightboxIndex + 1} / {previewPaginas.length}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

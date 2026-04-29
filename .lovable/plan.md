@@ -1,78 +1,75 @@
-## Diagnóstico
+## Objetivo
 
-Consultei o banco e confirmei que **as imagens existem** — o problema é apenas de **exibição**:
+Adicionar um botão "Visualizar" (ícone de olho 👁️) na linha de cada livro digital e infográfico em `/admin/ebd/revistas-digitais`, permitindo abrir uma pré-visualização das páginas reais do conteúdo direto do admin — sem precisar entrar pelo portal do aluno.
 
-| Item | `total_licoes` (BD) | Páginas reais em `revista_licoes.paginas` |
-|---|---|---|
-| Infográfico Cativeiro Babilônico | 0 | **16** |
-| Infográfico 4º Tri 2025 | 0 | **15** |
-| Infográfico 3º Tri 2025 | 0 | **13** |
-| Livro Autoridade Espiritual (Malafaia) | 0 | **144** |
-| Livro Senhor Ensina-nos a Orar (Cerullo) | 0 | **376** |
-| Livro O Líder Acolhedor | 0 | **272** |
-| Livro Cartas da Prisão | 0 | **200** |
-| ... (todos livros/infográficos) | **0** | dezenas a centenas |
+Revistas comuns ficam intocadas.
 
-### Causas
+## Onde
 
-1. **Coluna "Lições" vazia (`—`)**: o código (linha 1213-1214) lê `r.total_licoes`, mas todos os livros/infográficos antigos foram migrados com `total_licoes = 0`. O upload novo já grava certo (linha 549), mas os legados ficaram desatualizados.
-2. **Modal de edição não mostra páginas**: o bloco "Páginas do Livro / Páginas do Infográfico" (linha 1124-1165) tem **só o botão "Selecionar Páginas"** — não lista nem conta o que já está salvo. Por isso "aparece vazio" ao editar, mesmo com 144/376/200 imagens no banco.
-3. Revistas comuns NÃO têm esse problema porque usam o fluxo de "Gerir Lições" separado, que lista as páginas. Não vou tocar em nada delas.
+Arquivo único: `src/pages/admin/RevistasDigitais.tsx`.
 
-## O que fazer
+## O que adicionar
 
-### 1. Migration de backfill (corrige todos os legados de uma vez)
+### 1. Botão na coluna de ações (linha ~1344-1350)
 
-Atualizar `revistas_digitais.total_licoes` para igualar à soma de `array_length(paginas)` das lições associadas, **somente** onde `tipo_conteudo IN ('livro_digital','infografico')`. Não toca em nenhum registro de `revista`.
+Para `tipo_conteudo IN ('livro_digital', 'infografico')`, adicionar antes do botão Editar:
 
-```sql
-UPDATE revistas_digitais rd
-SET total_licoes = sub.total
-FROM (
-  SELECT revista_id, SUM(COALESCE(array_length(paginas,1),0))::int AS total
-  FROM revista_licoes GROUP BY revista_id
-) sub
-WHERE rd.id = sub.revista_id
-  AND rd.tipo_conteudo IN ('livro_digital','infografico');
+```
+<Button size="sm" variant="ghost" onClick={() => setPreviewRevista(r)} title="Visualizar páginas">
+  <Eye className="h-4 w-4" />
+</Button>
 ```
 
-Após rodar: a coluna "Lições" da listagem passa a mostrar "16 páginas", "144 páginas", "376 páginas" etc. (a lógica de exibição já existe na linha 1213-1214, só faltava o dado).
+`Eye` já está importado (linha 14).
 
-### 2. Modal de edição — bloco "Páginas do Livro / Infográfico"
+### 2. Estado novo
 
-No componente `src/pages/admin/RevistasDigitais.tsx`, dentro do bloco `(tipoConteudo === 'livro_digital' || tipoConteudo === 'infografico') && editingRevista` (linha 1124), adicionar **acima** do botão "Selecionar Páginas":
+```ts
+const [previewRevista, setPreviewRevista] = useState<any>(null);
+```
 
-- **Card-resumo visual** com:
-  - Ícone + número grande: `📄 144 páginas cadastradas` (lê de `editingRevista.total_licoes` ou faz `count` direto da query).
-  - Texto auxiliar: "Última atualização: dd/mm/aaaa".
-  - Badge colorido (âmbar se 0, verde se > 0).
-- **Grid de miniaturas** (responsivo, ~6-8 colunas) das primeiras N páginas (sugiro 12) com:
-  - `<img>` da URL pública.
-  - Numeração sobreposta (1, 2, 3…).
-  - Se `total > 12`: card final "+132 páginas" clicável que expande para mostrar todas.
-- **Botão "🗑️ Substituir todas as páginas"** (perigoso, com `confirm`) — opcional, ajuda quando o usuário quer recarregar.
-- O botão atual "🖼️ Selecionar Páginas" passa a ter o rótulo "Adicionar mais páginas" quando já existem páginas, e "Selecionar Páginas" quando vazio.
+### 3. Modal de visualização
 
-Para alimentar o grid: adicionar uma `useQuery` que busca `revista_licoes` (numero=1) da revista em edição quando `editingRevista` muda e o tipo é livro/infográfico — independente do `managingLicoes`. Cache key: `["revista-livro-paginas", editingRevista.id]`.
+Novo `<Dialog open={!!previewRevista} onOpenChange={(o)=>!o && setPreviewRevista(null)}>` com:
 
-### 3. Listagem (tabela) — pequeno polimento opcional
+- **Header**: capa pequena + título + autor + badge "X páginas".
+- **Corpo (scroll vertical)**: grid responsivo (2 cols mobile, 3-4 desktop) com TODAS as páginas em ordem, numeradas (overlay no canto). Cada miniatura clicável abre um lightbox simples (estado `lightboxIndex`) que mostra a página em tamanho grande com setas ◀ ▶ pra navegar e tecla Esc/X pra fechar.
+- **Loading**: spinner enquanto busca; **Vazio**: mensagem "Nenhuma página cadastrada ainda".
+- `max-w-5xl max-h-[90vh] overflow-hidden` com `overflow-y-auto` no corpo.
 
-Manter a coluna "Lições" como está (já mostra "X páginas" depois do backfill), mas trocar o ícone do botão de ação para livros/infográficos: hoje o botão "Gerir Lições" fica oculto para esses tipos (linha 1224). Adicionar no lugar um botão `🖼️` que abre direto o modal de edição já focado no bloco de páginas (mesma ação do `Pencil`, só por affordance).
+### 4. Query das páginas
 
-## Restrições respeitadas
+Reaproveita a mesma query `["revista-livro-paginas", id]` já criada na implementação anterior do modal de edição — só muda a key pro `previewRevista?.id`:
 
-- **NÃO** toca em revistas (`tipo_conteudo = 'revista'`) — nem em código, nem em dados.
-- **NÃO** mexe em `RevistaLicencasAdmin.tsx`, painel do superintendente, edge functions, etc.
-- **NÃO** apaga dados — backfill é só `UPDATE` baseado nas páginas existentes.
-- Sem mudança de schema.
+```ts
+const { data: previewPaginas, isLoading: previewLoading } = useQuery({
+  queryKey: ["revista-livro-paginas", previewRevista?.id],
+  queryFn: async () => {
+    const { data } = await supabase
+      .from("revista_licoes")
+      .select("paginas")
+      .eq("revista_id", previewRevista!.id)
+      .eq("numero", 1)
+      .maybeSingle();
+    return (data?.paginas as string[]) || [];
+  },
+  enabled: !!previewRevista,
+});
+```
 
-## Arquivos afetados
+(Se já existir essa query no arquivo apontando pra `editingRevista`, deixar a do preview separada com key distinta `["revista-preview-paginas", id]` pra não conflitar.)
 
-- `supabase/migrations/<timestamp>_backfill_total_licoes_livros_infograficos.sql` (novo)
-- `src/pages/admin/RevistasDigitais.tsx` (editado: bloco do modal + ação da tabela)
+### 5. Lightbox interno (sem nova lib)
 
-## Resultado esperado
+Estado `const [lightboxIndex, setLightboxIndex] = useState<number|null>(null);` — div fixed `inset-0 z-[60] bg-black/95` com `<img>` centralizada, botões ◀ ▶ nos lados, X no topo direito, contador "12 / 144" no rodapé. Listener de teclado (ArrowLeft/ArrowRight/Escape) via `useEffect`.
 
-- Listagem `/admin/ebd/revistas-digitais`: cada livro/infográfico mostra "144 páginas", "16 páginas" etc. em vez de "—".
-- Modal de edição: ao abrir um livro/infográfico, vê na hora um card "📄 144 páginas cadastradas" + grid com miniaturas das páginas reais do storage, com numeração.
-- Revistas comuns: inalteradas.
+## Restrições
+
+- Não toca em revistas (`tipo === 'revista'`) — botão só aparece pra livro/infográfico.
+- Sem mudança de schema, RLS ou edge function.
+- Sem nova dependência (usa `<img>` puro, mesmo padrão do `LivroDigitalLeitura.tsx`).
+- Mantém shadcn/ui + Tailwind.
+
+## Resultado
+
+Admin abre `/admin/ebd/revistas-digitais`, vê na linha "Livro Autoridade Espiritual" três botões: 👁️ Visualizar | ✏️ Editar | 🗑️ Excluir. Clica no olho → modal abre com grid de 144 miniaturas numeradas → clica em qualquer uma → lightbox fullscreen com navegação por teclado/setas.
