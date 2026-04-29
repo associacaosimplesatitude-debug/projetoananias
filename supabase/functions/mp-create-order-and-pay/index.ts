@@ -461,6 +461,7 @@ serve(async (req) => {
 
       if (!ok) {
         console.error(`[${requestId}] Erro Mercado Pago Boleto:`, status, data);
+        await markPedidoRejected(supabase, pedido.id, `Boleto recusado: ${data?.message || status}`, requestId);
         throw new Error(`Erro ao criar boleto: ${data?.message || status}`);
       }
 
