@@ -5008,6 +5008,45 @@ export type Database = {
           },
         ]
       }
+      google_ads_conversion_logs: {
+        Row: {
+          aceitos: number
+          canal: string
+          enviados: number
+          erros: Json
+          executed_at: string
+          id: string
+          period_end: string
+          period_start: string
+          raw_response: Json | null
+          trigger: string
+        }
+        Insert: {
+          aceitos?: number
+          canal: string
+          enviados?: number
+          erros?: Json
+          executed_at?: string
+          id?: string
+          period_end: string
+          period_start: string
+          raw_response?: Json | null
+          trigger: string
+        }
+        Update: {
+          aceitos?: number
+          canal?: string
+          enviados?: number
+          erros?: Json
+          executed_at?: string
+          id?: string
+          period_end?: string
+          period_start?: string
+          raw_response?: Json | null
+          trigger?: string
+        }
+        Relationships: []
+      }
       google_ads_invoices: {
         Row: {
           amount: number | null
