@@ -122,6 +122,28 @@ export default function RevistasDigitais() {
     enabled: !!managingLicoes,
   });
 
+  // Páginas do livro/infográfico em edição (para preview no modal de edição)
+  const isLivroOuInfografico = tipoConteudo === 'livro_digital' || tipoConteudo === 'infografico';
+  const { data: livroPaginas, isLoading: loadingLivroPaginas } = useQuery({
+    queryKey: ["revista-livro-paginas", editingRevista?.id],
+    queryFn: async () => {
+      if (!editingRevista) return [] as string[];
+      const { data, error } = await supabase
+        .from("revista_licoes")
+        .select("paginas")
+        .eq("revista_id", editingRevista.id)
+        .order("numero");
+      if (error) throw error;
+      const all: string[] = [];
+      (data || []).forEach((l: any) => {
+        if (Array.isArray(l.paginas)) all.push(...l.paginas);
+      });
+      return all;
+    },
+    enabled: !!editingRevista && isLivroOuInfografico,
+  });
+  const [showAllPages, setShowAllPages] = useState(false);
+
   // Quiz status per lição
   const { data: quizMap, refetch: refetchQuiz } = useQuery({
     queryKey: ["revista-licao-quiz", managingLicoes?.id],
