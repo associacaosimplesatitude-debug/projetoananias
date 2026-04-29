@@ -298,12 +298,12 @@ serve(async (req) => {
       const rowsEc = await fetchAllRows(
         supabaseAdmin,
         "ebd_shopify_pedidos",
-        "customer_email, valor_total, order_date",
+        "customer_email, valor_total, created_at",
         (q: any) =>
           q
             .eq("status_pagamento", "paid")
-            .gte("order_date", `${start_date}T00:00:00`)
-            .lt("order_date", `${endExclusive}T00:00:00`),
+            .gte("created_at", `${start_date}T00:00:00`)
+            .lt("created_at", `${endExclusive}T00:00:00`),
       );
       let semEmail = 0;
       let valid = 0;
