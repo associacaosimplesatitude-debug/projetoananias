@@ -262,7 +262,7 @@ serve(async (req) => {
       const rowsMp = await fetchAllRows(
         supabaseAdmin,
         "ebd_shopify_pedidos_mercadopago",
-        "cliente_email, valor_total, updated_at",
+        "id, cliente_email, valor_total, updated_at, mercadopago_payment_id",
         (q: any) =>
           q
             .eq("status", "PAGO")
@@ -279,11 +279,13 @@ serve(async (req) => {
           continue;
         }
         const hashedEmail = await sha256Hex(email);
+        const orderId = String(r.mercadopago_payment_id || r.id);
         conversions.push({
           conversionAction: `customers/${creds.customer_id}/conversionActions/${creds.conversion_action_id}`,
           conversionDateTime: formatDateTimeSP(r.updated_at),
           conversionValue: valor,
           currencyCode: "BRL",
+          orderId,
           userIdentifiers: [{ hashedEmail }],
         });
         valid++;
