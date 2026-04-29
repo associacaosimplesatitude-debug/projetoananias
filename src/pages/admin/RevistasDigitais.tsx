@@ -144,6 +144,41 @@ export default function RevistasDigitais() {
   });
   const [showAllPages, setShowAllPages] = useState(false);
 
+  // Preview de páginas (livro/infográfico) — modal só de visualização
+  const [previewRevista, setPreviewRevista] = useState<Revista | null>(null);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const { data: previewPaginas = [], isLoading: previewLoading } = useQuery({
+    queryKey: ["revista-preview-paginas", previewRevista?.id],
+    queryFn: async () => {
+      if (!previewRevista) return [] as string[];
+      const { data, error } = await supabase
+        .from("revista_licoes")
+        .select("paginas")
+        .eq("revista_id", previewRevista.id)
+        .order("numero");
+      if (error) throw error;
+      const all: string[] = [];
+      (data || []).forEach((l: any) => {
+        if (Array.isArray(l.paginas)) all.push(...l.paginas);
+      });
+      return all;
+    },
+    enabled: !!previewRevista,
+  });
+
+  useEffect(() => {
+    if (lightboxIndex === null) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setLightboxIndex(null);
+      else if (e.key === "ArrowLeft") setLightboxIndex((i) => (i !== null && i > 0 ? i - 1 : i));
+      else if (e.key === "ArrowRight")
+        setLightboxIndex((i) => (i !== null && i < previewPaginas.length - 1 ? i + 1 : i));
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [lightboxIndex, previewPaginas.length]);
+
+
   // Quiz status per lição
   const { data: quizMap, refetch: refetchQuiz } = useQuery({
     queryKey: ["revista-licao-quiz", managingLicoes?.id],
