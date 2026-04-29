@@ -73,6 +73,9 @@ export default function RevistasDigitais() {
 
   // Drag state for lesson pages
   const [draggingPageIdx, setDraggingPageIdx] = useState<{ licaoId: string; idx: number } | null>(null);
+  const [draggingLicaoId, setDraggingLicaoId] = useState<string | null>(null);
+  const [dragOverLicaoId, setDragOverLicaoId] = useState<string | null>(null);
+  const [reorderingLicoes, setReorderingLicoes] = useState(false);
   const [uploadingPdf, setUploadingPdf] = useState<string | null>(null);
   const [generatingQuiz, setGeneratingQuiz] = useState<string | null>(null);
   const [extractingRefs, setExtractingRefs] = useState<string | null>(null);

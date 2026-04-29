@@ -1,26 +1,45 @@
-## Bug
+# Drag-and-drop dos cards de lição
 
-Ao clicar nas setas ◀ ▶ do lightbox de visualização de páginas, o modal pai (`Dialog` do Radix) fecha junto. Causa: o lightbox renderiza por cima do `DialogContent` mas, no DOM, fica fora dele — o Radix detecta o clique como "outside" e dispara `onPointerDownOutside` → fecha o Dialog → o `onOpenChange` zera `previewRevista` e `lightboxIndex`.
+Permitir arrastar cada card de lição para cima ou para baixo na tela `/admin/ebd/revistas-digitais` (modal "Gerenciar Lições"), persistindo a nova ordem no banco.
 
-## Correção
+## Comportamento
 
-Em `src/pages/admin/RevistasDigitais.tsx`, no `<DialogContent>` do modal de preview (linha ~1398), bloquear o fechamento automático enquanto o lightbox estiver aberto:
+- Cada card de lição ganha uma "alça" de arrastar (ícone `GripVertical`) no canto esquerdo do cabeçalho.
+- O usuário arrasta o card e solta sobre outro card; a lista é reordenada localmente na hora.
+- O campo `numero` de cada lição é recalculado (1..N) seguindo a nova ordem e persistido em batch no Supabase.
+- Durante o salvamento, exibe um pequeno spinner ("Reordenando...") e bloqueia novos drags.
+- Feedback visual: o card sendo arrastado fica com opacidade reduzida; o card-alvo recebe uma borda destacada indicando onde será inserido.
+- Em caso de erro no banco, faz rollback (refetch da query) e mostra toast de erro.
 
-```tsx
-<DialogContent
-  className="max-w-5xl max-h-[90vh] overflow-hidden flex flex-col"
-  onPointerDownOutside={(e) => { if (lightboxIndex !== null) e.preventDefault(); }}
-  onInteractOutside={(e) => { if (lightboxIndex !== null) e.preventDefault(); }}
-  onEscapeKeyDown={(e) => { if (lightboxIndex !== null) e.preventDefault(); }}
->
-```
+## Implementação técnica
 
-Resultado:
-- Setas ◀ ▶ avançam/retornam sem fechar o modal.
-- Esc no lightbox fecha só o lightbox (o handler de teclado já existente já trata isso); o Esc só atinge o Dialog quando o lightbox já estiver fechado.
-- Clicar fora continua fechando o Dialog normalmente quando o lightbox não está aberto.
+Arquivo único: `src/pages/admin/RevistasDigitais.tsx`.
 
-## Restrições
+1. **Estado novo** (próximo a `draggingPageIdx`):
+   - `draggingLicaoId: string | null`
+   - `dragOverLicaoId: string | null`
+   - `reorderingLicoes: boolean`
 
-- Mudança de 1 linha → 5 linhas em um único componente.
-- Sem alteração de schema, query, RLS ou outro arquivo.
+2. **Função `reorderLicoes(fromId, toId)`**:
+   - Clona `licoes`, remove o item arrastado e o reinsere na posição do alvo.
+   - Atualiza `queryClient.setQueryData(["revista-licoes", managingLicoes.id], newList)` para reflexo imediato.
+   - Faz `supabase.from("revista_licoes").upsert([...])` passando `id` + novo `numero` para cada lição (ou um loop de updates sequenciais — mais seguro contra conflitos da unique constraint, se houver). Para evitar colisão de unique em `(revista_id, numero)`, primeiro seta todos para números temporários negativos, depois aplica os definitivos.
+   - `invalidateQueries` ao final.
+
+3. **Handlers no `<Card>` da lição** (linha 751):
+   - `draggable={!reorderingLicoes}`
+   - `onDragStart`: define `draggingLicaoId = licao.id`, `e.dataTransfer.effectAllowed = "move"`.
+   - `onDragOver`: `e.preventDefault()`, define `dragOverLicaoId = licao.id`.
+   - `onDragLeave`: limpa `dragOverLicaoId` se for o atual.
+   - `onDrop`: chama `reorderLicoes(draggingLicaoId, licao.id)`, limpa estados.
+   - `onDragEnd`: limpa estados.
+   - Classes condicionais: `opacity-50` se for o card arrastado; `ring-2 ring-primary` se for o alvo.
+
+4. **Alça visual**: adicionar um `<GripVertical className="h-5 w-5 text-muted-foreground cursor-grab active:cursor-grabbing" />` no início do header do card, antes do badge "Lição N".
+
+5. **Sem deps novas**: usa HTML5 Drag and Drop nativo (mesmo padrão já usado para reordenar páginas via `draggingPageIdx`).
+
+## O que NÃO muda
+
+- Edge functions, schema do banco, lógica de quiz/referências, upload de páginas, outras páginas admin.
+- A coluna `numero` continua sendo o campo de ordenação (já é usado em `.order("numero")`).
