@@ -640,7 +640,47 @@ export default function RevistasDigitais() {
     queryClient.invalidateQueries({ queryKey: ["revista-licoes"] });
   };
 
-  // Add lição mutation
+  const reorderLicoes = async (fromId: string, toId: string) => {
+    if (!licoes || !managingLicoes || fromId === toId) return;
+    const fromIdx = licoes.findIndex(l => l.id === fromId);
+    const toIdx = licoes.findIndex(l => l.id === toId);
+    if (fromIdx === -1 || toIdx === -1) return;
+
+    const newList = [...licoes];
+    const [moved] = newList.splice(fromIdx, 1);
+    newList.splice(toIdx, 0, moved);
+
+    // Optimistic UI
+    const renumbered = newList.map((l, i) => ({ ...l, numero: i + 1 }));
+    queryClient.setQueryData(["revista-licoes", managingLicoes.id], renumbered);
+
+    setReorderingLicoes(true);
+    try {
+      // Two-phase to avoid (revista_id, numero) unique conflicts:
+      // 1) move all rows to negative temp numeros
+      for (let i = 0; i < licoes.length; i++) {
+        const { error } = await supabase
+          .from("revista_licoes")
+          .update({ numero: -(i + 1) })
+          .eq("id", licoes[i].id);
+        if (error) throw error;
+      }
+      // 2) apply final numeros (1..N) following new order
+      for (let i = 0; i < renumbered.length; i++) {
+        const { error } = await supabase
+          .from("revista_licoes")
+          .update({ numero: i + 1 })
+          .eq("id", renumbered[i].id);
+        if (error) throw error;
+      }
+      toast.success("Ordem das lições atualizada");
+    } catch (e: any) {
+      toast.error(e?.message || "Erro ao reordenar lições");
+    } finally {
+      setReorderingLicoes(false);
+      queryClient.invalidateQueries({ queryKey: ["revista-licoes", managingLicoes.id] });
+    }
+  };
   const addLicaoMutation = useMutation({
     mutationFn: async () => {
       if (!managingLicoes) return;
