@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
-import { ArrowLeft, CreditCard, QrCode, MapPin, Check, Edit, Loader2, ShoppingCart, Truck, FileText, Copy, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, CreditCard, QrCode, MapPin, Check, Edit, Loader2, ShoppingCart, Truck, FileText, Copy, AlertTriangle, AlertCircle } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
