@@ -1316,6 +1316,7 @@ export default function RevistaLeitura() {
           />
         )}
       </div>
+      </LicaoAudioProvider>
     );
   }
 
