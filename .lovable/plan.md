@@ -1,37 +1,48 @@
-# Reposicionar player no canto superior direito
 
-## Problema
+# Mini-player de áudio: versão discreta
 
-O FAB no canto inferior direito está colidindo com o botão de anotações que já existe nessa região.
+## Problema observado (screenshot)
+
+- Player dourado conflita com a faixa laranja "Lição 1" logo abaixo
+- Está colado no header escuro (sem respiro)
+- Título da lição aparece **duplicado** (no header preto e dentro do player)
+- Largura grande demais ocupa quase toda a área útil
 
 ## Solução
 
-Mover o `LicaoAudioPlayer` para o **canto superior direito**, sobreposto à imagem da página, logo abaixo do header da lição. Em vez de FAB redondo, usar formato de **mini-player horizontal** sempre visível (não esconde o transport).
+Tornar o player **menor, mais neutro e deslocado**, sem repetir informação que já está no header.
 
-## Mudança em `src/components/revista/LicaoAudioPlayer.tsx`
+### Mudanças em `src/components/revista/LicaoAudioPlayer.tsx`
 
-**1. Posicionamento (substitui o bloco fixed atual)**
-- `position: fixed`
-- `top: calc(48px + env(safe-area-inset-top))` — fica logo abaixo do header (~44px)
-- `right: max(8px, env(safe-area-inset-right))` (mobile) / `right: 16px` (desktop)
-- `zIndex: 40`
+**1. Posicionamento — descer e encostar mais à direita**
+- `top: calc(96px + env(safe-area-inset-top))` (antes: 48px) — fica abaixo da faixa "Lição 1", sobre a imagem
+- `right: max(12px, env(safe-area-inset-right))`
 
-**2. Forma colapsada = mini-player horizontal (não FAB redondo)**
-- Pill com fundo `#1c1915`, borda `rgba(246,186,50,0.35)`, raio 999px, sombra
-- Layout horizontal (h ~44px): `[▶/⏸]  [titulo curto trunc]  [00:42 / 08:07]  [⤢ expandir]`
-- Mobile: largura `min(280px, calc(100vw - 24px))` — título trunca
-- Desktop: largura ~320px
-- Barra de progresso fina (2px) na borda inferior do pill, dourada
+**2. Tamanho — pill compacto**
+- Altura: 36px (antes 44px)
+- Largura mobile: `auto`, `max-width: 200px` (antes 300px)
+- Largura desktop: `auto`, `max-width: 240px`
 
-**3. Forma expandida (mantém)**
-- Mesmo card de 360px que já existe, ancorado no mesmo `top/right`
-- Botão minimizar volta para o pill
+**3. Conteúdo — remover título duplicado**
+- Layout: `[▶/⏸]  [00:01 / 08:07]  [⤢]`
+- Sem o "🎧 Lição 1 - A Posição..." (já está no header)
+- Ícone de fone discreto à esquerda do tempo, opcional
 
-**4. Default colapsado** (preferência continua persistindo em `licao_audio_expanded`)
+**4. Paleta — neutra escura, não dourada**
+- Fundo: `rgba(20,20,20,0.85)` com `backdrop-filter: blur(8px)`
+- Borda: `rgba(255,255,255,0.12)` (antes dourada)
+- Texto/ícone tempo: `rgba(255,255,255,0.85)`
+- Botão play/pause: círculo `rgba(255,255,255,0.95)` com ícone `#1c1915` — destaque sem competir com o dourado da faixa
+- Barra de progresso inferior (2px): branca translúcida `rgba(255,255,255,0.6)` em vez de dourada
+- Botão expandir: contorno branco translúcido
 
-## Critérios
+**5. Card expandido — manter dourado**
+- O card expandido (quando o usuário clica em ⤢) continua com a identidade dourada do Leitor CG
+- Apenas o estado **colapsado** fica neutro para não competir com o conteúdo
 
-- Player visível e legível no topo direito da imagem em mobile (375px) e desktop
-- Não sobrepõe os botões de anotação/quiz (que ficam em outras regiões: inferior, lateral esquerda)
-- Transport (play/pause) acessível sem precisar expandir
-- Preferência expandido/minimizado persiste
+## Critério de aceite
+
+- Player não compete visualmente com a faixa "Lição 1"
+- Sem duplicação de título
+- Cabe confortavelmente no canto sem cobrir a imagem da lição
+- Transport (play/pause + tempo) ainda legível à distância normal de leitura

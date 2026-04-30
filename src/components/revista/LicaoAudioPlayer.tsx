@@ -131,12 +131,12 @@ export default function LicaoAudioPlayer({ audioUrl, licaoId, licaoTitulo }: Pro
       data-licao-audio={licaoId}
       style={{
         position: "fixed",
-        right: "max(8px, env(safe-area-inset-right))",
-        top: "calc(48px + env(safe-area-inset-top))",
+        right: "max(12px, env(safe-area-inset-right))",
+        top: "calc(96px + env(safe-area-inset-top))",
         zIndex: 40,
         pointerEvents: "auto",
       }}
-      className="md:right-4 md:top-[56px]"
+      className="md:right-4 md:top-[104px]"
     >
       <audio
         ref={audioRef}
@@ -161,35 +161,34 @@ export default function LicaoAudioPlayer({ audioUrl, licaoId, licaoTitulo }: Pro
       />
 
       {!expanded ? (
-        // ============ Mini-player horizontal (pill) ============
+        // ============ Mini-player horizontal (pill) — neutro/discreto ============
         <div
           style={{
             position: "relative",
-            width: "min(300px, calc(100vw - 24px))",
-            height: 44,
-            backgroundColor: "rgba(28,25,21,0.96)",
-            border: "1px solid rgba(246,186,50,0.45)",
+            height: 36,
+            backgroundColor: "rgba(20,20,20,0.85)",
+            border: "1px solid rgba(255,255,255,0.12)",
             borderRadius: 999,
-            boxShadow: "0 6px 20px rgba(0,0,0,0.5)",
-            display: "flex",
+            boxShadow: "0 4px 14px rgba(0,0,0,0.4)",
+            display: "inline-flex",
             alignItems: "center",
-            gap: 8,
-            paddingLeft: 4,
-            paddingRight: 8,
-            color: "#f6ba32",
+            gap: 6,
+            paddingLeft: 3,
+            paddingRight: 6,
+            color: "rgba(255,255,255,0.9)",
             overflow: "hidden",
-            backdropFilter: "blur(6px)",
+            backdropFilter: "blur(8px)",
+            WebkitBackdropFilter: "blur(8px)",
           }}
-          className="md:w-[320px]"
         >
           <button
             onClick={togglePlay}
             aria-label={playing ? "Pausar áudio" : "Tocar áudio"}
             style={{
-              width: 36,
-              height: 36,
+              width: 30,
+              height: 30,
               borderRadius: "50%",
-              backgroundColor: "#f6ba32",
+              backgroundColor: "rgba(255,255,255,0.95)",
               color: "#1c1915",
               border: "none",
               display: "flex",
@@ -200,28 +199,26 @@ export default function LicaoAudioPlayer({ audioUrl, licaoId, licaoTitulo }: Pro
               padding: 0,
             }}
           >
-            {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4 ml-0.5" />}
+            {playing ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5 ml-0.5" />}
           </button>
 
-          <div className="flex-1 min-w-0 flex flex-col justify-center" style={{ lineHeight: 1.1 }}>
-            <span className="text-[11px] font-medium truncate" style={{ color: "#f6ba32" }}>
-              🎧 {licaoTitulo}
-            </span>
-            <span className="text-[10px] tabular-nums" style={{ color: "rgba(246,186,50,0.7)" }}>
-              {fmt(current)} / {fmt(duration)}
-            </span>
-          </div>
+          <span
+            className="text-[11px] tabular-nums whitespace-nowrap"
+            style={{ color: "rgba(255,255,255,0.85)" }}
+          >
+            {fmt(current)} / {fmt(duration)}
+          </span>
 
           <button
             onClick={() => setExpanded(true)}
             aria-label="Expandir player"
             style={{
-              width: 28,
-              height: 28,
+              width: 24,
+              height: 24,
               borderRadius: "50%",
               backgroundColor: "transparent",
-              color: "#f6ba32",
-              border: "1px solid rgba(246,186,50,0.45)",
+              color: "rgba(255,255,255,0.85)",
+              border: "1px solid rgba(255,255,255,0.18)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -230,7 +227,7 @@ export default function LicaoAudioPlayer({ audioUrl, licaoId, licaoTitulo }: Pro
               padding: 0,
             }}
           >
-            <ChevronDown className="h-3.5 w-3.5" />
+            <ChevronDown className="h-3 w-3" />
           </button>
 
           {/* barra de progresso fina na borda inferior */}
@@ -241,7 +238,7 @@ export default function LicaoAudioPlayer({ audioUrl, licaoId, licaoTitulo }: Pro
               bottom: 0,
               height: 2,
               width: `${progressPct}%`,
-              backgroundColor: "#f6ba32",
+              backgroundColor: "rgba(255,255,255,0.6)",
               transition: "width 0.3s linear",
               borderRadius: 999,
             }}
