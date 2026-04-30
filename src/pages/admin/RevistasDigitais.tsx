@@ -258,6 +258,36 @@ export default function RevistasDigitais() {
     }
   };
 
+  const handleDeleteQuiz = async (licaoId: string) => {
+    if (!confirm("Excluir o quiz desta lição? Esta ação não pode ser desfeita.")) return;
+    try {
+      const { error } = await supabase
+        .from("revista_licao_quiz")
+        .delete()
+        .eq("licao_id", licaoId);
+      if (error) throw error;
+      toast.success("Quiz excluído");
+      refetchQuiz();
+    } catch (e: any) {
+      toast.error(e.message || "Erro ao excluir quiz");
+    }
+  };
+
+  const handleDeleteRefs = async (licaoId: string) => {
+    if (!confirm("Excluir as referências extraídas desta lição?")) return;
+    try {
+      const { error } = await supabase
+        .from("revista_referencias_pagina" as any)
+        .delete()
+        .eq("licao_id", licaoId);
+      if (error) throw error;
+      toast.success("Referências excluídas");
+      refetchRefs();
+    } catch (e: any) {
+      toast.error(e.message || "Erro ao excluir referências");
+    }
+  };
+
   const handleBulkGenerateQuiz = async () => {
     if (!licoes?.length) return;
     const eligible = licoes.filter(l => l.paginas.length > 0);
