@@ -1299,7 +1299,7 @@ export default function RevistaLicencasAdmin() {
           </TabsTrigger>
           <TabsTrigger value="shopify">
             <ShoppingCart className="h-4 w-4 mr-2" />
-            Vendas Shopify
+            E-commerce
           </TabsTrigger>
           <TabsTrigger value="quiz">
             <Trophy className="h-4 w-4 mr-2" />
