@@ -1048,15 +1048,13 @@ export default function RevistaLeitura() {
           </div>
         </div>
 
-        {/* Audio player — visível em todas as páginas da lição */}
+        {/* Audio player — flutuante (FAB), não consome altura do conteúdo */}
         {licaoAberta.audio_url && (
-          <div style={{ padding: "8px 12px", backgroundColor: '#1c1915', borderTop: '1px solid rgba(246,186,50,0.15)' }}>
-            <LicaoAudioPlayer
-              audioUrl={licaoAberta.audio_url}
-              licaoId={licaoAberta.id}
-              licaoTitulo={getLicaoDisplayTitle(licaoAberta)}
-            />
-          </div>
+          <LicaoAudioPlayer
+            audioUrl={licaoAberta.audio_url}
+            licaoId={licaoAberta.id}
+            licaoTitulo={getLicaoDisplayTitle(licaoAberta)}
+          />
         )}
 
         {/* Content */}
