@@ -18,4 +18,9 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  define: {
+    'import.meta.env.VITE_BUILD_VERSION': JSON.stringify(
+      new Date().toISOString().slice(0, 10) + '-' + Date.now().toString(36).slice(-4)
+    ),
+  },
 }));
