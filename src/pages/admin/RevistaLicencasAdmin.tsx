@@ -954,10 +954,10 @@ function ShopifyTab() {
                     </TableCell>
                     <TableCell>
                       {(() => {
-                        const { flag, formatted } = formatWhatsappDisplay(l.whatsapp);
+                        const { country, formatted } = formatWhatsappDisplay(l.whatsapp);
                         return (
-                          <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
-                            <span className="text-base leading-none">{flag}</span>
+                          <span className="inline-flex items-center gap-2 whitespace-nowrap">
+                            <CountryFlag country={country} />
                             <span>{formatted}</span>
                           </span>
                         );
