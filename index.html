@@ -29,6 +29,33 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="CG Digital">
     <link rel="apple-touch-icon" href="/icons/icone-central.png">
+    <!-- Service Worker kill-switch: removes any previously registered SW that may be serving a stale bundle -->
+    <script>
+      (function() {
+        if (!('serviceWorker' in navigator)) return;
+        try {
+          navigator.serviceWorker.getRegistrations().then(function(regs) {
+            if (!regs || regs.length === 0) return;
+            var hadSW = regs.length > 0;
+            Promise.all(regs.map(function(r) { return r.unregister().catch(function(){}); }))
+              .then(function() {
+                if (window.caches && caches.keys) {
+                  return caches.keys().then(function(keys) {
+                    return Promise.all(keys.map(function(k){ return caches.delete(k); }));
+                  });
+                }
+              })
+              .then(function() {
+                if (hadSW && !sessionStorage.getItem('__sw_killed__')) {
+                  sessionStorage.setItem('__sw_killed__', '1');
+                  window.location.reload();
+                }
+              })
+              .catch(function(){});
+          }).catch(function(){});
+        } catch (e) {}
+      })();
+    </script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://js.stripe.com/v3/"></script>
