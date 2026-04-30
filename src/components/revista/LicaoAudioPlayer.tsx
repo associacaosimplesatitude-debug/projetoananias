@@ -131,12 +131,12 @@ export default function LicaoAudioPlayer({ audioUrl, licaoId, licaoTitulo }: Pro
       data-licao-audio={licaoId}
       style={{
         position: "fixed",
-        right: "max(12px, env(safe-area-inset-right))",
-        bottom: "calc(76px + env(safe-area-inset-bottom))",
+        right: "max(8px, env(safe-area-inset-right))",
+        top: "calc(48px + env(safe-area-inset-top))",
         zIndex: 40,
         pointerEvents: "auto",
       }}
-      className="md:right-6 md:bottom-[88px]"
+      className="md:right-4 md:top-[56px]"
     >
       <audio
         ref={audioRef}
