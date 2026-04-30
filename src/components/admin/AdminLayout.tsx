@@ -347,6 +347,25 @@ function AdminSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+      <SidebarFooter className="border-t p-2 group-data-[collapsible=icon]:hidden">
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full justify-start gap-2"
+          onClick={forcarAtualizacao}
+        >
+          <RefreshCw className="h-4 w-4" />
+          Forçar atualização
+        </Button>
+        <button
+          type="button"
+          onClick={copiarVersao}
+          className="mt-1 w-full text-center text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+          title="Clique para copiar"
+        >
+          v{BUILD_VERSION}
+        </button>
+      </SidebarFooter>
     </Sidebar>
   );
 }
