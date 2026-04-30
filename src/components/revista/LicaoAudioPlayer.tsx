@@ -87,6 +87,12 @@ export default function LicaoAudioPlayer({ audioUrl, licaoId, licaoTitulo }: Pro
     return () => obs.disconnect();
   }, [licaoId, setVisibleLicao]);
 
+  // se outro player virar ativo, pausar este
+  useEffect(() => {
+    if (activeLicaoId && activeLicaoId !== licaoId && audioRef.current && !audioRef.current.paused) {
+      audioRef.current.pause();
+    }
+  }, [activeLicaoId, licaoId]);
 
   // se essa lição não é mais a visível, recolher para compacto
   const sticky = isStuck && visibleLicaoId === licaoId;
