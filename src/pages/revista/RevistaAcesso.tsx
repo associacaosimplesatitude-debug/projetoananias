@@ -242,7 +242,30 @@ export default function RevistaAcesso() {
                     <span className="text-xs sm:text-sm text-muted-foreground">+{country.ddi}</span>
                     <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
                   </button>
-...
+                  {countryOpen && (
+                    <div className="absolute top-full left-0 mt-1 w-56 bg-background border border-input rounded-lg shadow-lg z-50 py-1">
+                      {COUNTRIES.map((c) => (
+                        <button
+                          key={c.code}
+                          type="button"
+                          onClick={() => {
+                            setCountry(c);
+                            setPhone("");
+                            setError("");
+                            setCountryOpen(false);
+                          }}
+                          className={`w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-accent transition-colors ${
+                            c.code === country.code ? "bg-accent/50" : ""
+                          }`}
+                        >
+                          <span className="text-xl leading-none">{c.flag}</span>
+                          <span className="text-sm font-medium text-foreground">{c.label}</span>
+                          <span className="text-sm text-muted-foreground ml-auto">+{c.ddi}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
                 {/* Phone input */}
                 <input
                   type="tel"
