@@ -6008,28 +6008,46 @@ export type Database = {
       }
       revista_licoes: {
         Row: {
+          audio_gerado_em: string | null
+          audio_modelo: string | null
+          audio_url: string | null
+          audio_voz: string | null
           created_at: string | null
           id: string
           numero: number
           paginas: string[] | null
           revista_id: string
           titulo: string | null
+          transcricao_audio: string | null
+          transcricao_gerada_em: string | null
         }
         Insert: {
+          audio_gerado_em?: string | null
+          audio_modelo?: string | null
+          audio_url?: string | null
+          audio_voz?: string | null
           created_at?: string | null
           id?: string
           numero: number
           paginas?: string[] | null
           revista_id: string
           titulo?: string | null
+          transcricao_audio?: string | null
+          transcricao_gerada_em?: string | null
         }
         Update: {
+          audio_gerado_em?: string | null
+          audio_modelo?: string | null
+          audio_url?: string | null
+          audio_voz?: string | null
           created_at?: string | null
           id?: string
           numero?: number
           paginas?: string[] | null
           revista_id?: string
           titulo?: string | null
+          transcricao_audio?: string | null
+          transcricao_gerada_em?: string | null
         }
         Relationships: [
           {
