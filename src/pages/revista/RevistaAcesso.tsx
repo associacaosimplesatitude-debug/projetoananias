@@ -314,6 +314,7 @@ export default function RevistaAcesso() {
   const [phone, setPhone] = useState("");
   const [country, setCountry] = useState<Country>(COUNTRIES[0]);
   const [countryOpen, setCountryOpen] = useState(false);
+  const [countrySearch, setCountrySearch] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [otp, setOtp] = useState(["", "", "", ""]);
