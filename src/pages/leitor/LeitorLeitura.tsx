@@ -349,18 +349,33 @@ export default function LeitorLeitura() {
             </div>
           ) : (
             <div className="max-w-2xl mx-auto">
-              {allPages.map((url, idx) => (
-                <img
-                  key={idx}
-                  src={url}
-                  alt={`Página ${idx + 1}`}
-                  loading="lazy"
-                  className="w-full h-auto block"
-                  style={{ backgroundColor: "#111" }}
-                  draggable={false}
-                  onContextMenu={(e) => e.preventDefault()}
-                />
-              ))}
+              <LicaoAudioProvider>
+                {licoesData.map((licao) => (
+                  <div key={licao.id} data-licao-id={licao.id}>
+                    {licao.audio_url && (
+                      <div style={{ padding: "0 8px" }}>
+                        <LicaoAudioPlayer
+                          audioUrl={licao.audio_url}
+                          licaoId={licao.id}
+                          licaoTitulo={licao.titulo || `Lição ${licao.numero}`}
+                        />
+                      </div>
+                    )}
+                    {licao.paginas.map((url, i) => (
+                      <img
+                        key={`${licao.id}-${i}`}
+                        src={url}
+                        alt={`Lição ${licao.numero} - Página ${i + 1}`}
+                        loading="lazy"
+                        className="w-full h-auto block"
+                        style={{ backgroundColor: "#111" }}
+                        draggable={false}
+                        onContextMenu={(e) => e.preventDefault()}
+                      />
+                    ))}
+                  </div>
+                ))}
+              </LicaoAudioProvider>
             </div>
           )}
         </div>
