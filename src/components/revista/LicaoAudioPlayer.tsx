@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Play, Pause, Rewind, FastForward, ChevronDown, ChevronUp, AudioLines } from "lucide-react";
+import { Play, Pause, Rewind, FastForward, ChevronDown, X as CloseIcon } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -12,6 +12,7 @@ interface Props {
 }
 
 const SPEEDS = [0.75, 1, 1.25, 1.5, 2];
+const EXPANDED_KEY = "licao_audio_expanded";
 
 function fmt(t: number) {
   if (!isFinite(t)) return "00:00";
@@ -23,20 +24,21 @@ function fmt(t: number) {
 export default function LicaoAudioPlayer({ audioUrl, licaoId, licaoTitulo }: Props) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const sentinelRef = useRef<HTMLDivElement>(null);
 
-  const { activeLicaoId, visibleLicaoId, registerActive, unregisterActive } = useLicaoAudioCtx();
+  const { activeLicaoId, registerActive, unregisterActive, setVisibleLicao } = useLicaoAudioCtx();
 
   const [playing, setPlaying] = useState(false);
   const [current, setCurrent] = useState(0);
   const [duration, setDuration] = useState(0);
   const [speed, setSpeed] = useState(1);
-  const [expanded, setExpanded] = useState(true);
-  const [isStuck, setIsStuck] = useState(false);
+  const [expanded, setExpanded] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem(EXPANDED_KEY) === "1";
+  });
 
-  // Persistir posição
   const storageKey = `licao_audio_pos_${licaoId}`;
 
+  // Restaurar posição salva
   useEffect(() => {
     const saved = parseFloat(localStorage.getItem(storageKey) || "0");
     if (saved > 0 && audioRef.current) {
@@ -45,7 +47,7 @@ export default function LicaoAudioPlayer({ audioUrl, licaoId, licaoTitulo }: Pro
     }
   }, [storageKey]);
 
-  // salvar posição a cada 5s
+  // Salvar posição a cada 5s
   useEffect(() => {
     if (!playing) return;
     const id = setInterval(() => {
@@ -56,19 +58,12 @@ export default function LicaoAudioPlayer({ audioUrl, licaoId, licaoTitulo }: Pro
     return () => clearInterval(id);
   }, [playing, storageKey]);
 
-  // detect sticky via sentinel
+  // Persistir preferência expanded
   useEffect(() => {
-    if (!sentinelRef.current) return;
-    const obs = new IntersectionObserver(
-      ([entry]) => setIsStuck(!entry.isIntersecting),
-      { threshold: [0], rootMargin: "0px 0px 0px 0px" },
-    );
-    obs.observe(sentinelRef.current);
-    return () => obs.disconnect();
-  }, []);
+    localStorage.setItem(EXPANDED_KEY, expanded ? "1" : "0");
+  }, [expanded]);
 
-  // observer no bloco pai da lição para informar visibilidade ao contexto
-  const { setVisibleLicao } = useLicaoAudioCtx();
+  // No modo scroll contínuo (várias lições), informar visibilidade
   useEffect(() => {
     if (!containerRef.current) return;
     const block = containerRef.current.closest("[data-licao-id]") as HTMLElement | null;
@@ -76,7 +71,6 @@ export default function LicaoAudioPlayer({ audioUrl, licaoId, licaoTitulo }: Pro
     const obs = new IntersectionObserver(
       (entries) => {
         const e = entries[0];
-        // Heurística: se ratio > 0.3, considera essa lição como dominante
         if (e.isIntersecting && e.intersectionRatio > 0.3) {
           setVisibleLicao(licaoId);
         }
@@ -87,16 +81,12 @@ export default function LicaoAudioPlayer({ audioUrl, licaoId, licaoTitulo }: Pro
     return () => obs.disconnect();
   }, [licaoId, setVisibleLicao]);
 
-  // se outro player virar ativo, pausar este
+  // Pausar este se outro player ficou ativo
   useEffect(() => {
     if (activeLicaoId && activeLicaoId !== licaoId && audioRef.current && !audioRef.current.paused) {
       audioRef.current.pause();
     }
   }, [activeLicaoId, licaoId]);
-
-  // se essa lição não é mais a visível, recolher para compacto
-  const sticky = isStuck && visibleLicaoId === licaoId;
-  const showCompact = sticky && !expanded;
 
   const togglePlay = () => {
     if (!audioRef.current) return;
@@ -129,110 +119,221 @@ export default function LicaoAudioPlayer({ audioUrl, licaoId, licaoTitulo }: Pro
 
   const progressPct = duration > 0 ? (current / duration) * 100 : 0;
 
+  // Geometria do anel de progresso (FAB)
+  const FAB_SIZE = 56;
+  const RING_RADIUS = 25;
+  const RING_CIRC = 2 * Math.PI * RING_RADIUS;
+  const dashOffset = RING_CIRC * (1 - progressPct / 100);
+
   return (
-    <>
-      {/* Sentinel acima do player para detectar quando ficou sticky */}
-      <div ref={sentinelRef} style={{ height: 1 }} />
-
-      <div
-        ref={containerRef}
-        data-licao-audio={licaoId}
-        className="bg-card border border-border rounded-lg shadow-sm"
-        style={{
-          position: "sticky",
-          top: 0,
-          zIndex: 30,
-          margin: "8px 0",
+    <div
+      ref={containerRef}
+      data-licao-audio={licaoId}
+      style={{
+        position: "fixed",
+        right: "max(12px, env(safe-area-inset-right))",
+        bottom: "calc(76px + env(safe-area-inset-bottom))",
+        zIndex: 40,
+        pointerEvents: "auto",
+      }}
+      className="md:right-6 md:bottom-[88px]"
+    >
+      <audio
+        ref={audioRef}
+        src={audioUrl}
+        preload="metadata"
+        onLoadedMetadata={(e) => setDuration((e.target as HTMLAudioElement).duration)}
+        onTimeUpdate={(e) => setCurrent((e.target as HTMLAudioElement).currentTime)}
+        onPlay={() => {
+          setPlaying(true);
+          if (audioRef.current) registerActive(licaoId, audioRef.current);
         }}
-      >
-        <audio
-          ref={audioRef}
-          src={audioUrl}
-          preload="metadata"
-          onLoadedMetadata={(e) => setDuration((e.target as HTMLAudioElement).duration)}
-          onTimeUpdate={(e) => setCurrent((e.target as HTMLAudioElement).currentTime)}
-          onPlay={() => {
-            setPlaying(true);
-            if (audioRef.current) registerActive(licaoId, audioRef.current);
-          }}
-          onPause={() => {
-            setPlaying(false);
-            unregisterActive(licaoId);
-            if (audioRef.current) localStorage.setItem(storageKey, String(audioRef.current.currentTime));
-          }}
-          onEnded={() => {
-            setPlaying(false);
-            unregisterActive(licaoId);
-            localStorage.removeItem(storageKey);
-          }}
-        />
+        onPause={() => {
+          setPlaying(false);
+          unregisterActive(licaoId);
+          if (audioRef.current) localStorage.setItem(storageKey, String(audioRef.current.currentTime));
+        }}
+        onEnded={() => {
+          setPlaying(false);
+          unregisterActive(licaoId);
+          localStorage.removeItem(storageKey);
+        }}
+      />
 
-        {showCompact ? (
-          // ========= COMPACTO =========
-          <div className="flex items-center gap-2 px-3 py-2 h-14">
-            <Button size="icon" variant="ghost" onClick={togglePlay} className="h-9 w-9 shrink-0">
-              {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-            </Button>
-            <div className="flex-1 min-w-0">
-              <div className="text-xs font-medium truncate">{licaoTitulo}</div>
-              <div className="h-1 bg-muted rounded-full overflow-hidden mt-1">
-                <div className="h-full bg-primary transition-all" style={{ width: `${progressPct}%` }} />
-              </div>
+      {!expanded ? (
+        // ============ FAB (colapsado) ============
+        <div style={{ position: "relative", width: FAB_SIZE, height: FAB_SIZE }}>
+          <button
+            onClick={togglePlay}
+            aria-label={playing ? "Pausar áudio" : "Tocar áudio"}
+            style={{
+              width: FAB_SIZE,
+              height: FAB_SIZE,
+              borderRadius: "50%",
+              backgroundColor: "#1c1915",
+              border: "1px solid rgba(246,186,50,0.35)",
+              color: "#f6ba32",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: "pointer",
+              boxShadow: "0 8px 24px rgba(0,0,0,0.45)",
+              padding: 0,
+              animation: playing ? "fabPulse 2s ease-in-out infinite" : undefined,
+            }}
+          >
+            {playing ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5 ml-0.5" />}
+          </button>
+
+          {/* anel de progresso */}
+          <svg
+            width={FAB_SIZE}
+            height={FAB_SIZE}
+            style={{ position: "absolute", inset: 0, pointerEvents: "none", transform: "rotate(-90deg)" }}
+          >
+            <circle
+              cx={FAB_SIZE / 2}
+              cy={FAB_SIZE / 2}
+              r={RING_RADIUS}
+              fill="none"
+              stroke="rgba(246,186,50,0.18)"
+              strokeWidth={3}
+            />
+            <circle
+              cx={FAB_SIZE / 2}
+              cy={FAB_SIZE / 2}
+              r={RING_RADIUS}
+              fill="none"
+              stroke="#f6ba32"
+              strokeWidth={3}
+              strokeDasharray={RING_CIRC}
+              strokeDashoffset={dashOffset}
+              strokeLinecap="round"
+              style={{ transition: "stroke-dashoffset 0.3s linear" }}
+            />
+          </svg>
+
+          {/* botão expandir */}
+          <button
+            onClick={() => setExpanded(true)}
+            aria-label="Expandir player"
+            style={{
+              position: "absolute",
+              top: -6,
+              right: -6,
+              width: 22,
+              height: 22,
+              borderRadius: "50%",
+              backgroundColor: "#f6ba32",
+              color: "#1c1915",
+              border: "none",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: "pointer",
+              boxShadow: "0 2px 6px rgba(0,0,0,0.4)",
+              padding: 0,
+            }}
+          >
+            <ChevronDown className="h-3 w-3 rotate-180" />
+          </button>
+
+          <style>{`
+            @keyframes fabPulse {
+              0%, 100% { box-shadow: 0 8px 24px rgba(0,0,0,0.45), 0 0 0 0 rgba(246,186,50,0.45); }
+              50% { box-shadow: 0 8px 24px rgba(0,0,0,0.45), 0 0 0 8px rgba(246,186,50,0); }
+            }
+          `}</style>
+        </div>
+      ) : (
+        // ============ Card expandido ============
+        <div
+          style={{
+            width: "min(360px, calc(100vw - 24px))",
+            backgroundColor: "#1c1915",
+            border: "1px solid rgba(246,186,50,0.35)",
+            borderRadius: 12,
+            boxShadow: "0 10px 30px rgba(0,0,0,0.5)",
+            color: "#f6ba32",
+            padding: 12,
+          }}
+        >
+          <div className="flex items-center gap-2 mb-2">
+            <div className="text-sm font-medium flex-1 truncate" style={{ color: "#f6ba32" }}>
+              🎧 {licaoTitulo}
             </div>
-            <Button size="icon" variant="ghost" onClick={() => setExpanded(true)} className="h-8 w-8 shrink-0">
-              <ChevronDown className="h-4 w-4" />
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={() => setExpanded(false)}
+              className="h-7 w-7 hover:bg-[rgba(246,186,50,0.15)]"
+              style={{ color: "#f6ba32" }}
+              aria-label="Minimizar player"
+            >
+              <CloseIcon className="h-4 w-4" />
             </Button>
           </div>
-        ) : (
-          // ========= COMPLETO =========
-          <div className="p-3 space-y-2">
-            <div className="flex items-center gap-2">
-              <AudioLines className="h-4 w-4 text-primary" />
-              <div className="text-sm font-medium flex-1 truncate">🎧 {licaoTitulo}</div>
-              {sticky && (
-                <Button size="icon" variant="ghost" onClick={() => setExpanded(false)} className="h-7 w-7">
-                  <ChevronUp className="h-4 w-4" />
-                </Button>
-              )}
-            </div>
 
-            <div className="flex items-center gap-2">
-              <Button size="icon" variant="outline" onClick={() => skip(-15)} className="h-9 w-9">
-                <Rewind className="h-4 w-4" />
-              </Button>
-              <Button size="icon" onClick={togglePlay} className="h-11 w-11 rounded-full">
-                {playing ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
-              </Button>
-              <Button size="icon" variant="outline" onClick={() => skip(15)} className="h-9 w-9">
-                <FastForward className="h-4 w-4" />
-              </Button>
+          <div className="flex items-center gap-2 mb-2">
+            <Button
+              size="icon"
+              variant="outline"
+              onClick={() => skip(-15)}
+              className="h-9 w-9 border-[rgba(246,186,50,0.35)] hover:bg-[rgba(246,186,50,0.15)]"
+              style={{ backgroundColor: "transparent", color: "#f6ba32" }}
+            >
+              <Rewind className="h-4 w-4" />
+            </Button>
+            <Button
+              size="icon"
+              onClick={togglePlay}
+              className="h-11 w-11 rounded-full hover:opacity-90"
+              style={{ backgroundColor: "#f6ba32", color: "#1c1915" }}
+            >
+              {playing ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5 ml-0.5" />}
+            </Button>
+            <Button
+              size="icon"
+              variant="outline"
+              onClick={() => skip(15)}
+              className="h-9 w-9 border-[rgba(246,186,50,0.35)] hover:bg-[rgba(246,186,50,0.15)]"
+              style={{ backgroundColor: "transparent", color: "#f6ba32" }}
+            >
+              <FastForward className="h-4 w-4" />
+            </Button>
 
-              <div className="flex-1 flex items-center gap-2 min-w-0">
-                <span className="text-xs tabular-nums text-muted-foreground">{fmt(current)}</span>
-                <Slider
-                  value={[current]}
-                  max={duration || 1}
-                  step={0.5}
-                  onValueChange={onSeek}
-                  className="flex-1"
-                />
-                <span className="text-xs tabular-nums text-muted-foreground">{fmt(duration)}</span>
-              </div>
-
-              <Select value={String(speed)} onValueChange={onSpeed}>
-                <SelectTrigger className="h-8 w-[72px] text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {SPEEDS.map((s) => (
-                    <SelectItem key={s} value={String(s)}>{s}x</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <Select value={String(speed)} onValueChange={onSpeed}>
+              <SelectTrigger
+                className="h-8 w-[64px] text-xs ml-auto border-[rgba(246,186,50,0.35)]"
+                style={{ backgroundColor: "transparent", color: "#f6ba32" }}
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {SPEEDS.map((s) => (
+                  <SelectItem key={s} value={String(s)}>{s}x</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-        )}
-      </div>
-    </>
+
+          <div className="flex items-center gap-2">
+            <span className="text-xs tabular-nums" style={{ color: "rgba(246,186,50,0.7)" }}>
+              {fmt(current)}
+            </span>
+            <Slider
+              value={[current]}
+              max={duration || 1}
+              step={0.5}
+              onValueChange={onSeek}
+              className="flex-1"
+            />
+            <span className="text-xs tabular-nums" style={{ color: "rgba(246,186,50,0.7)" }}>
+              {fmt(duration)}
+            </span>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
