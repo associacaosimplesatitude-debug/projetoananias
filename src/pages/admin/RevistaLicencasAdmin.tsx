@@ -363,10 +363,13 @@ function SuperintendentTab() {
 
 // === EDIT DRAWER ===
 // Detecta país a partir dos dígitos armazenados.
-// BR: 10–11 dígitos sem DDI. PT: 12 dígitos começando com 351. US: 11 dígitos começando com 1.
+// BR: 10–11 dígitos sem DDI (DDDs brasileiros 11–99, todos começam com 1–9).
+// PT: 12 dígitos começando com 351.
+// US: 11 dígitos começando com "10" (DDI 1 + area code 0XX). Como nenhum DDD brasileiro
+// começa com 0, isso evita classificar números de SP/RJ/ES (DDDs 11–19) como EUA.
 function detectWhatsappCountry(digits: string): "BR" | "PT" | "US" {
   if (digits.startsWith("351") && digits.length === 12) return "PT";
-  if (digits.startsWith("1") && digits.length === 11) return "US";
+  if (digits.length === 11 && digits.startsWith("10")) return "US";
   return "BR";
 }
 
