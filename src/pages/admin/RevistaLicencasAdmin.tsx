@@ -371,20 +371,20 @@ function detectWhatsappCountry(digits: string): "BR" | "PT" | "US" {
 }
 
 // Formata para exibição com bandeira e DDI completo, sem alterar o valor armazenado.
-function formatWhatsappDisplay(raw: string): { flag: string; formatted: string } {
+function formatWhatsappDisplay(raw: string): { country: "BR" | "PT" | "US" | null; formatted: string } {
   const digits = (raw || "").replace(/\D/g, "");
-  if (!digits) return { flag: "", formatted: "—" };
+  if (!digits) return { country: null, formatted: "—" };
   const country = detectWhatsappCountry(digits);
   if (country === "PT") {
     const local = digits.slice(3);
-    return { flag: "🇵🇹", formatted: `+351 ${local.slice(0, 3)} ${local.slice(3, 6)} ${local.slice(6)}`.trim() };
+    return { country, formatted: `+351 ${local.slice(0, 3)} ${local.slice(3, 6)} ${local.slice(6)}`.trim() };
   }
   if (country === "US") {
     const local = digits.slice(1);
-    return { flag: "🇺🇸", formatted: `+1 (${local.slice(0, 3)}) ${local.slice(3, 6)}-${local.slice(6)}` };
+    return { country, formatted: `+1 (${local.slice(0, 3)}) ${local.slice(3, 6)}-${local.slice(6)}` };
   }
   // BR
-  if (digits.length < 3) return { flag: "🇧🇷", formatted: `+55 ${digits}` };
+  if (digits.length < 3) return { country: "BR", formatted: `+55 ${digits}` };
   const ddd = digits.slice(0, 2);
   const rest = digits.slice(2);
   const local = rest.length === 9
@@ -392,7 +392,25 @@ function formatWhatsappDisplay(raw: string): { flag: string; formatted: string }
     : rest.length === 8
       ? `${rest.slice(0, 4)}-${rest.slice(4)}`
       : rest;
-  return { flag: "🇧🇷", formatted: `+55 (${ddd}) ${local}` };
+  return { country: "BR", formatted: `+55 (${ddd}) ${local}` };
+}
+
+const COUNTRY_ISO: Record<"BR" | "PT" | "US", string> = { BR: "br", PT: "pt", US: "us" };
+
+function CountryFlag({ country, className = "" }: { country: "BR" | "PT" | "US" | null; className?: string }) {
+  if (!country) return null;
+  const iso = COUNTRY_ISO[country];
+  return (
+    <img
+      src={`https://flagcdn.com/w40/${iso}.png`}
+      srcSet={`https://flagcdn.com/w80/${iso}.png 2x`}
+      width={20}
+      height={15}
+      alt={country}
+      className={`inline-block rounded-sm shadow-sm ${className}`}
+      loading="lazy"
+    />
+  );
 }
 
 function LicencaEditDrawer({ licenca, open, onClose, onSaved }: {
