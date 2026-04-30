@@ -291,9 +291,11 @@ function formatPhoneUS(value: string) {
 }
 
 function formatPhone(value: string, country: Country) {
+  if (country.code === "BR") return formatPhoneBR(value);
   if (country.code === "PT") return formatPhonePT(value);
   if (country.code === "US") return formatPhoneUS(value);
-  return formatPhoneBR(value);
+  // Demais países: apenas dígitos crus, limitado a 15 (E.164 nacional máximo).
+  return value.replace(/\D/g, "").slice(0, 15);
 }
 
 function extractDigits(value: string) {
