@@ -356,6 +356,10 @@ export default function Auth() {
   const accentColor = domainBranding.accentColor;
   const appName = domainBranding.appName;
 
+  if (chooserOptions) {
+    return <PerfilChooser options={chooserOptions} />;
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
