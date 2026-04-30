@@ -237,17 +237,39 @@ export function DistribuirLicencaDialog({
 
           <div className="space-y-2">
             <Label htmlFor="aluno_whatsapp">WhatsApp</Label>
-            <Input
-              id="aluno_whatsapp"
-              placeholder="(11) 99999-9999"
-              inputMode="tel"
-              value={phoneVal}
-              onChange={(e) =>
-                setValue("aluno_whatsapp", maskPhone(e.target.value), {
-                  shouldValidate: true,
-                })
-              }
-            />
+            <div className="flex gap-2">
+              <select
+                aria-label="País"
+                className="flex h-10 items-center gap-1 rounded-md border border-input bg-background px-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                value={country}
+                onChange={(e) => {
+                  const next = e.target.value as Country;
+                  setValue("aluno_country", next, { shouldValidate: true });
+                  setValue("aluno_whatsapp", "", { shouldValidate: false });
+                }}
+              >
+                <option value="BR">🇧🇷 +55 Brasil</option>
+                <option value="PT">🇵🇹 +351 Portugal</option>
+                <option value="US">🇺🇸 +1 EUA</option>
+              </select>
+              <div className="flex flex-1 items-center gap-2 rounded-md border border-input bg-background px-2 focus-within:ring-2 focus-within:ring-ring">
+                <CountryFlag country={country} />
+                <span className="text-sm text-muted-foreground">{meta.ddi}</span>
+                <Input
+                  id="aluno_whatsapp"
+                  placeholder={meta.placeholder}
+                  inputMode="tel"
+                  value={phoneVal}
+                  className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 px-1"
+                  onChange={(e) =>
+                    setValue("aluno_whatsapp", maskPhone(country, e.target.value), {
+                      shouldValidate: true,
+                    })
+                  }
+                />
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">{meta.hint}</p>
             {errors.aluno_whatsapp && (
               <p className="text-xs text-destructive">{errors.aluno_whatsapp.message}</p>
             )}
