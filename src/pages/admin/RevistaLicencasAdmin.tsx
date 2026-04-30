@@ -362,11 +362,37 @@ function SuperintendentTab() {
 }
 
 // === EDIT DRAWER ===
-function formatWhatsappMask(value: string): string {
-  const digits = value.replace(/\D/g, "");
-  if (digits.length <= 2) return `(${digits}`;
-  if (digits.length <= 7) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
-  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7, 11)}`;
+// Detecta país a partir dos dígitos armazenados.
+// BR: 10–11 dígitos sem DDI. PT: 12 dígitos começando com 351. US: 11 dígitos começando com 1.
+function detectWhatsappCountry(digits: string): "BR" | "PT" | "US" {
+  if (digits.startsWith("351") && digits.length === 12) return "PT";
+  if (digits.startsWith("1") && digits.length === 11) return "US";
+  return "BR";
+}
+
+// Formata para exibição com bandeira e DDI completo, sem alterar o valor armazenado.
+function formatWhatsappDisplay(raw: string): { flag: string; formatted: string } {
+  const digits = (raw || "").replace(/\D/g, "");
+  if (!digits) return { flag: "", formatted: "—" };
+  const country = detectWhatsappCountry(digits);
+  if (country === "PT") {
+    const local = digits.slice(3);
+    return { flag: "🇵🇹", formatted: `+351 ${local.slice(0, 3)} ${local.slice(3, 6)} ${local.slice(6)}`.trim() };
+  }
+  if (country === "US") {
+    const local = digits.slice(1);
+    return { flag: "🇺🇸", formatted: `+1 (${local.slice(0, 3)}) ${local.slice(3, 6)}-${local.slice(6)}` };
+  }
+  // BR
+  if (digits.length < 3) return { flag: "🇧🇷", formatted: `+55 ${digits}` };
+  const ddd = digits.slice(0, 2);
+  const rest = digits.slice(2);
+  const local = rest.length === 9
+    ? `${rest.slice(0, 5)}-${rest.slice(5)}`
+    : rest.length === 8
+      ? `${rest.slice(0, 4)}-${rest.slice(4)}`
+      : rest;
+  return { flag: "🇧🇷", formatted: `+55 (${ddd}) ${local}` };
 }
 
 function LicencaEditDrawer({ licenca, open, onClose, onSaved }: {
@@ -385,7 +411,7 @@ function LicencaEditDrawer({ licenca, open, onClose, onSaved }: {
   if (licId && licId !== prevId) {
     setPrevId(licId);
     setEditNome(licenca?.nome_comprador || "");
-    setEditWhatsapp(formatWhatsappMask(licenca?.whatsapp || ""));
+    setEditWhatsapp((licenca?.whatsapp || "").replace(/\D/g, ""));
     setEditEmail(licenca?.email || "");
     setEditAtivo(licenca?.ativo ?? true);
   }
@@ -481,8 +507,17 @@ function LicencaEditDrawer({ licenca, open, onClose, onSaved }: {
                   <Input value={editNome} onChange={(e) => setEditNome(e.target.value)} />
                 </div>
                 <div>
-                  <Label className="flex items-center gap-1.5 mb-1.5"><Phone className="h-3.5 w-3.5" />WhatsApp</Label>
-                  <Input value={editWhatsapp} onChange={(e) => setEditWhatsapp(formatWhatsappMask(e.target.value))} placeholder="(11) 98765-4321" maxLength={15} />
+                  <Label className="flex items-center gap-1.5 mb-1.5">
+                    <Phone className="h-3.5 w-3.5" />
+                    WhatsApp
+                    <span className="ml-1 text-base leading-none">{formatWhatsappDisplay(editWhatsapp).flag}</span>
+                  </Label>
+                  <Input
+                    value={formatWhatsappDisplay(editWhatsapp).formatted}
+                    onChange={(e) => setEditWhatsapp(e.target.value.replace(/\D/g, ""))}
+                    placeholder="+55 (11) 98765-4321"
+                    maxLength={24}
+                  />
                 </div>
                 <div>
                   <Label className="flex items-center gap-1.5 mb-1.5"><AtSign className="h-3.5 w-3.5" />Email</Label>
@@ -899,7 +934,17 @@ function ShopifyTab() {
                         {l.nome_comprador || "—"}
                       </button>
                     </TableCell>
-                    <TableCell>{l.whatsapp}</TableCell>
+                    <TableCell>
+                      {(() => {
+                        const { flag, formatted } = formatWhatsappDisplay(l.whatsapp);
+                        return (
+                          <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                            <span className="text-base leading-none">{flag}</span>
+                            <span>{formatted}</span>
+                          </span>
+                        );
+                      })()}
+                    </TableCell>
                     <TableCell className="text-sm">{l.email || "—"}</TableCell>
                     <TableCell>{l.revistas_digitais?.titulo || "—"}</TableCell>
                     <TableCell>
