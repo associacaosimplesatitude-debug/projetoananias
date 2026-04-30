@@ -117,7 +117,10 @@ export function DistribuirLicencaDialog({
     watch,
     reset,
     formState: { errors },
-  } = useForm<FormData>({ resolver: zodResolver(schema) });
+  } = useForm<FormData>({
+    resolver: zodResolver(schema),
+    defaultValues: { aluno_nome: "", aluno_email: "", aluno_country: "BR", aluno_whatsapp: "" },
+  });
 
   const onSubmit = async (data: FormData) => {
     setLoading(true);
