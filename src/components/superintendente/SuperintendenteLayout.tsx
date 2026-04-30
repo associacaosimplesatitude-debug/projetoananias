@@ -3,7 +3,7 @@ import { Home, LogOut, Menu, BookOpen, LifeBuoy } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 import { useSuperintendente } from "@/hooks/useSuperintendente";
 import { cn } from "@/lib/utils";
 
@@ -32,9 +32,17 @@ const menuItems: MenuItem[] = [
 
 export function SuperintendenteLayout() {
   const location = useLocation();
-  const { signOut } = useAuth();
   const { nomeIgreja, nomeSuperintendente } = useSuperintendente();
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  const handleSignOut = async () => {
+    try {
+      await supabase.auth.signOut();
+    } catch (e) {
+      console.warn("[multi-licenca] signOut error", e);
+    }
+    window.location.href = "/multi-licenca/login";
+  };
 
   const isActive = (path: string, exact?: boolean) =>
     exact ? location.pathname === path : location.pathname.startsWith(path);
@@ -140,7 +148,7 @@ export function SuperintendenteLayout() {
             <Button
               variant="ghost"
               size="sm"
-              onClick={signOut}
+              onClick={handleSignOut}
               className="hover:bg-white/10"
               style={{ color: NAV_TEXT }}
             >
