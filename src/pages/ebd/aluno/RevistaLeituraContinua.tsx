@@ -4,6 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { X } from "lucide-react";
+import { LicaoAudioProvider } from "@/components/revista/LicaoAudioContext";
+import LicaoAudioPlayer from "@/components/revista/LicaoAudioPlayer";
 
 export default function RevistaLeituraContinua() {
   const { revistaId } = useParams();
@@ -106,37 +108,48 @@ export default function RevistaLeituraContinua() {
       </div>
 
       <div className="flex-1 overflow-y-auto">
-        {licoes?.map((licao: any) => {
-          const paginas = (licao.paginas as string[]) || [];
-          if (paginas.length === 0) return null;
-          return (
-            <div key={licao.id} className="mb-8">
-              <div className="sticky top-0 z-10 bg-slate-900/90 backdrop-blur px-4 py-2 border-b border-white/10">
-                <span className="text-orange-400 font-semibold text-sm">Lição {licao.numero}</span>
-                <span className="text-white/60 text-sm ml-2">{licao.titulo || ""}</span>
-              </div>
-              <div className="flex flex-col items-center gap-1">
-                {paginas.map((url: string, i: number) => (
-                  <div key={i} className="relative w-full max-w-3xl mx-auto">
-                    <img
-                      src={url}
-                      alt={`Lição ${licao.numero} - Página ${i + 1}`}
-                      className="w-full object-contain pointer-events-none"
-                      draggable={false}
+        <LicaoAudioProvider>
+          {licoes?.map((licao: any) => {
+            const paginas = (licao.paginas as string[]) || [];
+            if (paginas.length === 0) return null;
+            return (
+              <div key={licao.id} data-licao-id={licao.id} className="mb-8">
+                <div className="sticky top-0 z-10 bg-slate-900/90 backdrop-blur px-4 py-2 border-b border-white/10">
+                  <span className="text-orange-400 font-semibold text-sm">Lição {licao.numero}</span>
+                  <span className="text-white/60 text-sm ml-2">{licao.titulo || ""}</span>
+                </div>
+                {licao.audio_url && (
+                  <div className="w-full max-w-3xl mx-auto px-2">
+                    <LicaoAudioPlayer
+                      audioUrl={licao.audio_url}
+                      licaoId={licao.id}
+                      licaoTitulo={`Lição ${licao.numero}${licao.titulo ? " — " + licao.titulo : ""}`}
                     />
-                    {watermarkText && (
-                      <div className="absolute inset-0 flex items-center justify-center overflow-hidden pointer-events-none">
-                        <span className="text-white/[0.07] text-4xl font-bold whitespace-nowrap rotate-[-30deg] select-none">
-                          {watermarkText}
-                        </span>
-                      </div>
-                    )}
                   </div>
-                ))}
+                )}
+                <div className="flex flex-col items-center gap-1">
+                  {paginas.map((url: string, i: number) => (
+                    <div key={i} className="relative w-full max-w-3xl mx-auto">
+                      <img
+                        src={url}
+                        alt={`Lição ${licao.numero} - Página ${i + 1}`}
+                        className="w-full object-contain pointer-events-none"
+                        draggable={false}
+                      />
+                      {watermarkText && (
+                        <div className="absolute inset-0 flex items-center justify-center overflow-hidden pointer-events-none">
+                          <span className="text-white/[0.07] text-4xl font-bold whitespace-nowrap rotate-[-30deg] select-none">
+                            {watermarkText}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </LicaoAudioProvider>
       </div>
     </div>
   );
