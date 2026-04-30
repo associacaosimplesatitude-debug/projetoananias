@@ -159,15 +159,6 @@ export default function SuperintendenteHome() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
-          Olá, {primeiroNome}!
-        </h1>
-        {nomeIgreja && (
-          <p className="text-sm text-muted-foreground mt-1">{nomeIgreja}</p>
-        )}
-      </div>
-
       {/* KPIs */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <KpiCard
