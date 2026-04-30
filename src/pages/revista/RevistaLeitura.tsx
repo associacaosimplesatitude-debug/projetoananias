@@ -8,8 +8,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import {
   BookOpen, LogOut, ArrowLeft, ChevronLeft, ChevronRight,
-  X, List, Columns, PartyPopper, ExternalLink, RefreshCw,
+  X, List, Columns, PartyPopper, ExternalLink, RefreshCw, Volume2,
 } from "lucide-react";
+import { LicaoAudioProvider } from "@/components/revista/LicaoAudioContext";
+import LicaoAudioPlayer from "@/components/revista/LicaoAudioPlayer";
 import { supabase } from "@/integrations/supabase/client";
 import {
   getValidRevistaSession,
@@ -46,6 +48,7 @@ interface Licao {
   titulo: string;
   numero: number;
   paginas: string[] | null;
+  audio_url?: string | null;
 }
 
 interface CatalogoItem {
@@ -356,7 +359,7 @@ export default function RevistaLeitura() {
     setLoadingLicoes(true);
     supabase
       .from("revista_licoes" as any)
-      .select("id, titulo, numero, paginas")
+      .select("id, titulo, numero, paginas, audio_url")
       .eq("revista_id", selectedRevista)
       .order("numero", { ascending: true })
       .then(({ data }) => {
