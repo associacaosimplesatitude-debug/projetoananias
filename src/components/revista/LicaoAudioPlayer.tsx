@@ -67,12 +67,26 @@ export default function LicaoAudioPlayer({ audioUrl, licaoId, licaoTitulo }: Pro
     return () => obs.disconnect();
   }, []);
 
-  // se outro player virar ativo, pausar este
+  // observer no bloco pai da lição para informar visibilidade ao contexto
+  const { setVisibleLicao } = useLicaoAudioCtx();
   useEffect(() => {
-    if (activeLicaoId && activeLicaoId !== licaoId && audioRef.current && !audioRef.current.paused) {
-      audioRef.current.pause();
-    }
-  }, [activeLicaoId, licaoId]);
+    if (!containerRef.current) return;
+    const block = containerRef.current.closest("[data-licao-id]") as HTMLElement | null;
+    if (!block) return;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        const e = entries[0];
+        // Heurística: se ratio > 0.3, considera essa lição como dominante
+        if (e.isIntersecting && e.intersectionRatio > 0.3) {
+          setVisibleLicao(licaoId);
+        }
+      },
+      { threshold: [0, 0.3, 0.5, 0.75, 1] },
+    );
+    obs.observe(block);
+    return () => obs.disconnect();
+  }, [licaoId, setVisibleLicao]);
+
 
   // se essa lição não é mais a visível, recolher para compacto
   const sticky = isStuck && visibleLicaoId === licaoId;
