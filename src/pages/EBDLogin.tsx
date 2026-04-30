@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import { z } from 'zod';
 import { pushLoginSuccess, pushCadastroSuccess } from '@/lib/gtm';
+import PerfilChooser, { type PerfilOption } from '@/components/auth/PerfilChooser';
 
 const authSchema = z.object({
   email: z.string().email('Email inválido').max(255),
