@@ -63,7 +63,7 @@ export function RemoverAlunoDialog({ aluno, open, onOpenChange, onSuccess }: Pro
       if (resp?.ok) {
         toast.success(
           modo === "devolver"
-            ? "Aluno removido. Licença devolvida ao pacote."
+            ? "Leitor removido. Licença devolvida ao pacote."
             : "Acesso desativado."
         );
         onOpenChange(false);
@@ -84,7 +84,7 @@ export function RemoverAlunoDialog({ aluno, open, onOpenChange, onSuccess }: Pro
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>
-            {jaAcessou ? "Desativar acesso do aluno?" : "Remover aluno?"}
+            {jaAcessou ? "Desativar acesso do leitor?" : "Remover leitor?"}
           </AlertDialogTitle>
           <AlertDialogDescription asChild>
             <div className="space-y-3 text-sm">
@@ -109,9 +109,9 @@ export function RemoverAlunoDialog({ aluno, open, onOpenChange, onSuccess }: Pro
               ) : (
                 <p>
                   Você está prestes a remover <strong>{aluno.aluno_nome}</strong>{" "}
-                  do seu pacote. Como o aluno ainda não acessou a revista, a
+                  do seu pacote. Como o leitor ainda não acessou a revista, a
                   licença será <strong>devolvida ao seu pacote</strong> e você
-                  poderá usá-la para outro aluno.
+                  poderá usá-la para outro leitor.
                 </p>
               )}
             </div>

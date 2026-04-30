@@ -169,7 +169,7 @@ export function AlunosLista({ licencaId, onPoolChanged }: Props) {
     return (
       <div className="mt-4 p-6 text-center border rounded-md bg-muted/30">
         <p className="text-sm text-muted-foreground">
-          Nenhum aluno cadastrado ainda. Clique em <strong>Distribuir Licença</strong>{" "}
+          Nenhum leitor cadastrado ainda. Clique em <strong>Distribuir Licença</strong>{" "}
           para começar.
         </p>
       </div>
@@ -201,7 +201,7 @@ export function AlunosLista({ licencaId, onPoolChanged }: Props) {
         ))}
         {filtered.length === 0 && (
           <p className="text-sm text-muted-foreground text-center py-6">
-            Nenhum aluno encontrado.
+            Nenhum leitor encontrado.
           </p>
         )}
       </div>
@@ -257,7 +257,7 @@ export function AlunosLista({ licencaId, onPoolChanged }: Props) {
                         className="text-destructive focus:text-destructive"
                       >
                         <Trash2 className="h-4 w-4 mr-2" />
-                        Remover aluno
+                        Remover leitor
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
@@ -267,7 +267,7 @@ export function AlunosLista({ licencaId, onPoolChanged }: Props) {
             {filtered.length === 0 && (
               <TableRow>
                 <TableCell colSpan={6} className="text-center text-sm text-muted-foreground py-6">
-                  Nenhum aluno encontrado.
+                  Nenhum leitor encontrado.
                 </TableCell>
               </TableRow>
             )}
@@ -354,7 +354,7 @@ function AlunoCardMobile({
               className="text-destructive focus:text-destructive"
             >
               <Trash2 className="h-4 w-4 mr-2" />
-              Remover aluno
+              Remover leitor
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

@@ -314,7 +314,7 @@ export default function SuperintendenteHome() {
                       ) : (
                         <ChevronDown className="h-4 w-4 mr-2" />
                       )}
-                      Ver alunos ({p.alunos_count})
+                      Ver leitores ({p.alunos_count})
                     </Button>
                   </div>
 
