@@ -11,8 +11,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Plus, BookOpen, Pencil, Image, Trash2, Upload, Eye, Save, ArrowLeft, GripVertical, ImagePlus, FileText, Loader2, ImageIcon, Bot, CheckCircle, PencilLine, ChevronLeft, ChevronRight, X } from "lucide-react";
+import { Plus, BookOpen, Pencil, Image, Trash2, Upload, Eye, Save, ArrowLeft, GripVertical, ImagePlus, FileText, Loader2, ImageIcon, Bot, CheckCircle, PencilLine, ChevronLeft, ChevronRight, X, AudioLines, AlertTriangle } from "lucide-react";
 import QuizEditor from "@/components/revista/QuizEditor";
+import GerarAudioDialog from "@/components/revista/GerarAudioDialog";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import * as pdfjsLib from "pdfjs-dist";
@@ -39,6 +40,11 @@ interface Licao {
   titulo: string | null;
   paginas: string[];
   created_at: string;
+  transcricao_audio: string | null;
+  audio_url: string | null;
+  audio_voz: string | null;
+  transcricao_gerada_em: string | null;
+  audio_gerado_em: string | null;
 }
 
 export default function RevistasDigitais() {
@@ -82,6 +88,7 @@ export default function RevistasDigitais() {
   const [bulkQuiz, setBulkQuiz] = useState<{ running: boolean; current: number; total: number; errors: number }>({ running: false, current: 0, total: 0, errors: 0 });
   const [bulkRefs, setBulkRefs] = useState<{ running: boolean; current: number; total: number; errors: number }>({ running: false, current: 0, total: 0, errors: 0 });
   const [editingQuizLicao, setEditingQuizLicao] = useState<{ id: string; titulo: string } | null>(null);
+  const [audioLicaoId, setAudioLicaoId] = useState<string | null>(null);
   
   const [uploadingPdfGlobal, setUploadingPdfGlobal] = useState(false);
   const [pdfProgress, setPdfProgress] = useState("");
