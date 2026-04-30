@@ -487,7 +487,13 @@ export default function RevistaAcesso() {
                 <div className="relative shrink-0" ref={dropdownRef}>
                   <button
                     type="button"
-                    onClick={() => setCountryOpen((o) => !o)}
+                    onClick={() => {
+                      setCountryOpen((o) => {
+                        const next = !o;
+                        if (next) setCountrySearch("");
+                        return next;
+                      });
+                    }}
                     className="h-14 px-2 sm:px-3 flex items-center gap-1 sm:gap-1.5 rounded-lg border border-input bg-background hover:bg-accent transition-colors whitespace-nowrap"
                   >
                     <span className="text-lg sm:text-xl leading-none">{country.flag}</span>
@@ -495,26 +501,56 @@ export default function RevistaAcesso() {
                     <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
                   </button>
                   {countryOpen && (
-                    <div className="absolute top-full left-0 mt-1 w-56 bg-background border border-input rounded-lg shadow-lg z-50 py-1">
-                      {COUNTRIES.map((c) => (
-                        <button
-                          key={c.code}
-                          type="button"
-                          onClick={() => {
-                            setCountry(c);
-                            setPhone("");
-                            setError("");
-                            setCountryOpen(false);
-                          }}
-                          className={`w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-accent transition-colors ${
-                            c.code === country.code ? "bg-accent/50" : ""
-                          }`}
-                        >
-                          <span className="text-xl leading-none">{c.flag}</span>
-                          <span className="text-sm font-medium text-foreground">{c.label}</span>
-                          <span className="text-sm text-muted-foreground ml-auto">+{c.ddi}</span>
-                        </button>
-                      ))}
+                    <div className="absolute top-full left-0 mt-1 w-72 bg-background border border-input rounded-lg shadow-lg z-50 flex flex-col">
+                      <div className="p-2 border-b border-input">
+                        <input
+                          type="text"
+                          autoFocus
+                          value={countrySearch}
+                          onChange={(e) => setCountrySearch(e.target.value)}
+                          placeholder="Buscar país ou DDI..."
+                          className="w-full h-9 px-3 text-sm rounded-md border border-input bg-background outline-none focus:ring-2 focus:ring-ring"
+                        />
+                      </div>
+                      <div className="max-h-72 overflow-y-auto py-1">
+                        {(() => {
+                          const q = countrySearch.trim().toLowerCase();
+                          const filtered = q
+                            ? COUNTRIES.filter(
+                                (c) =>
+                                  c.label.toLowerCase().includes(q) ||
+                                  c.ddi.includes(q.replace(/\D/g, ""))
+                              )
+                            : COUNTRIES;
+                          if (filtered.length === 0) {
+                            return (
+                              <p className="px-4 py-3 text-sm text-muted-foreground text-center">
+                                Nenhum país encontrado
+                              </p>
+                            );
+                          }
+                          return filtered.map((c) => (
+                            <button
+                              key={c.code}
+                              type="button"
+                              onClick={() => {
+                                setCountry(c);
+                                setPhone("");
+                                setError("");
+                                setCountryOpen(false);
+                                setCountrySearch("");
+                              }}
+                              className={`w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-accent transition-colors ${
+                                c.code === country.code ? "bg-accent/50" : ""
+                              }`}
+                            >
+                              <span className="text-xl leading-none">{c.flag}</span>
+                              <span className="text-sm font-medium text-foreground truncate">{c.label}</span>
+                              <span className="text-sm text-muted-foreground ml-auto shrink-0">+{c.ddi}</span>
+                            </button>
+                          ));
+                        })()}
+                      </div>
                     </div>
                   )}
                 </div>
