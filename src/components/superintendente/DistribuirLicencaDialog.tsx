@@ -192,6 +192,8 @@ export function DistribuirLicencaDialog({
   };
 
   const phoneVal = watch("aluno_whatsapp") || "";
+  const country = (watch("aluno_country") || "BR") as Country;
+  const meta = COUNTRY_META[country];
 
   return (
     <Dialog open={open} onOpenChange={(o) => !loading && onOpenChange(o)}>
