@@ -7,7 +7,7 @@ const corsHeaders = {
 };
 
 const LOG_PREFIX = "[receive-order-from-store-cg][superintendente]";
-const PAINEL_URL = "https://gestaoebd.com.br/login";
+const PAINEL_URL = "https://gestaoebd.com.br/multi-licenca";
 
 function generatePassword(length = 12): string {
   const chars = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
@@ -50,17 +50,17 @@ async function sendWelcomeEmail(opts: {
 
   const html = `<!DOCTYPE html>
 <html lang="pt-BR">
-<head><meta charset="utf-8"><title>Bem-vindo ao Plano Superintendente</title></head>
+<head><meta charset="utf-8"><title>Bem-vindo ao Plano Multi-Licença</title></head>
 <body style="margin:0;padding:0;background:#f4f4f5;font-family:Arial,sans-serif;color:#27272a;">
   <div style="max-width:600px;margin:0 auto;background:#ffffff;">
     <div style="background:linear-gradient(135deg,#1e3a8a 0%,#1e40af 100%);padding:32px 24px;text-align:center;">
-      <h1 style="color:#ffffff;margin:0;font-size:24px;">Bem-vindo ao Plano Superintendente</h1>
+      <h1 style="color:#ffffff;margin:0;font-size:24px;">Bem-vindo ao Plano Multi-Licença</h1>
       <p style="color:#dbeafe;margin:8px 0 0;font-size:14px;">Editora Central Gospel</p>
     </div>
     <div style="padding:32px 24px;">
       <p style="font-size:16px;margin:0 0 16px;">Olá <strong>${opts.nome}</strong>,</p>
       <p style="font-size:15px;line-height:1.6;margin:0 0 20px;">
-        Sua compra foi confirmada e seu acesso ao painel do Superintendente já está ativo.
+        Sua compra foi confirmada e seu acesso ao painel Multi-Licença já está ativo.
       </p>
 
       <div style="background:#f0f9ff;border-left:4px solid #1e40af;padding:16px 20px;margin:20px 0;border-radius:6px;">
@@ -81,8 +81,8 @@ async function sendWelcomeEmail(opts: {
       </div>
 
       <p style="font-size:14px;line-height:1.6;color:#52525b;margin:20px 0 0;">
-        No painel você poderá distribuir as licenças aos seus alunos cadastrando
-        nome, email e WhatsApp de cada um.
+        No painel você poderá distribuir as licenças aos seus alunos, leitores ou clientes
+        cadastrando nome, email e WhatsApp de cada um.
       </p>
     </div>
     <div style="background:#fafafa;padding:20px 24px;text-align:center;border-top:1px solid #e4e4e7;">
@@ -106,7 +106,7 @@ async function sendWelcomeEmail(opts: {
     body: JSON.stringify({
       from: "Editora Central Gospel <painel@painel.editoracentralgospel.com.br>",
       to: [opts.to],
-      subject: "Bem-vindo ao Plano Superintendente — Editora Central Gospel",
+      subject: "Bem-vindo ao Plano Multi-Licença — Editora Central Gospel",
       html,
     }),
   });
