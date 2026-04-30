@@ -230,42 +230,19 @@ export default function RevistaAcesso() {
               <p className="text-lg text-muted-foreground text-center">
                 Digite o número de WhatsApp que você usou na compra
               </p>
-              <div className="flex gap-2">
+              <div className="flex gap-2 w-full">
                 {/* Country selector */}
-                <div className="relative" ref={dropdownRef}>
+                <div className="relative shrink-0" ref={dropdownRef}>
                   <button
                     type="button"
                     onClick={() => setCountryOpen((o) => !o)}
-                    className="h-14 px-3 flex items-center gap-1.5 rounded-lg border border-input bg-background hover:bg-accent transition-colors whitespace-nowrap"
+                    className="h-14 px-2 sm:px-3 flex items-center gap-1 sm:gap-1.5 rounded-lg border border-input bg-background hover:bg-accent transition-colors whitespace-nowrap"
                   >
-                    <span className="text-xl leading-none">{country.flag}</span>
-                    <span className="text-sm text-muted-foreground">+{country.ddi}</span>
+                    <span className="text-lg sm:text-xl leading-none">{country.flag}</span>
+                    <span className="text-xs sm:text-sm text-muted-foreground">+{country.ddi}</span>
                     <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
                   </button>
-                  {countryOpen && (
-                    <div className="absolute top-full left-0 mt-1 w-56 bg-background border border-input rounded-lg shadow-lg z-50 py-1">
-                      {COUNTRIES.map((c) => (
-                        <button
-                          key={c.code}
-                          type="button"
-                          onClick={() => {
-                            setCountry(c);
-                            setPhone("");
-                            setError("");
-                            setCountryOpen(false);
-                          }}
-                          className={`w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-accent transition-colors ${
-                            c.code === country.code ? "bg-accent/50" : ""
-                          }`}
-                        >
-                          <span className="text-xl leading-none">{c.flag}</span>
-                          <span className="text-sm font-medium text-foreground">{c.label}</span>
-                          <span className="text-sm text-muted-foreground ml-auto">+{c.ddi}</span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
+...
                 {/* Phone input */}
                 <input
                   type="tel"
@@ -273,7 +250,7 @@ export default function RevistaAcesso() {
                   value={phone}
                   onChange={(e) => setPhone(formatPhone(e.target.value, country))}
                   maxLength={20}
-                  className="flex-1 h-14 text-xl text-center rounded-lg border border-input bg-background px-3 outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 transition-colors"
+                  className="flex-1 min-w-0 w-full h-14 text-base sm:text-xl text-center rounded-lg border border-input bg-background px-2 sm:px-3 outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 transition-colors"
                 />
               </div>
               {error && (
