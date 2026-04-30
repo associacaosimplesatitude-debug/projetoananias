@@ -103,6 +103,21 @@ export default function EBDLogin() {
           .from('ebd_clientes')
           .update({ ultimo_login: new Date().toISOString() })
           .eq('id', superintendenteData.id);
+
+        // Verifica se é cliente Plano Multi-Licença (origem nova_loja_cg)
+        const { data: multiLicencaData } = await supabase
+          .from('revista_licencas')
+          .select('id')
+          .eq('superintendente_id', superintendenteData.id)
+          .eq('origem', 'nova_loja_cg')
+          .limit(1);
+
+        if (multiLicencaData && multiLicencaData.length > 0) {
+          pushLoginSuccess(user.id, 'Superintendente');
+          navigate('/multi-licenca');
+          return;
+        }
+
         pushLoginSuccess(user.id, 'Superintendente');
         navigate('/ebd/dashboard');
         return;
