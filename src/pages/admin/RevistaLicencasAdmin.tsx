@@ -934,7 +934,17 @@ function ShopifyTab() {
                         {l.nome_comprador || "—"}
                       </button>
                     </TableCell>
-                    <TableCell>{l.whatsapp}</TableCell>
+                    <TableCell>
+                      {(() => {
+                        const { flag, formatted } = formatWhatsappDisplay(l.whatsapp);
+                        return (
+                          <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                            <span className="text-base leading-none">{flag}</span>
+                            <span>{formatted}</span>
+                          </span>
+                        );
+                      })()}
+                    </TableCell>
                     <TableCell className="text-sm">{l.email || "—"}</TableCell>
                     <TableCell>{l.revistas_digitais?.titulo || "—"}</TableCell>
                     <TableCell>
