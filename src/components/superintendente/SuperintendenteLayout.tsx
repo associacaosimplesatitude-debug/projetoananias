@@ -131,7 +131,7 @@ export function SuperintendenteLayout() {
           <div className="flex items-center gap-3">
             <div className="hidden sm:block text-right min-w-0">
               <p className="text-xs font-medium leading-tight truncate max-w-[180px]">
-                {nomeSuperintendente || "Superintendente"}
+                {nomeSuperintendente || "Cliente"}
               </p>
               <p className="text-[11px] opacity-70 leading-tight truncate max-w-[180px]">
                 {nomeIgreja || "—"}
