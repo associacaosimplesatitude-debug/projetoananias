@@ -1134,6 +1134,15 @@ export default function RevistasDigitais() {
             }}
           />
         )}
+
+        {audioLicaoId && (
+          <GerarAudioDialog
+            licaoId={audioLicaoId}
+            open={!!audioLicaoId}
+            onClose={() => setAudioLicaoId(null)}
+            onUpdated={() => queryClient.invalidateQueries({ queryKey: ["revista-licoes", managingLicoes?.id] })}
+          />
+        )}
       </div>
     );
   }
