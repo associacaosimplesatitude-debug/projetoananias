@@ -1170,14 +1170,32 @@ export default function RevistasDigitais() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold flex items-center gap-2">
-            <BookOpen className="h-6 w-6" /> Revistas Digitais
+            <BookOpen className="h-6 w-6" /> Produtos Digitais
           </h2>
-          <p className="text-muted-foreground">Gestão de revistas virtuais para EBD</p>
+          <p className="text-muted-foreground">Gestão de revistas, livros digitais e infográficos</p>
         </div>
         <Button onClick={() => setShowForm(true)} className="bg-orange-500 hover:bg-orange-600 text-white">
-          <Plus className="mr-2 h-4 w-4" /> Nova Revista
+          <Plus className="mr-2 h-4 w-4" /> Novo Produto
         </Button>
       </div>
+
+      {/* Filtro por categoria */}
+      <Tabs value={filtroCategoria} onValueChange={(v) => setFiltroCategoria(v as any)}>
+        <TabsList>
+          <TabsTrigger value="todos">
+            Todos {revistas ? `(${revistas.length})` : ""}
+          </TabsTrigger>
+          <TabsTrigger value="revista">
+            Revista EBD {revistas ? `(${revistas.filter((r: any) => !r.tipo_conteudo || r.tipo_conteudo === "revista").length})` : ""}
+          </TabsTrigger>
+          <TabsTrigger value="livro_digital">
+            Livros Digitais {revistas ? `(${revistas.filter((r: any) => r.tipo_conteudo === "livro_digital").length})` : ""}
+          </TabsTrigger>
+          <TabsTrigger value="infografico">
+            Infográficos {revistas ? `(${revistas.filter((r: any) => r.tipo_conteudo === "infografico").length})` : ""}
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
 
       {/* Form Dialog - Two Panel */}
       <Dialog open={showForm} onOpenChange={(o) => { if (!o) resetForm(); else setShowForm(true); }}>
