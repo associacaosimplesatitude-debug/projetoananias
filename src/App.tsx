@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { DomainBrandingProvider } from "@/contexts/DomainBrandingContext";
 import { ImpersonationProvider } from "@/contexts/ImpersonationContext";
@@ -162,11 +162,19 @@ import RevistaLeitura from "./pages/revista/RevistaLeitura";
 import LeitorAcesso from "./pages/leitor/LeitorAcesso";
 import LeitorLeitura from "./pages/leitor/LeitorLeitura";
 
-// Portal do Superintendente
+// Portal Multi-Licença (antigo Superintendente)
 import { SuperintendenteLayout } from "./components/superintendente/SuperintendenteLayout";
 import { RequireSuperintendente } from "./components/superintendente/RequireSuperintendente";
 import SuperintendenteHome from "./pages/superintendente/SuperintendenteHome";
 import SuperintendenteLogin from "./pages/superintendente/SuperintendenteLogin";
+
+// Redirect 301-style client-side de /superintendente/* → /multi-licenca/*
+function SuperintendenteLegacyRedirect() {
+  const location = useLocation();
+  const newPath =
+    location.pathname.replace(/^\/superintendente/, "/multi-licenca") || "/multi-licenca";
+  return <Navigate to={`${newPath}${location.search}${location.hash}`} replace />;
+}
 
 // Aluno Module Pages
 import AlunoHome from "./pages/ebd/aluno/AlunoHome";
