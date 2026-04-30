@@ -4,6 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { X } from "lucide-react";
+import { LicaoAudioProvider } from "@/components/revista/LicaoAudioContext";
+import LicaoAudioPlayer from "@/components/revista/LicaoAudioPlayer";
 
 export default function RevistaLeituraContinua() {
   const { revistaId } = useParams();
