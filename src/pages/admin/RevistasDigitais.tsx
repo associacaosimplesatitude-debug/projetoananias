@@ -977,6 +977,14 @@ export default function RevistasDigitais() {
                           >
                             <PencilLine className="h-3 w-3" /> Ver/Editar Quiz
                           </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="gap-1 text-xs text-destructive hover:text-destructive"
+                            onClick={() => handleDeleteQuiz(licao.id)}
+                          >
+                            <Trash2 className="h-3 w-3" /> Excluir Quiz
+                          </Button>
                         </>
                       ) : (
                         <Button
