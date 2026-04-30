@@ -22,13 +22,17 @@ import {
   Presentation,
   MessageSquare,
   Rocket,
+  RefreshCw,
 } from "lucide-react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { UserProfileDropdown } from "@/components/layout/UserProfileDropdown";
 import { NavLink as RouterNavLink } from "@/components/NavLink";
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
@@ -42,6 +46,34 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
+
+const BUILD_VERSION = (import.meta.env.VITE_BUILD_VERSION as string) || "dev";
+
+async function forcarAtualizacao() {
+  try {
+    if ("serviceWorker" in navigator) {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map((r) => r.unregister().catch(() => false)));
+    }
+    if (window.caches) {
+      const keys = await caches.keys();
+      await Promise.all(keys.map((k) => caches.delete(k)));
+    }
+  } catch (e) {
+    // ignore
+  }
+  toast.success("Cache limpo. Recarregando…");
+  setTimeout(() => window.location.reload(), 400);
+}
+
+async function copiarVersao() {
+  try {
+    await navigator.clipboard.writeText(BUILD_VERSION);
+    toast.success("Versão copiada");
+  } catch {
+    toast.error("Não foi possível copiar");
+  }
+}
 import {
   Collapsible,
   CollapsibleContent,
@@ -315,6 +347,25 @@ function AdminSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+      <SidebarFooter className="border-t p-2 group-data-[collapsible=icon]:hidden">
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full justify-start gap-2"
+          onClick={forcarAtualizacao}
+        >
+          <RefreshCw className="h-4 w-4" />
+          Forçar atualização
+        </Button>
+        <button
+          type="button"
+          onClick={copiarVersao}
+          className="mt-1 w-full text-center text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+          title="Clique para copiar"
+        >
+          v{BUILD_VERSION}
+        </button>
+      </SidebarFooter>
     </Sidebar>
   );
 }

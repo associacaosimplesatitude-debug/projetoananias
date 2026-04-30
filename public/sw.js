@@ -1,20 +1,16 @@
-self.addEventListener("install", (event) => {
-  event.waitUntil(self.skipWaiting());
+self.addEventListener('install', () => {
+  self.skipWaiting();
 });
 
-self.addEventListener("activate", (event) => {
+self.addEventListener('activate', (event) => {
   event.waitUntil((async () => {
     await self.clients.claim();
-    const cacheNames = await caches.keys();
-    await Promise.all(cacheNames.map((cacheName) => caches.delete(cacheName)));
-
-    const clients = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
-    await Promise.all(clients.map((client) => {
-      const url = new URL(client.url);
-      url.searchParams.set("sw-cleanup", Date.now().toString());
-      return client.navigate(url.toString());
-    }));
-
+    const keys = await caches.keys();
+    await Promise.all(keys.map((k) => caches.delete(k)));
     await self.registration.unregister();
+    const clients = await self.clients.matchAll({ type: 'window' });
+    for (const client of clients) {
+      try { client.navigate(client.url); } catch (e) {}
+    }
   })());
 });
