@@ -133,6 +133,21 @@ export default function Auth() {
           .update({ ultimo_login: new Date().toISOString() })
           .eq('id', superintendenteData.id);
         pushLoginSuccess(user.id, 'Superintendente');
+
+        // Verifica se é cliente Plano Multi-Licença (origem nova_loja_cg)
+        const { data: multiLicencaData } = await supabase
+          .from('revista_licencas')
+          .select('id')
+          .eq('superintendente_id', superintendenteData.id)
+          .eq('origem', 'nova_loja_cg')
+          .limit(1);
+
+        if (multiLicencaData && multiLicencaData.length > 0) {
+          console.log('Redirecting to /multi-licenca (Plano Multi-Licença)');
+          navigate('/multi-licenca');
+          return;
+        }
+
         console.log('Redirecting to /ebd/dashboard (superintendente)');
         navigate('/ebd/dashboard');
         return;
