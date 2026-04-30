@@ -131,12 +131,12 @@ export default function LicaoAudioPlayer({ audioUrl, licaoId, licaoTitulo }: Pro
       data-licao-audio={licaoId}
       style={{
         position: "fixed",
-        right: "max(12px, env(safe-area-inset-right))",
-        bottom: "calc(76px + env(safe-area-inset-bottom))",
+        right: "max(8px, env(safe-area-inset-right))",
+        top: "calc(48px + env(safe-area-inset-top))",
         zIndex: 40,
         pointerEvents: "auto",
       }}
-      className="md:right-6 md:bottom-[88px]"
+      className="md:right-4 md:top-[56px]"
     >
       <audio
         ref={audioRef}
@@ -161,68 +161,33 @@ export default function LicaoAudioPlayer({ audioUrl, licaoId, licaoTitulo }: Pro
       />
 
       {!expanded ? (
-        // ============ FAB (colapsado) ============
-        <div style={{ position: "relative", width: FAB_SIZE, height: FAB_SIZE }}>
+        // ============ Mini-player horizontal (pill) ============
+        <div
+          style={{
+            position: "relative",
+            width: "min(300px, calc(100vw - 24px))",
+            height: 44,
+            backgroundColor: "rgba(28,25,21,0.96)",
+            border: "1px solid rgba(246,186,50,0.45)",
+            borderRadius: 999,
+            boxShadow: "0 6px 20px rgba(0,0,0,0.5)",
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            paddingLeft: 4,
+            paddingRight: 8,
+            color: "#f6ba32",
+            overflow: "hidden",
+            backdropFilter: "blur(6px)",
+          }}
+          className="md:w-[320px]"
+        >
           <button
             onClick={togglePlay}
             aria-label={playing ? "Pausar áudio" : "Tocar áudio"}
             style={{
-              width: FAB_SIZE,
-              height: FAB_SIZE,
-              borderRadius: "50%",
-              backgroundColor: "#1c1915",
-              border: "1px solid rgba(246,186,50,0.35)",
-              color: "#f6ba32",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              cursor: "pointer",
-              boxShadow: "0 8px 24px rgba(0,0,0,0.45)",
-              padding: 0,
-              animation: playing ? "fabPulse 2s ease-in-out infinite" : undefined,
-            }}
-          >
-            {playing ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5 ml-0.5" />}
-          </button>
-
-          {/* anel de progresso */}
-          <svg
-            width={FAB_SIZE}
-            height={FAB_SIZE}
-            style={{ position: "absolute", inset: 0, pointerEvents: "none", transform: "rotate(-90deg)" }}
-          >
-            <circle
-              cx={FAB_SIZE / 2}
-              cy={FAB_SIZE / 2}
-              r={RING_RADIUS}
-              fill="none"
-              stroke="rgba(246,186,50,0.18)"
-              strokeWidth={3}
-            />
-            <circle
-              cx={FAB_SIZE / 2}
-              cy={FAB_SIZE / 2}
-              r={RING_RADIUS}
-              fill="none"
-              stroke="#f6ba32"
-              strokeWidth={3}
-              strokeDasharray={RING_CIRC}
-              strokeDashoffset={dashOffset}
-              strokeLinecap="round"
-              style={{ transition: "stroke-dashoffset 0.3s linear" }}
-            />
-          </svg>
-
-          {/* botão expandir */}
-          <button
-            onClick={() => setExpanded(true)}
-            aria-label="Expandir player"
-            style={{
-              position: "absolute",
-              top: -6,
-              right: -6,
-              width: 22,
-              height: 22,
+              width: 36,
+              height: 36,
               borderRadius: "50%",
               backgroundColor: "#f6ba32",
               color: "#1c1915",
@@ -231,19 +196,56 @@ export default function LicaoAudioPlayer({ audioUrl, licaoId, licaoTitulo }: Pro
               alignItems: "center",
               justifyContent: "center",
               cursor: "pointer",
-              boxShadow: "0 2px 6px rgba(0,0,0,0.4)",
+              flexShrink: 0,
               padding: 0,
             }}
           >
-            <ChevronDown className="h-3 w-3 rotate-180" />
+            {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4 ml-0.5" />}
           </button>
 
-          <style>{`
-            @keyframes fabPulse {
-              0%, 100% { box-shadow: 0 8px 24px rgba(0,0,0,0.45), 0 0 0 0 rgba(246,186,50,0.45); }
-              50% { box-shadow: 0 8px 24px rgba(0,0,0,0.45), 0 0 0 8px rgba(246,186,50,0); }
-            }
-          `}</style>
+          <div className="flex-1 min-w-0 flex flex-col justify-center" style={{ lineHeight: 1.1 }}>
+            <span className="text-[11px] font-medium truncate" style={{ color: "#f6ba32" }}>
+              🎧 {licaoTitulo}
+            </span>
+            <span className="text-[10px] tabular-nums" style={{ color: "rgba(246,186,50,0.7)" }}>
+              {fmt(current)} / {fmt(duration)}
+            </span>
+          </div>
+
+          <button
+            onClick={() => setExpanded(true)}
+            aria-label="Expandir player"
+            style={{
+              width: 28,
+              height: 28,
+              borderRadius: "50%",
+              backgroundColor: "transparent",
+              color: "#f6ba32",
+              border: "1px solid rgba(246,186,50,0.45)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: "pointer",
+              flexShrink: 0,
+              padding: 0,
+            }}
+          >
+            <ChevronDown className="h-3.5 w-3.5" />
+          </button>
+
+          {/* barra de progresso fina na borda inferior */}
+          <div
+            style={{
+              position: "absolute",
+              left: 0,
+              bottom: 0,
+              height: 2,
+              width: `${progressPct}%`,
+              backgroundColor: "#f6ba32",
+              transition: "width 0.3s linear",
+              borderRadius: 999,
+            }}
+          />
         </div>
       ) : (
         // ============ Card expandido ============
