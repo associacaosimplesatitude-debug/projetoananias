@@ -411,7 +411,7 @@ function LicencaEditDrawer({ licenca, open, onClose, onSaved }: {
   if (licId && licId !== prevId) {
     setPrevId(licId);
     setEditNome(licenca?.nome_comprador || "");
-    setEditWhatsapp(formatWhatsappMask(licenca?.whatsapp || ""));
+    setEditWhatsapp((licenca?.whatsapp || "").replace(/\D/g, ""));
     setEditEmail(licenca?.email || "");
     setEditAtivo(licenca?.ativo ?? true);
   }
