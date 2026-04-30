@@ -12,6 +12,7 @@ import logoAnanias from '@/assets/logo_ananias.png';
 import { useBrandingSettings } from '@/hooks/useBrandingSettings';
 import { useDomainBranding } from '@/hooks/useDomainBranding';
 import { pushLoginSuccess, pushCadastroSuccess } from '@/lib/gtm';
+import PerfilChooser, { type PerfilOption } from '@/components/auth/PerfilChooser';
 
 const authSchema = z.object({
   email: z.string().email('Email inválido').max(255),
@@ -25,6 +26,7 @@ export default function Auth() {
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [loading, setLoading] = useState(false);
+  const [chooserOptions, setChooserOptions] = useState<PerfilOption[] | null>(null);
   const { signIn, signUp, user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -142,7 +144,29 @@ export default function Auth() {
           .eq('origem', 'nova_loja_cg')
           .limit(1);
 
-        if (multiLicencaData && multiLicencaData.length > 0) {
+        const hasMultiLicenca = !!(multiLicencaData && multiLicencaData.length > 0);
+
+        if (hasMultiLicenca) {
+          const [profRes, alunoRes] = await Promise.all([
+            supabase.from('ebd_professores').select('id').eq('user_id', user.id).eq('is_active', true).limit(1),
+            supabase.from('ebd_alunos').select('id').eq('user_id', user.id).eq('is_active', true).limit(1),
+          ]);
+          const hasProfessor = (profRes.data?.length ?? 0) > 0;
+          const hasAluno = (alunoRes.data?.length ?? 0) > 0;
+          const hasAdmin = priorityRole === 'admin' || priorityRole === 'gerente_ebd';
+          const hasOutro = hasProfessor || hasAluno || hasAdmin || !!vendedorData;
+
+          if (hasOutro) {
+            const opts: PerfilOption[] = [
+              { key: 'multi', label: 'Painel Multi-Licença', description: 'Distribua e gerencie suas licenças.', path: '/multi-licenca', icon: 'multi' },
+              { key: 'ebd', label: 'Painel Gestão EBD', description: 'Acesse o sistema completo da EBD.', path: '/ebd/dashboard', icon: 'ebd' },
+            ];
+            if (hasProfessor) opts.push({ key: 'prof', label: 'Área do Professor', description: 'Suas turmas e aulas.', path: '/ebd/professor', icon: 'professor' });
+            if (hasAluno) opts.push({ key: 'aluno', label: 'Área do Aluno', description: 'Suas lições e quizzes.', path: '/ebd/aluno', icon: 'aluno' });
+            setChooserOptions(opts);
+            return;
+          }
+
           console.log('Redirecting to /multi-licenca (Plano Multi-Licença)');
           navigate('/multi-licenca');
           return;
@@ -331,6 +355,10 @@ export default function Auth() {
   const loginLogoUrl = domainBranding.logoUrl;
   const accentColor = domainBranding.accentColor;
   const appName = domainBranding.appName;
+
+  if (chooserOptions) {
+    return <PerfilChooser options={chooserOptions} />;
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
