@@ -507,8 +507,17 @@ function LicencaEditDrawer({ licenca, open, onClose, onSaved }: {
                   <Input value={editNome} onChange={(e) => setEditNome(e.target.value)} />
                 </div>
                 <div>
-                  <Label className="flex items-center gap-1.5 mb-1.5"><Phone className="h-3.5 w-3.5" />WhatsApp</Label>
-                  <Input value={editWhatsapp} onChange={(e) => setEditWhatsapp(formatWhatsappMask(e.target.value))} placeholder="(11) 98765-4321" maxLength={15} />
+                  <Label className="flex items-center gap-1.5 mb-1.5">
+                    <Phone className="h-3.5 w-3.5" />
+                    WhatsApp
+                    <span className="ml-1 text-base leading-none">{formatWhatsappDisplay(editWhatsapp).flag}</span>
+                  </Label>
+                  <Input
+                    value={formatWhatsappDisplay(editWhatsapp).formatted}
+                    onChange={(e) => setEditWhatsapp(e.target.value.replace(/\D/g, ""))}
+                    placeholder="+55 (11) 98765-4321"
+                    maxLength={24}
+                  />
                 </div>
                 <div>
                   <Label className="flex items-center gap-1.5 mb-1.5"><AtSign className="h-3.5 w-3.5" />Email</Label>
