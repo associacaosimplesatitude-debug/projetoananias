@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation, Navigate } from "react-router-dom";
-import { Loader2, BookOpen, AlertCircle, ExternalLink } from "lucide-react";
+import { Loader2, AlertCircle, ExternalLink } from "lucide-react";
+import logoCentralGospel from "@/assets/logo_central_gospel.png";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useSuperintendente } from "@/hooks/useSuperintendente";
@@ -82,12 +83,11 @@ export default function SuperintendenteLogin() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-blue-50 p-4">
       <Card className="w-full max-w-md shadow-xl">
         <CardHeader className="text-center space-y-3">
-          <div
-            className="mx-auto h-16 w-16 rounded-full flex items-center justify-center"
-            style={{ backgroundColor: BRAND_PRIMARY }}
-          >
-            <BookOpen className="h-8 w-8 text-white" />
-          </div>
+          <img
+            src={logoCentralGospel}
+            alt="Editora Central Gospel"
+            className="mx-auto h-auto w-20 object-contain"
+          />
           <CardTitle className="text-2xl" style={{ color: BRAND_PRIMARY }}>
             Editora Central Gospel
           </CardTitle>
