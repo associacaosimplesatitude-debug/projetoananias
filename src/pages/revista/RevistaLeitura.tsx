@@ -1294,23 +1294,23 @@ export default function RevistaLeitura() {
     >
       {/* Header */}
       <div
-        className="px-4 py-4 flex items-center justify-between"
+        className="px-3 sm:px-4 py-3 sm:py-4 flex items-center justify-between gap-2"
         style={{ background: '#1c1915', color: '#f6ba32' }}
       >
-        <div className="flex items-center gap-3">
-          <BookOpen className="h-6 w-6" style={{ color: '#f6ba32' }} />
-          <div>
-            <p className="text-lg font-semibold" style={{ color: '#f6ba32' }}>Minha Biblioteca</p>
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+          <BookOpen className="h-5 w-5 sm:h-6 sm:w-6 shrink-0" style={{ color: '#f6ba32' }} />
+          <div className="min-w-0">
+            <p className="text-sm sm:text-lg font-semibold truncate" style={{ color: '#f6ba32' }}>Minha Biblioteca</p>
             {nomeComprador && (
-              <p className="text-sm" style={{ color: '#f6ba32', opacity: 0.8 }}>Olá, {nomeComprador}</p>
+              <p className="text-xs sm:text-sm truncate" style={{ color: '#f6ba32', opacity: 0.8 }}>Olá, {nomeComprador}</p>
             )}
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 sm:gap-2 shrink-0">
           <button
             onClick={toggleModoNoturno}
-            className="p-2 rounded"
-            style={{ fontSize: '20px', color: '#f6ba32', opacity: 1, background: 'none', border: 'none', cursor: 'pointer' }}
+            className="p-1.5 sm:p-2 rounded text-lg sm:text-xl"
+            style={{ color: '#f6ba32', background: 'none', border: 'none', cursor: 'pointer', lineHeight: 1 }}
             title={modoNoturno ? "Modo claro" : "Modo noturno"}
             onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(246,186,50,0.15)'}
             onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
@@ -1322,22 +1322,22 @@ export default function RevistaLeitura() {
             size="sm"
             onClick={handleAtualizarConteudo}
             style={{ color: '#f6ba32' }}
-            className="hover:bg-[rgba(246,186,50,0.15)] text-base"
-            title="Limpar cache e recarregar a página"
+            className="hover:bg-[rgba(246,186,50,0.15)] px-2 sm:px-3"
+            title="Atualizar conteúdo"
           >
-            <RefreshCw className="h-5 w-5 mr-2" />
-            <span className="hidden sm:inline">Atualizar conteúdo</span>
-            <span className="sm:hidden">Atualizar</span>
+            <RefreshCw className="h-4 w-4 sm:h-5 sm:w-5 sm:mr-2" />
+            <span className="hidden sm:inline">Atualizar</span>
           </Button>
           <Button
             variant="ghost"
             size="sm"
             onClick={handleLogout}
             style={{ color: '#f6ba32' }}
-            className="hover:bg-[rgba(246,186,50,0.15)] text-base"
+            className="hover:bg-[rgba(246,186,50,0.15)] px-2 sm:px-3"
+            title="Sair"
           >
-            <LogOut className="h-5 w-5 mr-2" />
-            Sair
+            <LogOut className="h-4 w-4 sm:h-5 sm:w-5 sm:mr-2" />
+            <span className="hidden sm:inline">Sair</span>
           </Button>
         </div>
       </div>
