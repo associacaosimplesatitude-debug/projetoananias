@@ -64,6 +64,7 @@ export default function RevistasDigitais() {
   const [anoPublicacao, setAnoPublicacao] = useState(new Date().getFullYear());
   const [statusPublicacao, setStatusPublicacao] = useState("rascunho");
   const [tipoConteudo, setTipoConteudo] = useState("revista");
+  const [filtroCategoria, setFiltroCategoria] = useState<"todos" | "revista" | "livro_digital" | "infografico">("todos");
   const [videoCelularCgDigital, setVideoCelularCgDigital] = useState("");
   const [videoDesktopCgDigital, setVideoDesktopCgDigital] = useState("");
   const [videoCelularLeitor, setVideoCelularLeitor] = useState("");
