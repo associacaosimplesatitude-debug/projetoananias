@@ -61,6 +61,15 @@ export default function SuperintendenteLogin() {
     }
   };
 
+  const loginButNotSuperintendente =
+    !!user && !isSuperintendente && !authLoading && !seLoading;
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    setEmail("");
+    setSenha("");
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-muted p-4">
       <Card className="w-full max-w-md shadow-xl">
@@ -74,6 +83,27 @@ export default function SuperintendenteLogin() {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {loginButNotSuperintendente && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Acesso não disponível</AlertTitle>
+              <AlertDescription className="space-y-3">
+                <p>
+                  Login realizado, mas seu acesso ao Plano Multi-Licença não está ativo.
+                  Verifique se você comprou o plano ou entre em contato com o suporte.
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleLogout}
+                  className="w-full"
+                >
+                  Sair e tentar com outra conta
+                </Button>
+              </AlertDescription>
+            </Alert>
+          )}
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">E-mail</Label>
