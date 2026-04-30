@@ -51,7 +51,7 @@ export default function SuperintendenteHome() {
   const [distribuirOpen, setDistribuirOpen] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
-  const primeiroNome = (nomeSuperintendente || "").split(" ")[0] || "Superintendente";
+  const primeiroNome = (nomeSuperintendente || "").trim().split(" ")[0] || "Cliente";
 
   const { data: pacotes, isLoading: loadingPacotes } = useQuery({
     queryKey: ["superintendente", "pacotes", clienteId],
