@@ -119,6 +119,11 @@ export function UserProfileDropdown() {
           </DropdownMenuItem>
         )}
         <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={forcarAtualizacaoApp} className="cursor-pointer">
+          <RefreshCw className="mr-2 h-4 w-4" />
+          Atualizar aplicativo
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
         <DropdownMenuItem onClick={signOut} className="cursor-pointer text-destructive">
           <LogOut className="mr-2 h-4 w-4" />
           Sair
