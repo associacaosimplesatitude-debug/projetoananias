@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation, Navigate } from "react-router-dom";
-import { Loader2, BookOpen, AlertCircle } from "lucide-react";
+import { Loader2, BookOpen, AlertCircle, ExternalLink } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useSuperintendente } from "@/hooks/useSuperintendente";
+import { useMultiLicencaPacote } from "@/hooks/useMultiLicencaPacote";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,11 +12,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { toast } from "@/hooks/use-toast";
 
+const BRAND_PRIMARY = "#1B3A5C";
+
 export default function SuperintendenteLogin() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, loading: authLoading } = useAuth();
-  const { isSuperintendente, isLoading: seLoading } = useSuperintendente();
+  const { isSuperintendente, isLoading: seLoading, clienteId } = useSuperintendente();
+  const { hasMultiLicencaPacote, isLoading: pacoteLoading } = useMultiLicencaPacote(clienteId);
 
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
@@ -24,14 +28,17 @@ export default function SuperintendenteLogin() {
   const redirect =
     new URLSearchParams(location.search).get("redirect") || "/multi-licenca";
 
-  // Redirect when already logged in as SE
+  const ready = !authLoading && !seLoading && (!isSuperintendente || !pacoteLoading);
+  const isMultiLicencaCliente = !!user && isSuperintendente && hasMultiLicencaPacote;
+
+  // Redireciona quando autenticado E elegível
   useEffect(() => {
-    if (!authLoading && !seLoading && user && isSuperintendente) {
+    if (ready && isMultiLicencaCliente) {
       navigate(redirect, { replace: true });
     }
-  }, [authLoading, seLoading, user, isSuperintendente, navigate, redirect]);
+  }, [ready, isMultiLicencaCliente, navigate, redirect]);
 
-  if (!authLoading && !seLoading && user && isSuperintendente) {
+  if (ready && isMultiLicencaCliente) {
     return <Navigate to={redirect} replace />;
   }
 
@@ -55,14 +62,11 @@ export default function SuperintendenteLogin() {
         });
         return;
       }
-      toast({ title: "Bem-vindo!", description: "Acessando seu portal..." });
+      toast({ title: "Bem-vindo!", description: "Validando seu acesso..." });
     } finally {
       setSubmitting(false);
     }
   };
-
-  const loginButNotSuperintendente =
-    !!user && !isSuperintendente && !authLoading && !seLoading;
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -70,26 +74,64 @@ export default function SuperintendenteLogin() {
     setSenha("");
   };
 
+  // Estados pós-login
+  const loggedSEsemPacote = ready && !!user && isSuperintendente && !hasMultiLicencaPacote;
+  const loggedNaoSE = ready && !!user && !isSuperintendente;
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-muted p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-blue-50 p-4">
       <Card className="w-full max-w-md shadow-xl">
         <CardHeader className="text-center space-y-3">
-          <div className="mx-auto h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
-            <BookOpen className="h-6 w-6 text-primary" />
+          <div
+            className="mx-auto h-16 w-16 rounded-full flex items-center justify-center"
+            style={{ backgroundColor: BRAND_PRIMARY }}
+          >
+            <BookOpen className="h-8 w-8 text-white" />
           </div>
-          <CardTitle className="text-2xl">Portal Multi-Licença</CardTitle>
+          <CardTitle className="text-2xl" style={{ color: BRAND_PRIMARY }}>
+            Editora Central Gospel
+          </CardTitle>
+          <p className="text-sm font-medium text-muted-foreground -mt-2">
+            Portal Multi-Licença
+          </p>
           <CardDescription>
             Acesse com o e-mail e a senha temporária recebidos após sua compra.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {loginButNotSuperintendente && (
+          {loggedSEsemPacote && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Plano Multi-Licença não encontrado</AlertTitle>
+              <AlertDescription className="space-y-3">
+                <p>
+                  Você está logado como Superintendente da Gestão EBD tradicional.
+                  Esta área é exclusiva para clientes do <strong>Plano Multi-Licença</strong>.
+                </p>
+                <div className="flex flex-col gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => navigate("/ebd/dashboard")}
+                    style={{ backgroundColor: BRAND_PRIMARY, color: "white" }}
+                  >
+                    Ir para o Painel Gestão EBD
+                  </Button>
+                  <Button type="button" variant="outline" size="sm" onClick={handleLogout}>
+                    Sair
+                  </Button>
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {loggedNaoSE && (
             <Alert variant="destructive" className="mb-4">
               <AlertCircle className="h-4 w-4" />
               <AlertTitle>Acesso não disponível</AlertTitle>
               <AlertDescription className="space-y-3">
                 <p>
-                  Login realizado, mas seu acesso ao Plano Multi-Licença não está ativo.
+                  Login realizado, mas sua conta não tem acesso ao Plano Multi-Licença.
                   Verifique se você comprou o plano ou entre em contato com o suporte.
                 </p>
                 <Button
@@ -104,47 +146,64 @@ export default function SuperintendenteLogin() {
               </AlertDescription>
             </Alert>
           )}
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">E-mail</Label>
-              <Input
-                id="email"
-                type="email"
-                autoComplete="email"
-                placeholder="seu@email.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                maxLength={255}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="senha">Senha</Label>
-              <Input
-                id="senha"
-                type="password"
-                autoComplete="current-password"
-                placeholder="Senha temporária"
-                value={senha}
-                onChange={(e) => setSenha(e.target.value)}
-                required
-                maxLength={128}
-              />
-            </div>
-            <Button type="submit" className="w-full" disabled={submitting}>
-              {submitting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Entrando...
-                </>
-              ) : (
-                "Entrar"
-              )}
-            </Button>
-            <p className="text-xs text-muted-foreground text-center pt-2">
-              Problemas para acessar? Fale com o suporte da Editora Central Gospel.
-            </p>
-          </form>
+
+          {!loggedSEsemPacote && !loggedNaoSE && (
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="email">E-mail</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  autoComplete="email"
+                  placeholder="seu@email.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  maxLength={255}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="senha">Senha</Label>
+                <Input
+                  id="senha"
+                  type="password"
+                  autoComplete="current-password"
+                  placeholder="Senha temporária"
+                  value={senha}
+                  onChange={(e) => setSenha(e.target.value)}
+                  required
+                  maxLength={128}
+                />
+              </div>
+              <Button
+                type="submit"
+                className="w-full"
+                disabled={submitting}
+                style={{ backgroundColor: BRAND_PRIMARY, color: "white" }}
+              >
+                {submitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Entrando...
+                  </>
+                ) : (
+                  "Entrar"
+                )}
+              </Button>
+            </form>
+          )}
+
+          <div className="mt-6 pt-4 border-t text-center">
+            <a
+              href="https://centralgospel.com.br/multi-licenca"
+              target="_blank"
+              rel="noreferrer"
+              className="text-xs text-muted-foreground hover:text-primary inline-flex items-center gap-1"
+            >
+              Não é cliente ainda? Conheça o Plano Multi-Licença
+              <ExternalLink className="h-3 w-3" />
+            </a>
+          </div>
         </CardContent>
       </Card>
     </div>
