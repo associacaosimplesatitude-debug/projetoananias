@@ -224,6 +224,7 @@ export default function LeitorLeitura() {
   const handleClose = () => {
     setSelectedRevista(null);
     setAllPages([]);
+    setLicoesData([]);
     setScrollProgress(0);
   };
 
