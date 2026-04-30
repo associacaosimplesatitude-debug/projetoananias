@@ -1005,9 +1005,19 @@ export default function RevistasDigitais() {
                     {/* References button - only show when quiz is generated */}
                     {licao.paginas.length > 0 && quizMap?.[licao.id] && (
                       refsMap?.[licao.id] ? (
-                        <Badge className="bg-blue-600 text-white text-[10px] gap-1 justify-center">
-                          <CheckCircle className="h-3 w-3" /> ✅ Referências extraídas
-                        </Badge>
+                        <>
+                          <Badge className="bg-blue-600 text-white text-[10px] gap-1 justify-center">
+                            <CheckCircle className="h-3 w-3" /> ✅ Referências extraídas
+                          </Badge>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="gap-1 text-xs text-destructive hover:text-destructive"
+                            onClick={() => handleDeleteRefs(licao.id)}
+                          >
+                            <Trash2 className="h-3 w-3" /> Excluir Referências
+                          </Button>
+                        </>
                       ) : (
                         <Button
                           size="sm"
