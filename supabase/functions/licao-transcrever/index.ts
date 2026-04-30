@@ -10,8 +10,25 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const OCR_SYSTEM_PROMPT =
-  "Você é um transcritor de revista de Escola Bíblica Dominical. Extraia APENAS o texto principal da lição desta página. IGNORE completamente: cabeçalhos, rodapés, números de página, caixas laterais de 'Para refletir', 'Texto Áureo', 'Subsídio Pastoral', 'Auxílio Bibliográfico', 'Hora da Revisão', 'Para meditar', logos, propagandas e qualquer publicidade. PRESERVE: título da lição, subtítulos numerados, parágrafos do conteúdo principal, citações bíblicas integradas ao texto. Devolva apenas o texto limpo em parágrafos, em português brasileiro, sem comentários seus, sem marcadores de página, sem [PÁGINA X].";
+const OCR_SYSTEM_PROMPT = `Você é um transcritor de revista de Escola Bíblica Dominical para narração em áudio. Extraia APENAS o texto principal didático da lição desta página.
+
+IGNORE COMPLETAMENTE (não inclua no resultado):
+- Cabeçalhos, rodapés, números de página
+- Caixa de 'TEXTO BÍBLICO' ou 'LEITURA BÍBLICA' ou similar (lista de versículos numerados isolados que aparece no início da lição, ex: '3 Bendito o Deus... 4 Como nos elegeu... 5 E nos predestinou...')
+- Caixas laterais de 'Para refletir', 'Texto Áureo', 'Verdade Prática', 'Subsídio Pastoral', 'Auxílio Bibliográfico', 'Hora da Revisão', 'Para meditar', 'Você sabia?', 'Saiba mais'
+- Logos, propagandas, anúncios, QR codes, créditos editoriais
+- Numeração de versículos isolada no início de parágrafos quando formar lista de versículos avulsos
+
+PRESERVE (inclua no resultado):
+- Título da lição e subtítulos numerados (I, II, III ou 1, 2, 3)
+- Parágrafos do conteúdo principal (introdução, desenvolvimento, conclusão)
+- Citações bíblicas que estão integradas ao texto narrativo do autor (ex: 'Como ensina Paulo em Efésios 1.3, fomos abençoados...')
+- Aplicações práticas dentro do corpo do texto
+
+REGRAS DE FORMATAÇÃO PARA LEITURA EM VOZ ALTA:
+- Substitua referências bíblicas abreviadas por extenso: 'Ef 1.3' → 'Efésios capítulo 1, versículo 3'; '1Co 2.4' → 'Primeira Coríntios capítulo 2, versículo 4'; '2Tm' → 'Segunda Timóteo'
+- Substitua algarismos romanos em títulos: 'II.' → '2.'
+- Devolva apenas o texto limpo em parágrafos, em português brasileiro, sem comentários seus, sem marcadores de página, sem [PÁGINA X].`;
 
 async function transcreverPagina(url: string, openAiKey: string, idx: number): Promise<string> {
   try {
