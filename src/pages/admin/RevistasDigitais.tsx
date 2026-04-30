@@ -15,6 +15,7 @@ import { Plus, BookOpen, Pencil, Image, Trash2, Upload, Eye, Save, ArrowLeft, Gr
 import QuizEditor from "@/components/revista/QuizEditor";
 import GerarAudioDialog from "@/components/revista/GerarAudioDialog";
 import { Progress } from "@/components/ui/progress";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import * as pdfjsLib from "pdfjs-dist";
 
@@ -63,6 +64,7 @@ export default function RevistasDigitais() {
   const [anoPublicacao, setAnoPublicacao] = useState(new Date().getFullYear());
   const [statusPublicacao, setStatusPublicacao] = useState("rascunho");
   const [tipoConteudo, setTipoConteudo] = useState("revista");
+  const [filtroCategoria, setFiltroCategoria] = useState<"todos" | "revista" | "livro_digital" | "infografico">("todos");
   const [videoCelularCgDigital, setVideoCelularCgDigital] = useState("");
   const [videoDesktopCgDigital, setVideoDesktopCgDigital] = useState("");
   const [videoCelularLeitor, setVideoCelularLeitor] = useState("");
@@ -1168,14 +1170,32 @@ export default function RevistasDigitais() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold flex items-center gap-2">
-            <BookOpen className="h-6 w-6" /> Revistas Digitais
+            <BookOpen className="h-6 w-6" /> Produtos Digitais
           </h2>
-          <p className="text-muted-foreground">Gestão de revistas virtuais para EBD</p>
+          <p className="text-muted-foreground">Gestão de revistas, livros digitais e infográficos</p>
         </div>
         <Button onClick={() => setShowForm(true)} className="bg-orange-500 hover:bg-orange-600 text-white">
-          <Plus className="mr-2 h-4 w-4" /> Nova Revista
+          <Plus className="mr-2 h-4 w-4" /> Novo Produto
         </Button>
       </div>
+
+      {/* Filtro por categoria */}
+      <Tabs value={filtroCategoria} onValueChange={(v) => setFiltroCategoria(v as any)}>
+        <TabsList>
+          <TabsTrigger value="todos">
+            Todos {revistas ? `(${revistas.length})` : ""}
+          </TabsTrigger>
+          <TabsTrigger value="revista">
+            Revista EBD {revistas ? `(${revistas.filter((r: any) => !r.tipo_conteudo || r.tipo_conteudo === "revista").length})` : ""}
+          </TabsTrigger>
+          <TabsTrigger value="livro_digital">
+            Livros Digitais {revistas ? `(${revistas.filter((r: any) => r.tipo_conteudo === "livro_digital").length})` : ""}
+          </TabsTrigger>
+          <TabsTrigger value="infografico">
+            Infográficos {revistas ? `(${revistas.filter((r: any) => r.tipo_conteudo === "infografico").length})` : ""}
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
 
       {/* Form Dialog - Two Panel */}
       <Dialog open={showForm} onOpenChange={(o) => { if (!o) resetForm(); else setShowForm(true); }}>
@@ -1555,11 +1575,19 @@ export default function RevistasDigitais() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {isLoading ? (
-                <TableRow><TableCell colSpan={7} className="text-center py-8">Carregando...</TableCell></TableRow>
-              ) : revistas?.length === 0 ? (
-                <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Nenhuma revista cadastrada</TableCell></TableRow>
-              ) : revistas?.map((r) => (
+              {(() => {
+                const filtered = (revistas || []).filter((r: any) => {
+                  if (filtroCategoria === "todos") return true;
+                  if (filtroCategoria === "revista") return !r.tipo_conteudo || r.tipo_conteudo === "revista";
+                  return r.tipo_conteudo === filtroCategoria;
+                });
+                if (isLoading) {
+                  return <TableRow><TableCell colSpan={7} className="text-center py-8">Carregando...</TableCell></TableRow>;
+                }
+                if (filtered.length === 0) {
+                  return <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Nenhum produto encontrado nesta categoria</TableCell></TableRow>;
+                }
+                return filtered.map((r) => (
                 <TableRow key={r.id}>
                   <TableCell>
                     {r.capa_url ? (
@@ -1601,7 +1629,8 @@ export default function RevistasDigitais() {
                     <Button size="sm" variant="ghost" onClick={() => deleteMutation.mutate(r.id)} title="Excluir"><Trash2 className="h-4 w-4 text-destructive" /></Button>
                   </TableCell>
                 </TableRow>
-              ))}
+                ));
+              })()}
             </TableBody>
           </Table>
         </CardContent>
