@@ -1,41 +1,73 @@
-## Diagnóstico
+# Player flutuante para o leitor da revista
 
-Investiguei o código atual de `src/pages/admin/RevistasDigitais.tsx` e o badge laranja "Lição {numero}" **já foi removido** em commit anterior (`cf63e955`). O código atual (linhas 829–842) renderiza apenas:
+## Problema atual
 
-- Ícone de arrastar (GripVertical)
-- Badge "5 páginas" / "Sem páginas" (variante padrão do tema, que pode aparecer com tom escuro/dourado)
-- Indicador "Reordenando..." quando aplicável
+O `LicaoAudioPlayer` é renderizado como um bloco fixo dentro do header do leitor (`RevistaLeitura.tsx`, linhas 1051–1060), ocupando ~90–110px de altura. Como a imagem da página usa `h-[calc(100vh-120px)]` e o footer de navegação ("Anterior / Página X de Y / Próxima") é fixo, a soma estoura a viewport — o resultado é o rodapé do conteúdo cortado tanto no mobile quanto no desktop (visível no print enviado).
 
-Não existe mais nenhum `<Badge>Lição {licao.numero}</Badge>` no arquivo.
+Além disso, o mesmo player também está em uso no modo rolagem contínua (`RevistaLeituraContinua` / `LeitorLeitura`) onde o sticky-collapse já existe — mudar para flutuante unifica a UX dos 3 leitores.
 
-A imagem enviada provavelmente reflete um **cache do navegador / Service Worker** com a versão antiga (há um erro de Service Worker registrado: redirect bloqueado em `/sw.js`, o que impede a atualização do bundle).
+## Solução: FAB flutuante (estilo Spotify mini-player)
 
-## Plano de ação
+Reescrever o `LicaoAudioPlayer` em duas formas alternadas:
 
-### 1. Auditoria final do código (garantia)
-Rodar busca em todo `src/` por qualquer ocorrência remanescente de badge "Lição N" com classe laranja em telas administrativas e em componentes filhos do fluxo `/admin/ebd/revistas-digitais`. Se encontrar, remover mantendo apenas o título da lição (input).
+1. **Estado COLAPSADO (default)**: botão circular flutuante de 56px no canto inferior-direito, acima do footer de navegação. Mostra ícone Play/Pause + barra circular fina de progresso ao redor. Não ocupa fluxo do layout.
+2. **Estado EXPANDIDO**: card flutuante de ~340px de largura, ancorado no mesmo canto, com título da lição, transport completo (−15s / play / +15s), slider de progresso, tempo, velocidade e botão "minimizar".
 
-### 2. Forçar invalidação do Service Worker / cache do PWA
-O console mostra:
+Como é `position: fixed`, o player **não rouba mais altura** do conteúdo — o corte do rodapé desaparece automaticamente nas 3 versões dos leitores.
+
+```text
+┌──────────────────────────┐    ┌──────────────────────────┐
+│  Header                  │    │  Header                  │
+├──────────────────────────┤    ├──────────────────────────┤
+│                          │    │                          │
+│                          │    │     [conteúdo full]      │
+│     [conteúdo full]      │    │                          │
+│                          │    │     ┌──────────────┐     │
+│                          │    │     │ 🎧 Lição 1   │     │
+│                          │    │     │ ◀ ▶ ▶ ──○─── │     │
+│                       ◐  │    │     │ 0:12  / 8:07 │     │
+├──────────────────────────┤    │     └──────────────┘     │
+│  ◀ Anterior  1/5  Próx ▶ │    ├──────────────────────────┤
+└──────────────────────────┘    │  ◀ Anterior  1/5  Próx ▶ │
+   colapsado (FAB)              │   expandido               │
 ```
-Failed to update a ServiceWorker ... script resource is behind a redirect
-```
-Isso significa que o navegador continua servindo a versão antiga da página administrativa.
 
-Ações:
-- Inspecionar `public/sw.js` e o registro do Service Worker em `index.html` / `main.tsx`.
-- Garantir que rotas administrativas (`/admin/*`) **não** sejam interceptadas pelo SW (já é boa prática — só PWA do leitor deve ser cacheada).
-- Adicionar `self.skipWaiting()` + `clients.claim()` no SW e bumpar a versão para forçar atualização imediata em todos os clients.
+## Mudanças técnicas
 
-### 3. Comunicar ao usuário
-Após o deploy, instruir um hard refresh (Ctrl+Shift+R) ou desinstalar o SW pelas DevTools para validar que a tag "Lição 4" laranja sumiu.
+**1. `src/components/revista/LicaoAudioPlayer.tsx`** — reescrita
 
-## Resultado esperado
+- Remover `position: sticky` + sentinel + IntersectionObserver de stuck. Não precisa mais.
+- Manter o IntersectionObserver de `data-licao-id` apenas no modo "scroll contínuo" (auto-troca entre lições) — só ativar se `containerRef.current.closest('[data-licao-id]')` existir.
+- Wrapper externo passa a ser `position: fixed`, `bottom: 72px` (acima do footer de navegação), `right: 16px`, `zIndex: 40`.
+- Default `expanded = false` (só FAB ao abrir). Persistir preferência em `localStorage` (`licao_audio_expanded`).
+- Estado COLAPSADO: botão redondo 56×56 com SVG circular de progresso (stroke gold), ícone Play/Pause central. Click curto = play/pause. Click no badge "expandir" (chevron pequeno) = expande.
+- Estado EXPANDIDO: card 340px (mobile: `calc(100vw - 32px)` máx 360), com header (título + minimizar) + linha de transport + slider + speed.
+- Quando audio está tocando e player está colapsado, mostrar barra de progresso circular animada + um pulse sutil.
+- Manter persistência de posição em `licao_audio_pos_${licaoId}` (já existe).
+- Manter integração com `LicaoAudioContext` (pause os outros, etc.).
 
-No card de cada lição em `/admin/ebd/revistas-digitais` ao gerenciar lições, restará apenas:
-- Ícone de arrastar
-- Badge "N páginas"
-- Miniatura da primeira página
-- Input com o título escrito (ex.: "Lição 02 – A Graça Salvadora e Seus Efeitos — Efésios 2–3")
+**2. `src/pages/revista/RevistaLeitura.tsx`** (linhas 1051–1060)
 
-Sem qualquer pílula laranja "Lição {numero}".
+- Remover o `<div style={{ padding: "8px 12px", backgroundColor: '#1c1915', ...}}>` wrapper.
+- Renderizar `<LicaoAudioPlayer />` diretamente como filho do container `LicaoAudioProvider` (continua dentro do provider, mas fora do flex column — vai como overlay fixed).
+- Footer nav fica intacto. Conteúdo recupera espaço vertical inteiro.
+
+**3. `src/pages/revista/RevistaLeituraContinua.tsx`** e **`src/pages/leitor/LeitorLeitura.tsx`**
+
+- Mesma simplificação: remover qualquer wrapper/padding que esteja envolvendo o player. Como agora ele é fixed/overlay, basta mantê-lo dentro do `LicaoAudioProvider` em qualquer ponto do JSX.
+- No modo scroll contínuo (várias lições empilhadas), a lógica de "qual lição é a visível" continua valendo via `setVisibleLicao`. O FAB sempre mostra a lição visível atual (única instância renderizada por lição, mas o context ainda permite trocar pause entre elas).
+
+**4. Posicionamento responsivo**
+
+- Mobile (<768px): FAB `right: 12px`, `bottom: 76px` (acima do footer de 56px). Card expandido `width: calc(100vw - 24px)`, `right: 12px`.
+- Desktop: FAB `right: 24px`, `bottom: 88px`. Card expandido `width: 360px`.
+- Em ambos: usar `safe-area-inset-bottom` para iOS PWA.
+
+## Critérios de aceite
+
+- Página da lição (img/conteúdo) ocupa 100% do espaço entre header e footer — sem corte do rodapé em mobile (375px) e desktop (1366px+).
+- FAB visível e clicável em todas as páginas da lição (modo setas e modo rolagem).
+- Expandir/minimizar funciona com 1 clique e a preferência persiste entre lições.
+- Posição do áudio continua salva em `licao_audio_pos_<licaoId>`.
+- Em scroll contínuo, ao rolar entre lições o FAB pausa a anterior (já garantido pelo context).
+- Player não sobrepõe os botões "Anterior/Próxima" do footer.
