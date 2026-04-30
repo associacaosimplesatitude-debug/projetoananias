@@ -1041,6 +1041,37 @@ export default function RevistasDigitais() {
                         </Button>
                       )
                     )}
+                    {/* Áudio narrado por IA */}
+                    {licao.paginas.length > 0 && (() => {
+                      const temAudio = !!licao.audio_url;
+                      const temTranscricao = !!licao.transcricao_audio;
+                      const desatualizado = !!(licao.audio_gerado_em && licao.transcricao_gerada_em && new Date(licao.transcricao_gerada_em) > new Date(licao.audio_gerado_em));
+                      let label = "Gerar Áudio";
+                      if (temAudio) label = "Regerar Áudio";
+                      else if (temTranscricao) label = "Gerar Áudio (transcrição pronta)";
+                      return (
+                        <>
+                          {temAudio && (
+                            <Badge className="bg-green-600 text-white text-[10px] gap-1 justify-center">
+                              <AudioLines className="h-3 w-3" /> 🔊 Áudio disponível
+                            </Badge>
+                          )}
+                          {desatualizado && (
+                            <Badge className="bg-amber-500 text-white text-[10px] gap-1 justify-center">
+                              <AlertTriangle className="h-3 w-3" /> Áudio desatualizado
+                            </Badge>
+                          )}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="gap-1 text-xs"
+                            onClick={() => setAudioLicaoId(licao.id)}
+                          >
+                            <AudioLines className="h-3 w-3" /> {label}
+                          </Button>
+                        </>
+                      );
+                    })()}
                     <Button
                       size="sm"
                       variant="outline"
