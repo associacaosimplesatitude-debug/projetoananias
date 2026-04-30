@@ -108,30 +108,91 @@ Deno.serve(async (req) => {
 
     console.log(`[licao-gerar-audio] gerando TTS ${voz} para ${transcricao.length} caracteres`);
 
-    const ttsResp = await fetch("https://api.openai.com/v1/audio/speech", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "tts-1-hd",
-        voice: voz,
-        input: transcricao,
-        response_format: "mp3",
-      }),
-    });
-
-    if (!ttsResp.ok) {
-      const errTxt = await ttsResp.text();
-      console.error("OpenAI TTS error:", ttsResp.status, errTxt);
-      return new Response(
-        JSON.stringify({ success: false, error: `OpenAI TTS HTTP ${ttsResp.status}` }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
+    // OpenAI TTS limita a 4096 chars por request. Dividimos em chunks
+    // respeitando fronteiras de frase/parágrafo e concatenamos os MP3s.
+    const MAX_CHUNK = 3800;
+    function splitTexto(txt: string, max: number): string[] {
+      if (txt.length <= max) return [txt];
+      const chunks: string[] = [];
+      // Primeiro tenta quebrar por parágrafos
+      const paragrafos = txt.split(/\n\s*\n/);
+      let buffer = "";
+      const flush = () => {
+        if (buffer.trim()) chunks.push(buffer.trim());
+        buffer = "";
+      };
+      for (const p of paragrafos) {
+        if ((buffer + "\n\n" + p).length <= max) {
+          buffer = buffer ? buffer + "\n\n" + p : p;
+        } else {
+          flush();
+          if (p.length <= max) {
+            buffer = p;
+          } else {
+            // Quebra por frase
+            const frases = p.split(/(?<=[.!?])\s+/);
+            for (const f of frases) {
+              if ((buffer + " " + f).length <= max) {
+                buffer = buffer ? buffer + " " + f : f;
+              } else {
+                flush();
+                if (f.length <= max) {
+                  buffer = f;
+                } else {
+                  // força split bruto
+                  for (let i = 0; i < f.length; i += max) {
+                    chunks.push(f.slice(i, i + max));
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+      flush();
+      return chunks;
     }
 
-    const arrayBuf = await ttsResp.arrayBuffer();
+    const chunks = splitTexto(transcricao, MAX_CHUNK);
+    console.log(`[licao-gerar-audio] ${chunks.length} chunk(s)`);
+
+    const buffers: Uint8Array[] = [];
+    for (let i = 0; i < chunks.length; i++) {
+      const chunk = chunks[i];
+      console.log(`[licao-gerar-audio] chunk ${i + 1}/${chunks.length} (${chunk.length} chars)`);
+      const ttsResp = await fetch("https://api.openai.com/v1/audio/speech", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${OPENAI_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "tts-1-hd",
+          voice: voz,
+          input: chunk,
+          response_format: "mp3",
+        }),
+      });
+      if (!ttsResp.ok) {
+        const errTxt = await ttsResp.text();
+        console.error("OpenAI TTS error:", ttsResp.status, errTxt);
+        return new Response(
+          JSON.stringify({ success: false, error: `OpenAI TTS HTTP ${ttsResp.status} no chunk ${i + 1}` }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+      buffers.push(new Uint8Array(await ttsResp.arrayBuffer()));
+    }
+
+    // Concatena MP3s (frames MP3 são auto-sincronizáveis, basta concatenar bytes)
+    const totalLen = buffers.reduce((s, b) => s + b.length, 0);
+    const merged = new Uint8Array(totalLen);
+    let offset = 0;
+    for (const b of buffers) {
+      merged.set(b, offset);
+      offset += b.length;
+    }
+    const arrayBuf = merged.buffer;
     const filePath = `licao_${licao_id}_${Date.now()}.mp3`;
 
     const { error: upErr } = await admin.storage
