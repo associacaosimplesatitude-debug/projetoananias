@@ -15,6 +15,7 @@ import { Plus, BookOpen, Pencil, Image, Trash2, Upload, Eye, Save, ArrowLeft, Gr
 import QuizEditor from "@/components/revista/QuizEditor";
 import GerarAudioDialog from "@/components/revista/GerarAudioDialog";
 import { Progress } from "@/components/ui/progress";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import * as pdfjsLib from "pdfjs-dist";
 
