@@ -81,7 +81,7 @@ async function sendWelcomeEmail(opts: {
       </div>
 
       <p style="font-size:14px;line-height:1.6;color:#52525b;margin:20px 0 0;">
-        No painel você poderá distribuir as licenças aos seus alunos, leitores ou clientes
+        No painel você poderá distribuir as licenças aos seus leitores
         cadastrando nome, email e WhatsApp de cada um.
       </p>
     </div>
