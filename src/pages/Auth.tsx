@@ -144,7 +144,29 @@ export default function Auth() {
           .eq('origem', 'nova_loja_cg')
           .limit(1);
 
-        if (multiLicencaData && multiLicencaData.length > 0) {
+        const hasMultiLicenca = !!(multiLicencaData && multiLicencaData.length > 0);
+
+        if (hasMultiLicenca) {
+          const [profRes, alunoRes] = await Promise.all([
+            supabase.from('ebd_professores').select('id').eq('user_id', user.id).eq('is_active', true).limit(1),
+            supabase.from('ebd_alunos').select('id').eq('user_id', user.id).eq('is_active', true).limit(1),
+          ]);
+          const hasProfessor = (profRes.data?.length ?? 0) > 0;
+          const hasAluno = (alunoRes.data?.length ?? 0) > 0;
+          const hasAdmin = priorityRole === 'admin' || priorityRole === 'gerente_ebd';
+          const hasOutro = hasProfessor || hasAluno || hasAdmin || !!vendedorData;
+
+          if (hasOutro) {
+            const opts: PerfilOption[] = [
+              { key: 'multi', label: 'Painel Multi-Licença', description: 'Distribua e gerencie suas licenças.', path: '/multi-licenca', icon: 'multi' },
+              { key: 'ebd', label: 'Painel Gestão EBD', description: 'Acesse o sistema completo da EBD.', path: '/ebd/dashboard', icon: 'ebd' },
+            ];
+            if (hasProfessor) opts.push({ key: 'prof', label: 'Área do Professor', description: 'Suas turmas e aulas.', path: '/ebd/professor', icon: 'professor' });
+            if (hasAluno) opts.push({ key: 'aluno', label: 'Área do Aluno', description: 'Suas lições e quizzes.', path: '/ebd/aluno', icon: 'aluno' });
+            setChooserOptions(opts);
+            return;
+          }
+
           console.log('Redirecting to /multi-licenca (Plano Multi-Licença)');
           navigate('/multi-licenca');
           return;
