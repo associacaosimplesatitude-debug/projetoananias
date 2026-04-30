@@ -528,7 +528,7 @@ function LicencaEditDrawer({ licenca, open, onClose, onSaved }: {
                   <Label className="flex items-center gap-1.5 mb-1.5">
                     <Phone className="h-3.5 w-3.5" />
                     WhatsApp
-                    <span className="ml-1 text-base leading-none">{formatWhatsappDisplay(editWhatsapp).flag}</span>
+                    <CountryFlag country={formatWhatsappDisplay(editWhatsapp).country} className="ml-1" />
                   </Label>
                   <Input
                     value={formatWhatsappDisplay(editWhatsapp).formatted}
