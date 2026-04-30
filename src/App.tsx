@@ -284,10 +284,18 @@ const App = () => (
               <Route path="/leitor/leitura" element={<LeitorLeitura />} />
               <Route path="/escolha" element={<EscolhaVersao />} />
 
-              {/* Portal do Superintendente */}
-              <Route path="/superintendente/login" element={<SuperintendenteLogin />} />
+              {/* Portal Multi-Licença (antigo Superintendente) */}
+              <Route
+                path="/superintendente"
+                element={<Navigate to="/multi-licenca" replace />}
+              />
+              <Route
+                path="/superintendente/*"
+                element={<SuperintendenteLegacyRedirect />}
+              />
+              <Route path="/multi-licenca/login" element={<SuperintendenteLogin />} />
               <Route element={<RequireSuperintendente />}>
-                <Route path="/superintendente" element={<SuperintendenteLayout />}>
+                <Route path="/multi-licenca" element={<SuperintendenteLayout />}>
                   <Route index element={<SuperintendenteHome />} />
                 </Route>
               </Route>
