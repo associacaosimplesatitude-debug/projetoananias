@@ -17,13 +17,45 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 
+type Country = "BR" | "PT" | "US";
+
+const COUNTRY_META: Record<Country, { label: string; iso: string; ddi: string; expectedLen: number; placeholder: string; hint: string }> = {
+  BR: { label: "Brasil", iso: "br", ddi: "+55", expectedLen: 11, placeholder: "(11) 99999-9999", hint: "11 dígitos: DDD (2) + número (9)" },
+  PT: { label: "Portugal", iso: "pt", ddi: "+351", expectedLen: 9, placeholder: "9XX XXX XXX", hint: "9 dígitos, começando com 9" },
+  US: { label: "EUA", iso: "us", ddi: "+1", expectedLen: 10, placeholder: "(555) 123-4567", hint: "10 dígitos: area code (3) + número (7)" },
+};
+
+function validatePhoneByCountry(country: Country, digits: string): string | null {
+  const meta = COUNTRY_META[country];
+  if (digits.length === 0) return "Informe o número de WhatsApp";
+  if (digits.length !== meta.expectedLen) {
+    return `Número de ${meta.label} deve ter ${meta.expectedLen} dígitos (você digitou ${digits.length}).`;
+  }
+  if (country === "BR") {
+    const ddd = parseInt(digits.slice(0, 2), 10);
+    if (ddd < 11 || ddd > 99) return "DDD inválido. DDDs brasileiros vão de 11 a 99.";
+    if (digits[2] !== "9") return "Celular brasileiro deve começar com 9 após o DDD.";
+  }
+  if (country === "PT") {
+    if (digits[0] !== "9") return "Celular português deve começar com 9.";
+  }
+  if (country === "US") {
+    if (digits[0] === "0" || digits[0] === "1") return "Area code americano não pode começar com 0 ou 1.";
+  }
+  return null;
+}
+
 const schema = z.object({
   aluno_nome: z.string().min(3, "Nome deve ter ao menos 3 caracteres"),
   aluno_email: z.string().email("E-mail inválido"),
-  aluno_whatsapp: z
-    .string()
-    .min(10, "WhatsApp inválido")
-    .refine((v) => v.replace(/\D/g, "").length >= 10, "WhatsApp inválido"),
+  aluno_country: z.enum(["BR", "PT", "US"]),
+  aluno_whatsapp: z.string(),
+}).superRefine((data, ctx) => {
+  const digits = data.aluno_whatsapp.replace(/\D/g, "");
+  const err = validatePhoneByCountry(data.aluno_country as Country, digits);
+  if (err) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["aluno_whatsapp"], message: err });
+  }
 });
 
 type FormData = z.infer<typeof schema>;
@@ -37,12 +69,36 @@ interface Props {
   onSuccess: () => void;
 }
 
-function maskPhone(value: string) {
-  const d = value.replace(/\D/g, "").slice(0, 11);
-  if (d.length <= 2) return d;
-  if (d.length <= 6) return `(${d.slice(0, 2)}) ${d.slice(2)}`;
-  if (d.length <= 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
-  return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+function maskPhone(country: Country, value: string) {
+  const max = COUNTRY_META[country].expectedLen;
+  const d = value.replace(/\D/g, "").slice(0, max);
+  if (country === "BR") {
+    if (d.length <= 2) return d;
+    if (d.length <= 6) return `(${d.slice(0, 2)}) ${d.slice(2)}`;
+    if (d.length <= 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
+    return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+  }
+  if (country === "PT") {
+    if (d.length <= 3) return d;
+    if (d.length <= 6) return `${d.slice(0, 3)} ${d.slice(3)}`;
+    return `${d.slice(0, 3)} ${d.slice(3, 6)} ${d.slice(6)}`;
+  }
+  // US
+  if (d.length <= 3) return d;
+  if (d.length <= 6) return `(${d.slice(0, 3)}) ${d.slice(3)}`;
+  return `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}`;
+}
+
+function CountryFlag({ country }: { country: Country }) {
+  return (
+    <img
+      src={`https://flagcdn.com/w40/${COUNTRY_META[country].iso}.png`}
+      alt={COUNTRY_META[country].label}
+      width={20}
+      height={15}
+      className="inline-block rounded-sm shadow-sm"
+    />
+  );
 }
 
 export function DistribuirLicencaDialog({
@@ -61,7 +117,10 @@ export function DistribuirLicencaDialog({
     watch,
     reset,
     formState: { errors },
-  } = useForm<FormData>({ resolver: zodResolver(schema) });
+  } = useForm<FormData>({
+    resolver: zodResolver(schema),
+    defaultValues: { aluno_nome: "", aluno_email: "", aluno_country: "BR", aluno_whatsapp: "" },
+  });
 
   const onSubmit = async (data: FormData) => {
     setLoading(true);
@@ -133,6 +192,8 @@ export function DistribuirLicencaDialog({
   };
 
   const phoneVal = watch("aluno_whatsapp") || "";
+  const country = (watch("aluno_country") || "BR") as Country;
+  const meta = COUNTRY_META[country];
 
   return (
     <Dialog open={open} onOpenChange={(o) => !loading && onOpenChange(o)}>
@@ -176,17 +237,39 @@ export function DistribuirLicencaDialog({
 
           <div className="space-y-2">
             <Label htmlFor="aluno_whatsapp">WhatsApp</Label>
-            <Input
-              id="aluno_whatsapp"
-              placeholder="(11) 99999-9999"
-              inputMode="tel"
-              value={phoneVal}
-              onChange={(e) =>
-                setValue("aluno_whatsapp", maskPhone(e.target.value), {
-                  shouldValidate: true,
-                })
-              }
-            />
+            <div className="flex gap-2">
+              <select
+                aria-label="País"
+                className="flex h-10 items-center gap-1 rounded-md border border-input bg-background px-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                value={country}
+                onChange={(e) => {
+                  const next = e.target.value as Country;
+                  setValue("aluno_country", next, { shouldValidate: true });
+                  setValue("aluno_whatsapp", "", { shouldValidate: false });
+                }}
+              >
+                <option value="BR">🇧🇷 +55 Brasil</option>
+                <option value="PT">🇵🇹 +351 Portugal</option>
+                <option value="US">🇺🇸 +1 EUA</option>
+              </select>
+              <div className="flex flex-1 items-center gap-2 rounded-md border border-input bg-background px-2 focus-within:ring-2 focus-within:ring-ring">
+                <CountryFlag country={country} />
+                <span className="text-sm text-muted-foreground">{meta.ddi}</span>
+                <Input
+                  id="aluno_whatsapp"
+                  placeholder={meta.placeholder}
+                  inputMode="tel"
+                  value={phoneVal}
+                  className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 px-1"
+                  onChange={(e) =>
+                    setValue("aluno_whatsapp", maskPhone(country, e.target.value), {
+                      shouldValidate: true,
+                    })
+                  }
+                />
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">{meta.hint}</p>
             {errors.aluno_whatsapp && (
               <p className="text-xs text-destructive">{errors.aluno_whatsapp.message}</p>
             )}
