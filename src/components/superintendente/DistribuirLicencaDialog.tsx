@@ -159,7 +159,7 @@ export function DistribuirLicencaDialog({
 
         if (status === 409) {
           if (/duplic|já cadastrado|ja cadastrado/i.test(msg)) {
-            toast.error("Aluno já cadastrado neste pacote");
+            toast.error("Leitor já cadastrado neste pacote");
           } else if (/pool/i.test(msg)) {
             toast.error("Pool de licenças esgotado");
           } else {
@@ -203,14 +203,14 @@ export function DistribuirLicencaDialog({
           <DialogDescription>
             Você tem <strong>{disponiveis}</strong>{" "}
             {disponiveis === 1 ? "licença disponível" : "licenças disponíveis"}.
-            Preencha os dados do aluno abaixo. Ele receberá o acesso por email e
+            Preencha os dados do leitor abaixo. Ele receberá o acesso por email e
             WhatsApp.
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="aluno_nome">Nome do aluno</Label>
+            <Label htmlFor="aluno_nome">Nome do leitor</Label>
             <Input
               id="aluno_nome"
               placeholder="Nome completo"

@@ -76,12 +76,12 @@ Deno.serve(async (req) => {
       console.error(LOG, "query aluno error", alunoErr);
       return jsonResp(500, { error: "Erro ao consultar aluno" });
     }
-    if (!aluno) return jsonResp(404, { error: "Aluno não encontrado" });
+    if (!aluno) return jsonResp(404, { error: "Leitor não encontrado" });
 
     const cliente = (aluno as any).ebd_clientes;
     if (!cliente || cliente.superintendente_user_id !== userId) {
       console.warn(LOG, `ownership fail user=${userId} aluno=${aluno_licenca_id}`);
-      return jsonResp(403, { error: "Você não tem permissão sobre este aluno" });
+      return jsonResp(403, { error: "Você não tem permissão sobre este leitor" });
     }
 
     // 2. Buscar shopify license correspondente (chave SE-{aluno_licenca_id})
@@ -97,7 +97,7 @@ Deno.serve(async (req) => {
     // 3. Validar consistência
     if (modo === "devolver" && jaAcessou) {
       return jsonResp(409, {
-        error: "Aluno já acessou a revista — use modo 'desativar'",
+        error: "Leitor já acessou a revista — use modo 'desativar'",
       });
     }
 

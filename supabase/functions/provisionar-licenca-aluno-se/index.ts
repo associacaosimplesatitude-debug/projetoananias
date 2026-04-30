@@ -140,7 +140,7 @@ Deno.serve(async (req) => {
       return jsonResp(500, { error: "Erro ao verificar duplicidade" });
     }
     if (dups && dups.length > 0) {
-      return jsonResp(409, { error: "Aluno já cadastrado neste pacote" });
+      return jsonResp(409, { error: "Leitor já cadastrado neste pacote" });
     }
 
     // 6. INSERT revista_licenca_alunos (trigger incrementa pool)

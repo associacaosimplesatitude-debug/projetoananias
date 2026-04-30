@@ -70,7 +70,7 @@ async function sendWelcomeEmail(opts: {
           <strong>${revistas}</strong>.
         </p>
         <p style="margin:10px 0 0;font-size:14px;line-height:1.5;color:#1e3a8a;">
-          <strong>Acesso vitalício às licenças adquiridas</strong> — você e seus alunos terão acesso à revista ${revistas} para sempre, mesmo após o fim do trimestre.
+          <strong>Acesso vitalício às licenças adquiridas</strong> — você e seus leitores terão acesso à revista ${revistas} para sempre, mesmo após o fim do trimestre.
         </p>
       </div>
 
@@ -81,7 +81,7 @@ async function sendWelcomeEmail(opts: {
       </div>
 
       <p style="font-size:14px;line-height:1.6;color:#52525b;margin:20px 0 0;">
-        No painel você poderá distribuir as licenças aos seus alunos, leitores ou clientes
+        No painel você poderá distribuir as licenças aos seus leitores
         cadastrando nome, email e WhatsApp de cada um.
       </p>
     </div>
