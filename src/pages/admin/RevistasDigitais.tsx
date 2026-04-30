@@ -1052,9 +1052,24 @@ export default function RevistasDigitais() {
                       return (
                         <>
                           {temAudio && (
-                            <Badge className="bg-green-600 text-white text-[10px] gap-1 justify-center">
-                              <AudioLines className="h-3 w-3" /> 🔊 Áudio disponível
-                            </Badge>
+                            <>
+                              <Badge className="bg-green-600 text-white text-[10px] gap-1 justify-center">
+                                <AudioLines className="h-3 w-3" /> 🔊 Áudio disponível
+                              </Badge>
+                              <audio
+                                controls
+                                preload="none"
+                                src={licao.audio_url!}
+                                className="w-full h-8"
+                              />
+                              <a
+                                href={licao.audio_url!}
+                                download={`licao-${licao.numero}.mp3`}
+                                className="text-[10px] text-muted-foreground underline text-center hover:text-foreground"
+                              >
+                                Baixar MP3
+                              </a>
+                            </>
                           )}
                           {desatualizado && (
                             <Badge className="bg-amber-500 text-white text-[10px] gap-1 justify-center">
