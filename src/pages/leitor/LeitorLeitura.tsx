@@ -8,6 +8,8 @@ import {
   REVISTA_KEYS,
 } from "@/lib/revistaSession";
 import LeitorInstallBanner from "@/components/leitor/LeitorInstallBanner";
+import { LicaoAudioProvider } from "@/components/revista/LicaoAudioContext";
+import LicaoAudioPlayer from "@/components/revista/LicaoAudioPlayer";
 
 interface Revista {
   id: string;
@@ -22,6 +24,7 @@ interface Licao {
   numero: number;
   titulo: string;
   paginas: string[];
+  audio_url?: string | null;
 }
 
 const CACHE_NAME = "leitor-cg-v1";
