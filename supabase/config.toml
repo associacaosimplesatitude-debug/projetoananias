@@ -368,3 +368,13 @@ verify_jwt = false
 
 [functions.cron-upload-google-ads-conversions]
 verify_jwt = false
+
+[functions.licao-transcrever]
+verify_jwt = true
+
+[functions.licao-gerar-audio]
+verify_jwt = true
+
+[functions.licao-tts-preview]
+verify_jwt = true
+
