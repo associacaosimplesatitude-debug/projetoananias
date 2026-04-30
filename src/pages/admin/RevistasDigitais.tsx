@@ -1629,7 +1629,8 @@ export default function RevistasDigitais() {
                     <Button size="sm" variant="ghost" onClick={() => deleteMutation.mutate(r.id)} title="Excluir"><Trash2 className="h-4 w-4 text-destructive" /></Button>
                   </TableCell>
                 </TableRow>
-              ))}
+                ));
+              })()}
             </TableBody>
           </Table>
         </CardContent>
