@@ -126,6 +126,8 @@ export function DistribuirLicencaDialog({
     setLoading(true);
     try {
       const phoneDigits = data.aluno_whatsapp.replace(/\D/g, "");
+      const ddiPrefix = data.aluno_country === "BR" ? "55" : data.aluno_country === "PT" ? "351" : "1";
+      const fullPhone = `${ddiPrefix}${phoneDigits}`;
       const { data: resp, error } = await supabase.functions.invoke(
         "provisionar-licenca-aluno-se",
         {
