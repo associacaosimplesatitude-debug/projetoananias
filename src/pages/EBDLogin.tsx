@@ -23,6 +23,7 @@ export default function EBDLogin() {
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [loading, setLoading] = useState(false);
+  const [chooserOptions, setChooserOptions] = useState<PerfilOption[] | null>(null);
   const { signIn, signUp, user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
