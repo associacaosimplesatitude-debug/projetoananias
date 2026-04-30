@@ -983,6 +983,7 @@ export default function RevistaLeitura() {
   // ─── READER VIEW ────────────────────────────────────────────
   if (licaoAberta) {
     return (
+      <LicaoAudioProvider>
       <div
         className="fixed inset-0 z-50 flex flex-col select-none"
         style={{ backgroundColor: readerBg }}
