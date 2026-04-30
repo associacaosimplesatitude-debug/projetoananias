@@ -8,8 +8,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import {
   BookOpen, LogOut, ArrowLeft, ChevronLeft, ChevronRight,
-  X, List, Columns, PartyPopper, ExternalLink, RefreshCw,
+  X, List, Columns, PartyPopper, ExternalLink, RefreshCw, Volume2,
 } from "lucide-react";
+import { LicaoAudioProvider } from "@/components/revista/LicaoAudioContext";
+import LicaoAudioPlayer from "@/components/revista/LicaoAudioPlayer";
 import { supabase } from "@/integrations/supabase/client";
 import {
   getValidRevistaSession,
@@ -46,6 +48,7 @@ interface Licao {
   titulo: string;
   numero: number;
   paginas: string[] | null;
+  audio_url?: string | null;
 }
 
 interface CatalogoItem {
@@ -356,7 +359,7 @@ export default function RevistaLeitura() {
     setLoadingLicoes(true);
     supabase
       .from("revista_licoes" as any)
-      .select("id, titulo, numero, paginas")
+      .select("id, titulo, numero, paginas, audio_url")
       .eq("revista_id", selectedRevista)
       .order("numero", { ascending: true })
       .then(({ data }) => {
@@ -691,24 +694,35 @@ export default function RevistaLeitura() {
           }}>
             {(revista?.leitura_continua || revista?.tipo_conteudo === 'livro_digital') ? (
               licoes.length > 0 ? (
-                <>
+                <LicaoAudioProvider>
                   {licoes.map((licao) => (
-                    (licao.paginas || []).map((url: string, i: number) => (
-                      <img
-                        key={`${licao.id}-${i}`}
-                        src={url}
-                        alt={`Página ${i + 1}`}
-                        loading="lazy"
-                        onContextMenu={(e) => e.preventDefault()}
-                        style={{
-                          width: '100%',
-                          display: 'block',
-                          filter: modoNoturno ? 'invert(1) hue-rotate(180deg)' : 'none'
-                        }}
-                      />
-                    ))
+                    <div key={licao.id} data-licao-id={licao.id}>
+                      {licao.audio_url && (
+                        <div style={{ padding: "0 8px" }}>
+                          <LicaoAudioPlayer
+                            audioUrl={licao.audio_url}
+                            licaoId={licao.id}
+                            licaoTitulo={getLicaoDisplayTitle(licao)}
+                          />
+                        </div>
+                      )}
+                      {(licao.paginas || []).map((url: string, i: number) => (
+                        <img
+                          key={`${licao.id}-${i}`}
+                          src={url}
+                          alt={`Página ${i + 1}`}
+                          loading="lazy"
+                          onContextMenu={(e) => e.preventDefault()}
+                          style={{
+                            width: '100%',
+                            display: 'block',
+                            filter: modoNoturno ? 'invert(1) hue-rotate(180deg)' : 'none'
+                          }}
+                        />
+                      ))}
+                    </div>
                   ))}
-                </>
+                </LicaoAudioProvider>
               ) : loadingLicoes ? (
                 <p style={{ color: modoNoturno ? '#e8dcc8' : '#3d2b1f', padding: '40px', textAlign: 'center' }}>
                   Carregando páginas...
@@ -719,33 +733,51 @@ export default function RevistaLeitura() {
                 </p>
               )
             ) : (
-              licoes.map((licao) => (
-                <div key={licao.id}>
-                  <div style={{
-                    textAlign: 'center',
-                    padding: '12px',
-                    background: modoNoturno ? '#1a1a1a' : '#e8dcc8',
-                    color: modoNoturno ? '#e8dcc8' : '#3d2b1f',
-                    fontSize: '13px',
-                    fontWeight: '500',
-                    borderTop: '1px solid rgba(0,0,0,0.1)'
-                  }}>
-                    {getLicaoDisplayTitle(licao)}
+              <LicaoAudioProvider>
+                {licoes.map((licao) => (
+                  <div key={licao.id} data-licao-id={licao.id}>
+                    <div style={{
+                      textAlign: 'center',
+                      padding: '12px',
+                      background: modoNoturno ? '#1a1a1a' : '#e8dcc8',
+                      color: modoNoturno ? '#e8dcc8' : '#3d2b1f',
+                      fontSize: '13px',
+                      fontWeight: '500',
+                      borderTop: '1px solid rgba(0,0,0,0.1)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px',
+                    }}>
+                      {getLicaoDisplayTitle(licao)}
+                      {licao.audio_url && (
+                        <Volume2 className="h-3.5 w-3.5 opacity-60" aria-label="Áudio disponível" />
+                      )}
+                    </div>
+                    {licao.audio_url && (
+                      <div style={{ padding: "0 8px" }}>
+                        <LicaoAudioPlayer
+                          audioUrl={licao.audio_url}
+                          licaoId={licao.id}
+                          licaoTitulo={getLicaoDisplayTitle(licao)}
+                        />
+                      </div>
+                    )}
+                    {(licao.paginas || []).map((url: string, i: number) => (
+                      <img
+                        key={i}
+                        src={url}
+                        alt={`Lição ${licao.numero} - Página ${i + 1}`}
+                        style={{
+                          width: '100%',
+                          display: 'block',
+                          filter: modoNoturno ? 'invert(1) hue-rotate(180deg)' : 'none'
+                        }}
+                      />
+                    ))}
                   </div>
-                  {(licao.paginas || []).map((url: string, i: number) => (
-                    <img
-                      key={i}
-                      src={url}
-                      alt={`Lição ${licao.numero} - Página ${i + 1}`}
-                      style={{
-                        width: '100%',
-                        display: 'block',
-                        filter: modoNoturno ? 'invert(1) hue-rotate(180deg)' : 'none'
-                      }}
-                    />
-                  ))}
-                </div>
-              ))
+                ))}
+              </LicaoAudioProvider>
             )}
           </div>
         ) : (

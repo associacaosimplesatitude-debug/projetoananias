@@ -11,8 +11,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Plus, BookOpen, Pencil, Image, Trash2, Upload, Eye, Save, ArrowLeft, GripVertical, ImagePlus, FileText, Loader2, ImageIcon, Bot, CheckCircle, PencilLine, ChevronLeft, ChevronRight, X } from "lucide-react";
+import { Plus, BookOpen, Pencil, Image, Trash2, Upload, Eye, Save, ArrowLeft, GripVertical, ImagePlus, FileText, Loader2, ImageIcon, Bot, CheckCircle, PencilLine, ChevronLeft, ChevronRight, X, AudioLines, AlertTriangle } from "lucide-react";
 import QuizEditor from "@/components/revista/QuizEditor";
+import GerarAudioDialog from "@/components/revista/GerarAudioDialog";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import * as pdfjsLib from "pdfjs-dist";
@@ -39,6 +40,11 @@ interface Licao {
   titulo: string | null;
   paginas: string[];
   created_at: string;
+  transcricao_audio: string | null;
+  audio_url: string | null;
+  audio_voz: string | null;
+  transcricao_gerada_em: string | null;
+  audio_gerado_em: string | null;
 }
 
 export default function RevistasDigitais() {
@@ -82,6 +88,7 @@ export default function RevistasDigitais() {
   const [bulkQuiz, setBulkQuiz] = useState<{ running: boolean; current: number; total: number; errors: number }>({ running: false, current: 0, total: 0, errors: 0 });
   const [bulkRefs, setBulkRefs] = useState<{ running: boolean; current: number; total: number; errors: number }>({ running: false, current: 0, total: 0, errors: 0 });
   const [editingQuizLicao, setEditingQuizLicao] = useState<{ id: string; titulo: string } | null>(null);
+  const [audioLicaoId, setAudioLicaoId] = useState<string | null>(null);
   
   const [uploadingPdfGlobal, setUploadingPdfGlobal] = useState(false);
   const [pdfProgress, setPdfProgress] = useState("");
@@ -1034,6 +1041,37 @@ export default function RevistasDigitais() {
                         </Button>
                       )
                     )}
+                    {/* Áudio narrado por IA */}
+                    {licao.paginas.length > 0 && (() => {
+                      const temAudio = !!licao.audio_url;
+                      const temTranscricao = !!licao.transcricao_audio;
+                      const desatualizado = !!(licao.audio_gerado_em && licao.transcricao_gerada_em && new Date(licao.transcricao_gerada_em) > new Date(licao.audio_gerado_em));
+                      let label = "Gerar Áudio";
+                      if (temAudio) label = "Regerar Áudio";
+                      else if (temTranscricao) label = "Gerar Áudio (transcrição pronta)";
+                      return (
+                        <>
+                          {temAudio && (
+                            <Badge className="bg-green-600 text-white text-[10px] gap-1 justify-center">
+                              <AudioLines className="h-3 w-3" /> 🔊 Áudio disponível
+                            </Badge>
+                          )}
+                          {desatualizado && (
+                            <Badge className="bg-amber-500 text-white text-[10px] gap-1 justify-center">
+                              <AlertTriangle className="h-3 w-3" /> Áudio desatualizado
+                            </Badge>
+                          )}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="gap-1 text-xs"
+                            onClick={() => setAudioLicaoId(licao.id)}
+                          >
+                            <AudioLines className="h-3 w-3" /> {label}
+                          </Button>
+                        </>
+                      );
+                    })()}
                     <Button
                       size="sm"
                       variant="outline"
@@ -1094,6 +1132,15 @@ export default function RevistasDigitais() {
               setEditingQuizLicao(null);
               refetchQuiz();
             }}
+          />
+        )}
+
+        {audioLicaoId && (
+          <GerarAudioDialog
+            licaoId={audioLicaoId}
+            open={!!audioLicaoId}
+            onClose={() => setAudioLicaoId(null)}
+            onUpdated={() => queryClient.invalidateQueries({ queryKey: ["revista-licoes", managingLicoes?.id] })}
           />
         )}
       </div>

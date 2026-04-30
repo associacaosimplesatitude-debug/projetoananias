@@ -8,6 +8,8 @@ import {
   REVISTA_KEYS,
 } from "@/lib/revistaSession";
 import LeitorInstallBanner from "@/components/leitor/LeitorInstallBanner";
+import { LicaoAudioProvider } from "@/components/revista/LicaoAudioContext";
+import LicaoAudioPlayer from "@/components/revista/LicaoAudioPlayer";
 
 interface Revista {
   id: string;
@@ -22,6 +24,7 @@ interface Licao {
   numero: number;
   titulo: string;
   paginas: string[];
+  audio_url?: string | null;
 }
 
 const CACHE_NAME = "leitor-cg-v1";
@@ -36,6 +39,7 @@ export default function LeitorLeitura() {
   const [revistas, setRevistas] = useState<Revista[]>([]);
   const [selectedRevista, setSelectedRevista] = useState<Revista | null>(null);
   const [allPages, setAllPages] = useState<string[]>([]);
+  const [licoesData, setLicoesData] = useState<Licao[]>([]);
   const [loadingPages, setLoadingPages] = useState(false);
   const [scrollProgress, setScrollProgress] = useState(0);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -183,21 +187,24 @@ export default function LeitorLeitura() {
   const loadAllPages = useCallback(async (revistaId: string) => {
     setLoadingPages(true);
     setAllPages([]);
+    setLicoesData([]);
     try {
       const { data: licoes } = await supabase
         .from("revista_licoes")
-        .select("id, numero, titulo, paginas")
+        .select("id, numero, titulo, paginas, audio_url")
         .eq("revista_id", revistaId)
         .order("numero", { ascending: true });
 
       if (licoes && licoes.length > 0) {
+        const list = (licoes as Licao[]).map((l) => ({
+          ...l,
+          titulo: l.titulo || `Lição ${l.numero}`,
+          paginas: Array.isArray(l.paginas) ? l.paginas : [],
+        }));
+        setLicoesData(list);
         const pages: string[] = [];
-        for (const licao of licoes as Licao[]) {
-          if (licao.paginas && Array.isArray(licao.paginas)) {
-            for (const p of licao.paginas) {
-              pages.push(p);
-            }
-          }
+        for (const licao of list) {
+          for (const p of licao.paginas) pages.push(p);
         }
         setAllPages(pages);
       }
@@ -217,6 +224,7 @@ export default function LeitorLeitura() {
   const handleClose = () => {
     setSelectedRevista(null);
     setAllPages([]);
+    setLicoesData([]);
     setScrollProgress(0);
   };
 
@@ -341,18 +349,33 @@ export default function LeitorLeitura() {
             </div>
           ) : (
             <div className="max-w-2xl mx-auto">
-              {allPages.map((url, idx) => (
-                <img
-                  key={idx}
-                  src={url}
-                  alt={`Página ${idx + 1}`}
-                  loading="lazy"
-                  className="w-full h-auto block"
-                  style={{ backgroundColor: "#111" }}
-                  draggable={false}
-                  onContextMenu={(e) => e.preventDefault()}
-                />
-              ))}
+              <LicaoAudioProvider>
+                {licoesData.map((licao) => (
+                  <div key={licao.id} data-licao-id={licao.id}>
+                    {licao.audio_url && (
+                      <div style={{ padding: "0 8px" }}>
+                        <LicaoAudioPlayer
+                          audioUrl={licao.audio_url}
+                          licaoId={licao.id}
+                          licaoTitulo={licao.titulo || `Lição ${licao.numero}`}
+                        />
+                      </div>
+                    )}
+                    {licao.paginas.map((url, i) => (
+                      <img
+                        key={`${licao.id}-${i}`}
+                        src={url}
+                        alt={`Lição ${licao.numero} - Página ${i + 1}`}
+                        loading="lazy"
+                        className="w-full h-auto block"
+                        style={{ backgroundColor: "#111" }}
+                        draggable={false}
+                        onContextMenu={(e) => e.preventDefault()}
+                      />
+                    ))}
+                  </div>
+                ))}
+              </LicaoAudioProvider>
             </div>
           )}
         </div>
