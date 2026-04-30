@@ -523,7 +523,7 @@ function AdminSidebar() {
                   <SidebarMenuButton asChild isActive={isActive('/admin/ebd/revistas-digitais')}>
                     <RouterNavLink to="/admin/ebd/revistas-digitais">
                       <BookOpen className="h-4 w-4" />
-                      <span>Revistas Digitais</span>
+                      <span>Produtos Digitais</span>
                     </RouterNavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
