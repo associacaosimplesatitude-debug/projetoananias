@@ -39,6 +39,7 @@ export default function LeitorLeitura() {
   const [revistas, setRevistas] = useState<Revista[]>([]);
   const [selectedRevista, setSelectedRevista] = useState<Revista | null>(null);
   const [allPages, setAllPages] = useState<string[]>([]);
+  const [licoesData, setLicoesData] = useState<Licao[]>([]);
   const [loadingPages, setLoadingPages] = useState(false);
   const [scrollProgress, setScrollProgress] = useState(0);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -186,21 +187,24 @@ export default function LeitorLeitura() {
   const loadAllPages = useCallback(async (revistaId: string) => {
     setLoadingPages(true);
     setAllPages([]);
+    setLicoesData([]);
     try {
       const { data: licoes } = await supabase
         .from("revista_licoes")
-        .select("id, numero, titulo, paginas")
+        .select("id, numero, titulo, paginas, audio_url")
         .eq("revista_id", revistaId)
         .order("numero", { ascending: true });
 
       if (licoes && licoes.length > 0) {
+        const list = (licoes as Licao[]).map((l) => ({
+          ...l,
+          titulo: l.titulo || `Lição ${l.numero}`,
+          paginas: Array.isArray(l.paginas) ? l.paginas : [],
+        }));
+        setLicoesData(list);
         const pages: string[] = [];
-        for (const licao of licoes as Licao[]) {
-          if (licao.paginas && Array.isArray(licao.paginas)) {
-            for (const p of licao.paginas) {
-              pages.push(p);
-            }
-          }
+        for (const licao of list) {
+          for (const p of licao.paginas) pages.push(p);
         }
         setAllPages(pages);
       }
