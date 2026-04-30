@@ -8,7 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import {
   BookOpen, LogOut, ArrowLeft, ChevronLeft, ChevronRight,
-  X, List, Columns, PartyPopper, ExternalLink,
+  X, List, Columns, PartyPopper, ExternalLink, RefreshCw,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -435,6 +435,36 @@ export default function RevistaLeitura() {
     clearRevistaSession();
     setModoKindle(false);
     navigate("/revista/acesso", { replace: true });
+  };
+
+  const handleAtualizarConteudo = async () => {
+    try {
+      // Unregister service workers
+      if ("serviceWorker" in navigator) {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(regs.map((r) => r.unregister()));
+      }
+      // Clear all browser caches
+      if (typeof window !== "undefined" && window.caches) {
+        const keys = await window.caches.keys();
+        await Promise.all(keys.map((k) => window.caches.delete(k)));
+      }
+      // Clear app caches in storage (preserve revista session)
+      try {
+        Object.keys(localStorage).forEach((k) => {
+          if (k.startsWith("revista_cache_") || k.startsWith("revista_pages_")) {
+            localStorage.removeItem(k);
+          }
+        });
+      } catch {}
+    } catch (e) {
+      console.warn("Falha ao limpar cache:", e);
+    } finally {
+      // Force reload bypassing cache via cache-busting query param
+      const url = new URL(window.location.href);
+      url.searchParams.set("_r", Date.now().toString());
+      window.location.replace(url.toString());
+    }
   };
 
   // Reader navigation
@@ -1287,6 +1317,18 @@ export default function RevistaLeitura() {
           >
             {modoNoturno ? "☀️" : "🌙"}
           </button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleAtualizarConteudo}
+            style={{ color: '#f6ba32' }}
+            className="hover:bg-[rgba(246,186,50,0.15)] text-base"
+            title="Limpar cache e recarregar a página"
+          >
+            <RefreshCw className="h-5 w-5 mr-2" />
+            <span className="hidden sm:inline">Atualizar conteúdo</span>
+            <span className="sm:hidden">Atualizar</span>
+          </Button>
           <Button
             variant="ghost"
             size="sm"
