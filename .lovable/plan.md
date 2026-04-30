@@ -1,24 +1,39 @@
 ## Objetivo
+Expandir o seletor de país em `src/pages/revista/RevistaAcesso.tsx` para listar **todos os países** com bandeira + nome + DDI, em vez de apenas BR / PT / US. Nada mais muda — formatação, layout, validação, lógica de envio e identificador WhatsApp permanecem iguais.
 
-No portal `/multi-licenca` (mobile), os 4 cards de KPI ("Total de licenças", "Distribuídas", "Disponíveis", "Ativados") aparecem hoje empilhados (1 por linha), ocupando muita altura. Vamos passar a exibir **2 por linha** no mobile, mantendo 2 colunas em `sm` e 4 em `lg`.
+## Mudanças
 
-## Mudança
+### Único arquivo editado
+`src/pages/revista/RevistaAcesso.tsx`
 
-Arquivo: `src/pages/superintendente/SuperintendenteHome.tsx`
+### O que muda
+1. Substituir o array `COUNTRIES` (hoje com 3 entradas) por uma lista completa (~240 países), cada item com:
+   - `code` (ISO-2, ex: "BR", "AR", "DE")
+   - `flag` (emoji da bandeira)
+   - `ddi` (código telefônico, ex: "55", "54", "49")
+   - `label` (nome em português, ex: "Brasil", "Argentina", "Alemanha")
+   - `maxDigits` / `minDigits` — para países sem regra específica, usar valores genéricos permissivos (`minDigits: 6`, `maxDigits: 15`, conforme padrão E.164).
+   - `placeholder` — usar um genérico tipo `"Número de telefone"` para os países novos. BR / PT / US mantêm os placeholders e regras de dígitos atuais.
 
-Linhas 242 e 256, alterar a classe do wrapper dos KPIs:
+2. Adicionar **busca** dentro do dropdown (input no topo) — com 240 países uma lista rolável sem busca fica inviável. Filtra por nome ou DDI.
 
-- De: `grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3`
-- Para: `grid grid-cols-2 lg:grid-cols-4 gap-3`
+3. Aumentar a altura máxima do dropdown (`max-h-80 overflow-y-auto`) e ajustar largura (`w-72`) para caber nome + DDI confortavelmente.
 
-Isso aplica 2 colunas a partir do menor breakpoint (mobile) e mantém 4 colunas em telas grandes. Sem alterar o conteúdo dos cards nem o restante da página.
+4. Manter `BR` como país padrão (`COUNTRIES[0]` continua sendo Brasil).
 
-## Ajuste defensivo no card
+### O que NÃO muda
+- Formatação de telefone: `formatPhoneBR` / `formatPhonePT` / `formatPhoneUS` continuam exatamente iguais. Para os demais países, `formatPhone` cai no `formatPhoneBR` — para evitar máscara errada, ajusto `formatPhone` para retornar apenas dígitos crus (sem máscara) quando o país não for BR/PT/US.
+- `buildWhatsappIdentifier` continua: BR sem DDI no início, demais países com DDI prefixado.
+- Lógica de validação (`isInputValid`), envio OTP, sessão, layout do card, estilo dos botões — tudo intacto.
+- Nenhum outro arquivo é tocado.
 
-Para garantir que o conteúdo do card (ícone + label + número grande) não estoure em larguras estreitas (~180px no viewport 390), confirmar que o componente do KPI usa `min-w-0` e `truncate` no label. Se necessário, reduzir levemente o padding interno em mobile (ex: `p-3 sm:p-4`) e o tamanho do número (`text-2xl sm:text-3xl`) para manter a leitura confortável em duas colunas.
+## Detalhes técnicos
+- A lista de países será inline no arquivo (constante exportada local). Fonte: lista padrão ISO-3166 + códigos E.164. Aproximadamente 240 entradas.
+- Bandeiras via emoji Unicode (não precisa imagem externa, já é o padrão atual da página).
+- Busca: estado local `countrySearch`, filtra `COUNTRIES` por `label.toLowerCase().includes(query)` ou `ddi.includes(query)`. Reset ao fechar dropdown.
+- Acessibilidade: input de busca com `autoFocus` quando dropdown abre.
 
-## Restrições
-
-- Não mexer em outras seções (filtros, grid de pacotes, drawer).
-- Não mexer no schema, hooks ou queries.
-- Não mexer no layout desktop (continua 4 colunas em `lg`).
+## Fora de escopo
+- Não mexer em `DistribuirLicencaDialog` nem em outras telas.
+- Não criar máscaras específicas para os ~237 países novos (entrada livre de dígitos basta).
+- Não alterar Edge Functions, schema ou `revistaSession`.
