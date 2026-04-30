@@ -20,8 +20,8 @@ type MenuItem = {
 };
 
 const menuItems: MenuItem[] = [
-  { path: "/superintendente", label: "Início", icon: Home, exact: true },
-  { path: "/superintendente", label: "Meus Pacotes", icon: BookOpen, exact: true },
+  { path: "/multi-licenca", label: "Início", icon: Home, exact: true },
+  { path: "/multi-licenca", label: "Meus Pacotes", icon: BookOpen, exact: true },
   {
     path: "mailto:atendimento@editoracentralgospel.com.br",
     label: "Suporte",
@@ -107,7 +107,7 @@ export function SuperintendenteLayout() {
                     Editora Central Gospel
                   </p>
                   <p className="text-xs opacity-70" style={{ color: NAV_TEXT }}>
-                    Portal do Superintendente
+                    Portal Multi-Licença
                   </p>
                 </div>
                 <NavList onClick={() => setMobileOpen(false)} />
@@ -119,7 +119,7 @@ export function SuperintendenteLayout() {
                 Editora Central Gospel
               </p>
               <p className="text-[11px] opacity-70 leading-tight truncate">
-                Portal do Superintendente
+                Portal Multi-Licença
               </p>
             </div>
           </div>

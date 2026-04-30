@@ -20,7 +20,7 @@ export function RequireSuperintendente() {
 
   if (!user) {
     const redirect = encodeURIComponent(location.pathname + location.search);
-    return <Navigate to={`/superintendente/login?redirect=${redirect}`} replace />;
+    return <Navigate to={`/multi-licenca/login?redirect=${redirect}`} replace />;
   }
 
   if (!isSuperintendente) {
@@ -32,7 +32,7 @@ export function RequireSuperintendente() {
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Esta área é exclusiva para Superintendentes com Plano Superintendente ativo.
+              Esta área é exclusiva para clientes com Plano Multi-Licença ativo.
             </p>
             <Button asChild className="w-full">
               <a href="/">Voltar</a>

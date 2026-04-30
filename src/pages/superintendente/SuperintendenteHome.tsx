@@ -212,11 +212,11 @@ export default function SuperintendenteHome() {
           <Card>
             <CardContent className="py-8 text-center space-y-3">
               <p className="text-sm text-muted-foreground">
-                Você ainda não tem nenhum Plano Superintendente ativo.
+                Você ainda não tem nenhum Plano Multi-Licença ativo.
               </p>
               <Button asChild variant="default">
                 <a
-                  href="https://centralgospel.com.br/superintendente"
+                  href="https://centralgospel.com.br/multi-licenca"
                   target="_blank"
                   rel="noreferrer"
                 >

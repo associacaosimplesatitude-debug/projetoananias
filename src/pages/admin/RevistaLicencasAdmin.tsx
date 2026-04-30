@@ -1316,7 +1316,7 @@ export default function RevistaLicencasAdmin() {
         <TabsList>
           <TabsTrigger value="superintendente">
             <CreditCard className="h-4 w-4 mr-2" />
-            Licenças Superintendente
+            Licenças Multi-Licença
           </TabsTrigger>
           <TabsTrigger value="shopify">
             <ShoppingCart className="h-4 w-4 mr-2" />

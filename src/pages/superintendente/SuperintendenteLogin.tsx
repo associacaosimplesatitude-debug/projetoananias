@@ -21,7 +21,7 @@ export default function SuperintendenteLogin() {
   const [submitting, setSubmitting] = useState(false);
 
   const redirect =
-    new URLSearchParams(location.search).get("redirect") || "/superintendente";
+    new URLSearchParams(location.search).get("redirect") || "/multi-licenca";
 
   // Redirect when already logged in as SE
   useEffect(() => {
@@ -67,7 +67,7 @@ export default function SuperintendenteLogin() {
           <div className="mx-auto h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
             <BookOpen className="h-6 w-6 text-primary" />
           </div>
-          <CardTitle className="text-2xl">Portal do Superintendente</CardTitle>
+          <CardTitle className="text-2xl">Portal Multi-Licença</CardTitle>
           <CardDescription>
             Acesse com o e-mail e a senha temporária recebidos após sua compra.
           </CardDescription>
