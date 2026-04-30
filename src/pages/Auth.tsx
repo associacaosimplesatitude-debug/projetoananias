@@ -12,6 +12,7 @@ import logoAnanias from '@/assets/logo_ananias.png';
 import { useBrandingSettings } from '@/hooks/useBrandingSettings';
 import { useDomainBranding } from '@/hooks/useDomainBranding';
 import { pushLoginSuccess, pushCadastroSuccess } from '@/lib/gtm';
+import PerfilChooser, { type PerfilOption } from '@/components/auth/PerfilChooser';
 
 const authSchema = z.object({
   email: z.string().email('Email inválido').max(255),
@@ -25,6 +26,7 @@ export default function Auth() {
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [loading, setLoading] = useState(false);
+  const [chooserOptions, setChooserOptions] = useState<PerfilOption[] | null>(null);
   const { signIn, signUp, user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
