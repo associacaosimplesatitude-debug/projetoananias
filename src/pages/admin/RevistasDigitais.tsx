@@ -1575,11 +1575,19 @@ export default function RevistasDigitais() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {isLoading ? (
-                <TableRow><TableCell colSpan={7} className="text-center py-8">Carregando...</TableCell></TableRow>
-              ) : revistas?.length === 0 ? (
-                <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Nenhuma revista cadastrada</TableCell></TableRow>
-              ) : revistas?.map((r) => (
+              {(() => {
+                const filtered = (revistas || []).filter((r: any) => {
+                  if (filtroCategoria === "todos") return true;
+                  if (filtroCategoria === "revista") return !r.tipo_conteudo || r.tipo_conteudo === "revista";
+                  return r.tipo_conteudo === filtroCategoria;
+                });
+                if (isLoading) {
+                  return <TableRow><TableCell colSpan={7} className="text-center py-8">Carregando...</TableCell></TableRow>;
+                }
+                if (filtered.length === 0) {
+                  return <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Nenhum produto encontrado nesta categoria</TableCell></TableRow>;
+                }
+                return filtered.map((r) => (
                 <TableRow key={r.id}>
                   <TableCell>
                     {r.capa_url ? (
