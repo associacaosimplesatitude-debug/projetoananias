@@ -1,6 +1,24 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { User, Settings, Users, Palette, LogOut } from 'lucide-react';
+import { User, Settings, Users, Palette, LogOut, RefreshCw } from 'lucide-react';
+import { toast } from 'sonner';
+
+async function forcarAtualizacaoApp() {
+  try {
+    if ('serviceWorker' in navigator) {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map((r) => r.unregister().catch(() => false)));
+    }
+    if (window.caches) {
+      const keys = await caches.keys();
+      await Promise.all(keys.map((k) => caches.delete(k)));
+    }
+  } catch {
+    // ignore
+  }
+  toast.success('Cache limpo. Recarregando…');
+  setTimeout(() => window.location.reload(), 400);
+}
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -100,6 +118,11 @@ export function UserProfileDropdown() {
             Gerenciar Usuários
           </DropdownMenuItem>
         )}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={forcarAtualizacaoApp} className="cursor-pointer">
+          <RefreshCw className="mr-2 h-4 w-4" />
+          Atualizar aplicativo
+        </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={signOut} className="cursor-pointer text-destructive">
           <LogOut className="mr-2 h-4 w-4" />
