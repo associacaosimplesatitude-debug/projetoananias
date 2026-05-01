@@ -8,6 +8,7 @@ const corsHeaders = {
 
 const LOG_PREFIX = "[receive-order-from-store-cg][superintendente]";
 const PAINEL_URL = "https://gestaoebd.com.br/multi-licenca";
+const LOGIN_URL = "https://gestaoebd.com.br/multi-licenca/login";
 
 function generatePassword(length = 12): string {
   const chars = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
@@ -25,6 +26,7 @@ async function sendWelcomeEmail(opts: {
   revistaAlunoNome: string | null;
   revistaProfNome: string | null;
   isNewUser: boolean;
+  isRecurring: boolean;
   password?: string;
   email: string;
 }): Promise<void> {
@@ -38,30 +40,73 @@ async function sendWelcomeEmail(opts: {
     .filter(Boolean)
     .join(" + ") || "revista digital";
 
-  const credenciaisHtml = opts.isNewUser
-    ? `
+  // Decide subject + saudação + corpo
+  let subject: string;
+  let saudacao: string;
+  let introHtml: string;
+  let credenciaisHtml = "";
+  let extraHtml = "";
+
+  if (opts.isNewUser) {
+    subject = "Bem-vindo ao Plano Multi-Licença — Editora Central Gospel";
+    saudacao = `Bem-vindo, <strong>${opts.nome}</strong>!`;
+    introHtml = `
+      <p style="font-size:15px;line-height:1.6;margin:0 0 20px;">
+        Sua compra foi confirmada e seu acesso ao painel Multi-Licença já está ativo.
+      </p>`;
+    credenciaisHtml = opts.password
+      ? `
       <div style="background:#fff7ed;border-left:4px solid #f59e0b;padding:16px 20px;margin:20px 0;border-radius:6px;">
         <h3 style="margin:0 0 12px;color:#92400e;font-size:16px;">Suas credenciais de acesso</h3>
         <p style="margin:6px 0;font-size:14px;"><strong>Email:</strong> ${opts.email}</p>
         <p style="margin:6px 0;font-size:14px;"><strong>Senha temporária:</strong> <code style="background:#fff;padding:4px 8px;border-radius:4px;font-family:monospace;">${opts.password}</code></p>
         <p style="margin:12px 0 0;font-size:13px;color:#92400e;">⚠️ Por segurança, altere esta senha após o primeiro acesso.</p>
       </div>`
-    : "";
+      : "";
+  } else if (opts.isRecurring && opts.password) {
+    subject = "Novo pacote Multi-Licença confirmado — Editora Central Gospel";
+    saudacao = `Olá novamente, <strong>${opts.nome}</strong>!`;
+    introHtml = `
+      <p style="font-size:15px;line-height:1.6;margin:0 0 20px;">
+        Você adicionou um novo pacote ao seu Plano Multi-Licença. Por segurança,
+        sua senha foi atualizada. Suas credenciais de acesso são:
+      </p>`;
+    credenciaisHtml = `
+      <div style="background:#fff7ed;border-left:4px solid #f59e0b;padding:16px 20px;margin:20px 0;border-radius:6px;">
+        <h3 style="margin:0 0 12px;color:#92400e;font-size:16px;">Suas credenciais de acesso</h3>
+        <p style="margin:6px 0;font-size:14px;"><strong>Email:</strong> ${opts.email}</p>
+        <p style="margin:6px 0;font-size:14px;"><strong>Nova senha:</strong> <code style="background:#fff;padding:4px 8px;border-radius:4px;font-family:monospace;">${opts.password}</code></p>
+      </div>`;
+    extraHtml = `
+      <p style="font-size:14px;line-height:1.6;color:#52525b;margin:16px 0 0;">
+        Não está confortável digitando esta senha? Acesse
+        <a href="${LOGIN_URL}" style="color:#1e40af;">${LOGIN_URL}</a>
+        e clique em <strong>"Esqueci minha senha"</strong> para definir uma nova.
+      </p>`;
+  } else {
+    // Recorrente sem nova senha (caso de erro de update)
+    subject = "Novo pacote Multi-Licença confirmado — Editora Central Gospel";
+    saudacao = `Olá novamente, <strong>${opts.nome}</strong>!`;
+    introHtml = `
+      <p style="font-size:15px;line-height:1.6;margin:0 0 20px;">
+        Você adicionou um novo pacote. Use suas credenciais existentes para acessar.
+        Caso não lembre da senha, use <strong>"Esqueci minha senha"</strong> na tela de login:
+        <a href="${LOGIN_URL}" style="color:#1e40af;">${LOGIN_URL}</a>
+      </p>`;
+  }
 
   const html = `<!DOCTYPE html>
 <html lang="pt-BR">
-<head><meta charset="utf-8"><title>Bem-vindo ao Plano Multi-Licença</title></head>
+<head><meta charset="utf-8"><title>${subject}</title></head>
 <body style="margin:0;padding:0;background:#f4f4f5;font-family:Arial,sans-serif;color:#27272a;">
   <div style="max-width:600px;margin:0 auto;background:#ffffff;">
     <div style="background:linear-gradient(135deg,#1e3a8a 0%,#1e40af 100%);padding:32px 24px;text-align:center;">
-      <h1 style="color:#ffffff;margin:0;font-size:24px;">Bem-vindo ao Plano Multi-Licença</h1>
+      <h1 style="color:#ffffff;margin:0;font-size:24px;">Plano Multi-Licença</h1>
       <p style="color:#dbeafe;margin:8px 0 0;font-size:14px;">Editora Central Gospel</p>
     </div>
     <div style="padding:32px 24px;">
-      <p style="font-size:16px;margin:0 0 16px;">Olá <strong>${opts.nome}</strong>,</p>
-      <p style="font-size:15px;line-height:1.6;margin:0 0 20px;">
-        Sua compra foi confirmada e seu acesso ao painel Multi-Licença já está ativo.
-      </p>
+      <p style="font-size:16px;margin:0 0 16px;">${saudacao}</p>
+      ${introHtml}
 
       <div style="background:#f0f9ff;border-left:4px solid #1e40af;padding:16px 20px;margin:20px 0;border-radius:6px;">
         <h3 style="margin:0 0 8px;color:#1e3a8a;font-size:16px;">Resumo do seu pacote</h3>
@@ -79,6 +124,8 @@ async function sendWelcomeEmail(opts: {
       <div style="text-align:center;margin:32px 0;">
         <a href="${PAINEL_URL}" style="display:inline-block;background:#1e40af;color:#ffffff;padding:14px 32px;text-decoration:none;border-radius:6px;font-weight:bold;font-size:15px;">Acessar Painel</a>
       </div>
+
+      ${extraHtml}
 
       <p style="font-size:14px;line-height:1.6;color:#52525b;margin:20px 0 0;">
         No painel você poderá distribuir as licenças aos seus leitores
@@ -106,7 +153,7 @@ async function sendWelcomeEmail(opts: {
     body: JSON.stringify({
       from: "Editora Central Gospel <painel@painel.editoracentralgospel.com.br>",
       to: [opts.to],
-      subject: "Bem-vindo ao Plano Multi-Licença — Editora Central Gospel",
+      subject,
       html,
     }),
   });
@@ -115,7 +162,7 @@ async function sendWelcomeEmail(opts: {
     const body = await resp.text();
     throw new Error(`Resend HTTP ${resp.status}: ${body}`);
   }
-  console.log(`${LOG_PREFIX} email enviado para ${opts.to}`);
+  console.log(`${LOG_PREFIX} email enviado para ${opts.to} (recurring=${opts.isRecurring}, newUser=${opts.isNewUser})`);
 }
 
 async function provisionSuperintendente(
@@ -183,7 +230,20 @@ async function provisionSuperintendente(
 
       if (foundUser) {
         userId = foundUser.id;
-        console.log(`${LOG_PREFIX} auth user já existe: ${userId}`);
+        console.log(`${LOG_PREFIX} auth user já existe: ${userId}, gerando nova senha temporária para cliente recorrente`);
+
+        tempPassword = generatePassword(12);
+        isNewUser = false;
+
+        const { error: updateErr } = await supabase.auth.admin.updateUserById(
+          userId,
+          { password: tempPassword },
+        );
+
+        if (updateErr) {
+          console.error(`${LOG_PREFIX} falha ao resetar senha de cliente recorrente: ${updateErr.message}`);
+          tempPassword = undefined;
+        }
       } else {
         tempPassword = generatePassword(12);
         const { data: newUser, error: createErr } = await supabase.auth.admin.createUser({
@@ -206,6 +266,7 @@ async function provisionSuperintendente(
     }
 
     // ─── Upsert ebd_clientes ───
+    const nowIso = new Date().toISOString();
     if (!clienteId) {
       const insertData: any = {
         nome_igreja: nome,
@@ -214,10 +275,11 @@ async function provisionSuperintendente(
         superintendente_user_id: userId,
         status_ativacao_ebd: true,
         tipo_cliente: "Igreja",
+        senha_provisoria_enviada_em: tempPassword ? nowIso : null,
+        deve_trocar_senha: !!tempPassword,
       };
       if (telefone) insertData.telefone = telefone;
       if (cpfDoc) insertData.cpf = cpfDoc;
-      if (tempPassword) insertData.senha_temporaria = tempPassword;
 
       const { data: novoCliente, error: insErr } = await supabase
         .from("ebd_clientes")
@@ -232,7 +294,10 @@ async function provisionSuperintendente(
         status_ativacao_ebd: true,
         superintendente_user_id: userId,
       };
-      if (tempPassword) updateData.senha_temporaria = tempPassword;
+      if (tempPassword) {
+        updateData.senha_provisoria_enviada_em = nowIso;
+        updateData.deve_trocar_senha = true;
+      }
       await supabase.from("ebd_clientes").update(updateData).eq("id", clienteId);
       console.log(`${LOG_PREFIX} ebd_cliente reaproveitado: ${clienteId}`);
     }
@@ -337,6 +402,7 @@ async function provisionSuperintendente(
     }
 
     // ─── Email de boas-vindas ───
+    const isRecurring = !isNewUser && !!tempPassword;
     try {
       await sendWelcomeEmail({
         to: email,
@@ -346,14 +412,93 @@ async function provisionSuperintendente(
         revistaAlunoNome: nomeAluno,
         revistaProfNome: nomeProf,
         isNewUser,
+        isRecurring,
         password: tempPassword,
       });
     } catch (emailErr) {
       console.warn(`${LOG_PREFIX} falha enviando email (não bloqueia): ${(emailErr as Error).message}`);
     }
 
-    // ─── WhatsApp: sem template SE pronto, pula com warning ───
-    console.warn(`${LOG_PREFIX} WhatsApp: nenhum template SE compatível — pulado (será implementado em prompt separado)`);
+    // ─── WhatsApp template multi_licenca_pacote_confirmado ───
+    try {
+      const { data: settings } = await supabase
+        .from("system_settings")
+        .select("key, value")
+        .in("key", ["whatsapp_phone_number_id", "whatsapp_access_token"]);
+
+      const map: Record<string, string> = {};
+      (settings || []).forEach((s: any) => { map[s.key] = s.value; });
+
+      const phoneNumberId = map["whatsapp_phone_number_id"];
+      const accessToken = map["whatsapp_access_token"];
+      const compradorPhone = (customer.phone ?? "").replace(/\D/g, "");
+
+      if (phoneNumberId && accessToken && compradorPhone) {
+        const metaPhone = compradorPhone.startsWith("55") ? compradorPhone : `55${compradorPhone}`;
+
+        const tituloPacote = nomeAluno
+          ? (nomeProf ? `${nomeAluno} + ${nomeProf}` : nomeAluno)
+          : (nomeProf || "Revista Digital");
+
+        const waRes = await fetch(
+          `https://graph.facebook.com/v22.0/${phoneNumberId}/messages`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${accessToken}`,
+            },
+            body: JSON.stringify({
+              messaging_product: "whatsapp",
+              to: metaPhone,
+              type: "template",
+              template: {
+                name: "multi_licenca_pacote_confirmado",
+                language: { code: "pt_BR" },
+                components: [
+                  {
+                    type: "body",
+                    parameters: [
+                      { type: "text", text: nome },                // {{1}} Nome
+                      { type: "text", text: String(qtdTotal) },    // {{2}} Quantidade
+                      { type: "text", text: tituloPacote },        // {{3}} Título
+                      { type: "text", text: email },               // {{4}} Email
+                    ],
+                  },
+                ],
+              },
+            }),
+          },
+        );
+
+        const waData = await waRes.json();
+
+        await supabase.from("whatsapp_mensagens").insert({
+          tipo_mensagem: "multi_licenca_pacote_confirmado",
+          telefone_destino: compradorPhone,
+          nome_destino: nome,
+          mensagem: `Template multi_licenca_pacote_confirmado enviado para ${nome}`,
+          status: waRes.ok ? "enviado" : "erro",
+          erro_detalhes: waRes.ok ? null : JSON.stringify(waData),
+          payload_enviado: {
+            loja_order_id: lojaOrderUuid,
+            is_new_user: isNewUser,
+            source: "receive-order-from-store-cg",
+          },
+          resposta_recebida: waData,
+        });
+
+        if (waRes.ok) {
+          console.log(`${LOG_PREFIX} WhatsApp comprador enviado para ${compradorPhone}`);
+        } else {
+          console.warn(`${LOG_PREFIX} WhatsApp comprador falhou: ${JSON.stringify(waData)}`);
+        }
+      } else {
+        console.warn(`${LOG_PREFIX} WhatsApp comprador pulado: credenciais ou telefone ausentes`);
+      }
+    } catch (waErr) {
+      console.error(`${LOG_PREFIX} WhatsApp comprador exception:`, waErr);
+    }
 
     await supabase
       .from("ebd_loja_pedidos_cg")
@@ -483,17 +628,24 @@ Deno.serve(async (req) => {
 
     if (error) throw error;
 
-    // ─── Provisionamento SE (não bloqueia 200) ───
-    const result = await provisionSuperintendente(supabase, payload, data.id);
+    // ─── Provisionamento SE ───
+    // O pedido já está gravado em ebd_loja_pedidos_cg; se o provisionamento falhar,
+    // o registro fica com provisionamento_status='erro' para reprocessamento posterior.
+    // Retornamos 500 para a loja CG saber que deve retentar.
+    const provisionamentoResult = await provisionSuperintendente(supabase, payload, data.id);
+    const provisionamentoOk = !provisionamentoResult || provisionamentoResult.ok !== false;
 
     return new Response(
       JSON.stringify({
-        success: true,
-        id: data.id,
-        provisionamento: result.ok ? "ok" : "erro",
-        ...(result.error ? { provisionamento_erro: result.error } : {}),
+        ok: provisionamentoOk,
+        loja_order_id: payload.order_id,
+        provisionamento_status: provisionamentoOk ? "ok" : "erro",
+        error: provisionamentoOk ? undefined : provisionamentoResult?.error,
       }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      {
+        status: provisionamentoOk ? 200 : 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
     );
   } catch (err) {
     console.error("receive-order-from-store-cg error:", err, (err as Error)?.stack);
