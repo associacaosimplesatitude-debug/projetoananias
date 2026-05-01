@@ -303,6 +303,7 @@ const App = () => (
                 element={<SuperintendenteLegacyRedirect />}
               />
               <Route path="/multi-licenca/login" element={<SuperintendenteLogin />} />
+              <Route path="/multi-licenca/redefinir-senha" element={<RedefinirSenhaPage />} />
               <Route element={<RequireSuperintendente />}>
                 <Route path="/multi-licenca" element={<SuperintendenteLayout />}>
                   <Route index element={<SuperintendenteHome />} />
