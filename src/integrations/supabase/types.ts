@@ -1804,6 +1804,7 @@ export type Database = {
           desconto_atribuido_por: string | null
           desconto_faturamento: number | null
           desconto_onboarding: number | null
+          deve_trocar_senha: boolean | null
           dia_aula: string | null
           email_superintendente: string | null
           endereco_bairro: string | null
@@ -1824,6 +1825,7 @@ export type Database = {
           pode_faturar: boolean
           possui_cnpj: boolean | null
           rg: string | null
+          senha_provisoria_enviada_em: string | null
           senha_temporaria: string | null
           status_ativacao_ebd: boolean
           superintendente_user_id: string | null
@@ -1848,6 +1850,7 @@ export type Database = {
           desconto_atribuido_por?: string | null
           desconto_faturamento?: number | null
           desconto_onboarding?: number | null
+          deve_trocar_senha?: boolean | null
           dia_aula?: string | null
           email_superintendente?: string | null
           endereco_bairro?: string | null
@@ -1868,6 +1871,7 @@ export type Database = {
           pode_faturar?: boolean
           possui_cnpj?: boolean | null
           rg?: string | null
+          senha_provisoria_enviada_em?: string | null
           senha_temporaria?: string | null
           status_ativacao_ebd?: boolean
           superintendente_user_id?: string | null
@@ -1892,6 +1896,7 @@ export type Database = {
           desconto_atribuido_por?: string | null
           desconto_faturamento?: number | null
           desconto_onboarding?: number | null
+          deve_trocar_senha?: boolean | null
           dia_aula?: string | null
           email_superintendente?: string | null
           endereco_bairro?: string | null
@@ -1912,6 +1917,7 @@ export type Database = {
           pode_faturar?: boolean
           possui_cnpj?: boolean | null
           rg?: string | null
+          senha_provisoria_enviada_em?: string | null
           senha_temporaria?: string | null
           status_ativacao_ebd?: boolean
           superintendente_user_id?: string | null

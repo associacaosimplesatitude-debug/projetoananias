@@ -167,6 +167,7 @@ import { SuperintendenteLayout } from "./components/superintendente/Superintende
 import { RequireSuperintendente } from "./components/superintendente/RequireSuperintendente";
 import SuperintendenteHome from "./pages/superintendente/SuperintendenteHome";
 import SuperintendenteLogin from "./pages/superintendente/SuperintendenteLogin";
+import RedefinirSenhaPage from "./pages/superintendente/RedefinirSenhaPage";
 
 // Redirect 301-style client-side de /superintendente/* → /multi-licenca/*
 function SuperintendenteLegacyRedirect() {
@@ -302,6 +303,7 @@ const App = () => (
                 element={<SuperintendenteLegacyRedirect />}
               />
               <Route path="/multi-licenca/login" element={<SuperintendenteLogin />} />
+              <Route path="/multi-licenca/redefinir-senha" element={<RedefinirSenhaPage />} />
               <Route element={<RequireSuperintendente />}>
                 <Route path="/multi-licenca" element={<SuperintendenteLayout />}>
                   <Route index element={<SuperintendenteHome />} />

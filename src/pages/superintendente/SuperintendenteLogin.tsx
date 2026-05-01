@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation, Navigate } from "react-router-dom";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
 import { Loader2, AlertCircle, ExternalLink } from "lucide-react";
 import logoCentralGospel from "@/assets/logo_central_gospel.png";
 import { supabase } from "@/integrations/supabase/client";
@@ -11,9 +14,31 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 import { toast } from "@/hooks/use-toast";
 
 const BRAND_PRIMARY = "#1B3A5C";
+const LOG_PREFIX = "[SuperintendenteLogin]";
+
+const forgotSchema = z.object({
+  email: z.string().email("Informe um e-mail válido"),
+});
+type ForgotValues = z.infer<typeof forgotSchema>;
 
 export default function SuperintendenteLogin() {
   const navigate = useNavigate();
@@ -25,6 +50,14 @@ export default function SuperintendenteLogin() {
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [forgotOpen, setForgotOpen] = useState(false);
+  const [forgotSubmitting, setForgotSubmitting] = useState(false);
+  const [mustChangePassword, setMustChangePassword] = useState(false);
+
+  const forgotForm = useForm<ForgotValues>({
+    resolver: zodResolver(forgotSchema),
+    defaultValues: { email: "" },
+  });
 
   const redirect =
     new URLSearchParams(location.search).get("redirect") || "/multi-licenca";
@@ -32,14 +65,36 @@ export default function SuperintendenteLogin() {
   const ready = !authLoading && !seLoading && (!isSuperintendente || !pacoteLoading);
   const isMultiLicencaCliente = !!user && isSuperintendente && hasMultiLicencaPacote;
 
-  // Redireciona quando autenticado E elegível
+  // Verifica se cliente precisa trocar senha
   useEffect(() => {
-    if (ready && isMultiLicencaCliente) {
+    if (!ready || !user || !isMultiLicencaCliente) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("ebd_clientes")
+        .select("deve_trocar_senha")
+        .eq("superintendente_user_id", user.id)
+        .maybeSingle();
+      if (cancelled) return;
+      if (data?.deve_trocar_senha) {
+        console.log(`${LOG_PREFIX} cliente precisa trocar senha — redirecionando`);
+        setMustChangePassword(true);
+        navigate("/multi-licenca/redefinir-senha", { replace: true });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [ready, user, isMultiLicencaCliente, navigate]);
+
+  // Redireciona quando autenticado E elegível E não precisa trocar senha
+  useEffect(() => {
+    if (ready && isMultiLicencaCliente && !mustChangePassword) {
       navigate(redirect, { replace: true });
     }
-  }, [ready, isMultiLicencaCliente, navigate, redirect]);
+  }, [ready, isMultiLicencaCliente, mustChangePassword, navigate, redirect]);
 
-  if (ready && isMultiLicencaCliente) {
+  if (ready && isMultiLicencaCliente && !mustChangePassword) {
     return <Navigate to={redirect} replace />;
   }
 
@@ -73,6 +128,34 @@ export default function SuperintendenteLogin() {
     await supabase.auth.signOut();
     setEmail("");
     setSenha("");
+  };
+
+  const handleForgotSubmit = async (values: ForgotValues) => {
+    setForgotSubmitting(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(values.email, {
+        redirectTo: `${window.location.origin}/multi-licenca/redefinir-senha`,
+      });
+      if (error) {
+        console.error(`${LOG_PREFIX} resetPasswordForEmail error`, error);
+        toast({
+          title: "Erro",
+          description:
+            "Não foi possível enviar o link agora. Tente novamente em alguns minutos.",
+          variant: "destructive",
+        });
+        return;
+      }
+      toast({
+        title: "Verifique seu e-mail",
+        description:
+          "Se este e-mail estiver cadastrado, você receberá um link em alguns minutos.",
+      });
+      setForgotOpen(false);
+      forgotForm.reset();
+    } finally {
+      setForgotSubmitting(false);
+    }
   };
 
   // Estados pós-login
@@ -193,6 +276,18 @@ export default function SuperintendenteLogin() {
             </form>
           )}
 
+          {!loggedSEsemPacote && !loggedNaoSE && (
+            <div className="mt-4 text-center">
+              <button
+                type="button"
+                onClick={() => setForgotOpen(true)}
+                className="text-sm text-muted-foreground hover:text-foreground underline-offset-4 hover:underline"
+              >
+                Esqueci minha senha
+              </button>
+            </div>
+          )}
+
           <div className="mt-6 pt-4 border-t text-center">
             <a
               href="https://centralgospel.com.br/multi-licenca"
@@ -206,6 +301,58 @@ export default function SuperintendenteLogin() {
           </div>
         </CardContent>
       </Card>
+
+      <Dialog open={forgotOpen} onOpenChange={setForgotOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Recuperar acesso</DialogTitle>
+            <DialogDescription>
+              Digite seu e-mail. Enviaremos um link para você criar uma nova senha.
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...forgotForm}>
+            <form
+              onSubmit={forgotForm.handleSubmit(handleForgotSubmit)}
+              className="space-y-4"
+            >
+              <FormField
+                control={forgotForm.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>E-mail</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="email"
+                        autoComplete="email"
+                        placeholder="seu@email.com"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <DialogFooter>
+                <Button
+                  type="submit"
+                  disabled={forgotSubmitting}
+                  style={{ backgroundColor: BRAND_PRIMARY, color: "white" }}
+                >
+                  {forgotSubmitting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Enviando...
+                    </>
+                  ) : (
+                    "Enviar link de recuperação"
+                  )}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
