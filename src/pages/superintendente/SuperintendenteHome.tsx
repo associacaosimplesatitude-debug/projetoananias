@@ -413,7 +413,7 @@ export default function SuperintendenteHome() {
             <div
               className={cn(
                 viewMode === "grid"
-                  ? "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3"
+                  ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
                   : "grid grid-cols-1 md:flex md:flex-col gap-3"
               )}
             >
@@ -511,99 +511,137 @@ function getPacoteDerivados(p: PacoteRow) {
 function PacoteCardGrid({
   pacote,
   onOpenDrawer,
-  onDistribuir,
 }: {
   pacote: PacoteRow;
   onOpenDrawer: () => void;
   onDistribuir: () => void;
 }) {
-  const { inconsistente, disponiveis, pct, esgotado, semRevista, titulo } =
+  const { inconsistente, pct, esgotado, semRevista, titulo } =
     getPacoteDerivados(pacote);
+
+  // Cor semântica da barra de progresso conforme uso do pool
+  let progressIndicatorClass = "bg-emerald-500";
+  if (inconsistente) {
+    progressIndicatorClass = "bg-red-500";
+  } else if (esgotado) {
+    progressIndicatorClass = "bg-red-500";
+  } else if (pct > 50) {
+    progressIndicatorClass = "bg-amber-500";
+  }
+
+  const progressValue = inconsistente ? 100 : pct;
 
   return (
     <Card
       onClick={onOpenDrawer}
-      className="cursor-pointer hover:shadow-md transition flex flex-col overflow-hidden"
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onOpenDrawer();
+        }
+      }}
+      role="button"
+      tabIndex={0}
+      aria-label={`Abrir detalhes do pacote ${titulo}`}
+      className="group cursor-pointer rounded-lg overflow-hidden border border-border shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 flex flex-col focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
     >
-      {pacote.capa_url && !semRevista ? (
-        <img
-          src={pacote.capa_url}
-          alt={titulo}
-          className="w-full h-[200px] object-cover"
-          loading="lazy"
-        />
-      ) : (
-        <CapaPlaceholder tipo={pacote.tipo_conteudo} size="lg" />
-      )}
+      {/* Capa: aspect 3/4, fundo neutro, capa inteira (object-contain) */}
+      <div className="relative aspect-[3/4] bg-slate-50 p-4 flex items-center justify-center">
+        {pacote.capa_url && !semRevista ? (
+          <img
+            src={pacote.capa_url}
+            alt={titulo}
+            className="w-full h-full object-contain"
+            loading="lazy"
+          />
+        ) : (
+          <CapaPlaceholder tipo={pacote.tipo_conteudo} size="lg" />
+        )}
 
-      <CardContent className="p-4 flex flex-col gap-2 flex-1">
-        <div className="flex items-center gap-2 flex-wrap">
+        {inconsistente && (
+          <Badge
+            variant="destructive"
+            className="absolute top-2 right-2 gap-1"
+          >
+            <AlertTriangle className="h-3 w-3" />
+            Inconsistência
+          </Badge>
+        )}
+      </div>
+
+      {/* Footer compacto */}
+      <div className="p-4 space-y-2 flex flex-col flex-1">
+        {/* Badge do tipo */}
+        <div>
           {semRevista ? (
-            <Badge variant="outline">Sem produto</Badge>
+            <Badge variant="outline" className="text-xs px-2 py-0.5 rounded-full">
+              Sem produto
+            </Badge>
           ) : (
-            <Badge
-              variant="outline"
-              className={tipoBadgeClass(pacote.tipo_conteudo)}
+            <span
+              className={cn(
+                "inline-flex items-center text-xs px-2 py-0.5 rounded-full font-medium",
+                tipoPillClass(pacote.tipo_conteudo)
+              )}
             >
               {tipoLabel(pacote.tipo_conteudo)}
-            </Badge>
-          )}
-          {inconsistente && (
-            <Badge variant="destructive" className="gap-1">
-              <AlertTriangle className="h-3 w-3" />
-              Atenção: dados inconsistentes
-            </Badge>
+            </span>
           )}
         </div>
 
-        <h3 className="text-base font-semibold line-clamp-2">{titulo}</h3>
+        {/* Título */}
+        <h3 className="text-sm font-semibold leading-snug line-clamp-2 min-h-[2.5rem] text-foreground">
+          {titulo}
+        </h3>
 
-        <div className="space-y-1">
-          <Progress value={pct} className="h-2" />
-          <p className="text-sm text-muted-foreground">
-            {inconsistente
-              ? `${pacote.alunos_count} ${
-                  pacote.alunos_count === 1 ? "leitor" : "leitores"
-                }`
-              : `${pacote.quantidade_usada} de ${pacote.quantidade_total} ${
-                  pacote.quantidade_total === 1 ? "leitor" : "leitores"
-                }`}
-          </p>
-        </div>
+        {/* Progresso */}
+        {esgotado && !inconsistente ? (
+          <div className="bg-slate-100 text-slate-600 text-xs text-center py-1 rounded">
+            Pool esgotado
+          </div>
+        ) : (
+          <div className="space-y-1">
+            <Progress
+              value={progressValue}
+              className="h-1.5 bg-slate-200"
+              indicatorClassName={progressIndicatorClass}
+            />
+            <p className="text-xs text-muted-foreground">
+              {inconsistente
+                ? `${pacote.alunos_count} ${
+                    pacote.alunos_count === 1 ? "leitor" : "leitores"
+                  }`
+                : `${pacote.quantidade_usada} de ${pacote.quantidade_total} ${
+                    pacote.quantidade_total === 1 ? "leitor" : "leitores"
+                  }`}
+            </p>
+          </div>
+        )}
 
-        <p className="text-xs text-muted-foreground">
+        {/* Meta: vitalício / expira */}
+        <p className="text-xs text-muted-foreground mt-auto">
           {pacote.expira_em
             ? `Expira em ${format(new Date(pacote.expira_em), "dd/MM/yyyy", {
                 locale: ptBR,
               })}`
             : "Vitalício"}
         </p>
-
-        <div className="mt-auto pt-2">
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className="inline-block w-full">
-                  <Button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onDistribuir();
-                    }}
-                    disabled={esgotado || pacote.status !== "ativa" || semRevista}
-                    className="w-full"
-                    style={{ backgroundColor: "#1B3A5C", color: "white" }}
-                  >
-                    Distribuir Licença
-                  </Button>
-                </span>
-              </TooltipTrigger>
-              {esgotado && <TooltipContent>Pool esgotado</TooltipContent>}
-            </Tooltip>
-          </TooltipProvider>
-        </div>
-      </CardContent>
+      </div>
     </Card>
   );
+}
+
+/** Cores semânticas para a "pill" de tipo no card Grid */
+function tipoPillClass(tipo: string | null): string {
+  switch (tipo) {
+    case "livro_digital":
+      return "bg-amber-100 text-amber-700";
+    case "infografico":
+      return "bg-emerald-100 text-emerald-700";
+    case "revista":
+    default:
+      return "bg-blue-100 text-blue-700";
+  }
 }
 
 /* ============================================================
