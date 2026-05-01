@@ -53,6 +53,7 @@ export default function SuperintendenteLogin() {
   const [forgotOpen, setForgotOpen] = useState(false);
   const [forgotSubmitting, setForgotSubmitting] = useState(false);
   const [mustChangePassword, setMustChangePassword] = useState(false);
+  const [passwordCheckCompleted, setPasswordCheckCompleted] = useState(false);
 
   const forgotForm = useForm<ForgotValues>({
     resolver: zodResolver(forgotSchema),
@@ -81,6 +82,7 @@ export default function SuperintendenteLogin() {
         setMustChangePassword(true);
         navigate("/multi-licenca/redefinir-senha", { replace: true });
       }
+      setPasswordCheckCompleted(true);
     })();
     return () => {
       cancelled = true;
@@ -89,12 +91,12 @@ export default function SuperintendenteLogin() {
 
   // Redireciona quando autenticado E elegível E não precisa trocar senha
   useEffect(() => {
-    if (ready && isMultiLicencaCliente && !mustChangePassword) {
+    if (ready && isMultiLicencaCliente && passwordCheckCompleted && !mustChangePassword) {
       navigate(redirect, { replace: true });
     }
-  }, [ready, isMultiLicencaCliente, mustChangePassword, navigate, redirect]);
+  }, [ready, isMultiLicencaCliente, passwordCheckCompleted, mustChangePassword, navigate, redirect]);
 
-  if (ready && isMultiLicencaCliente && !mustChangePassword) {
+  if (ready && isMultiLicencaCliente && passwordCheckCompleted && !mustChangePassword) {
     return <Navigate to={redirect} replace />;
   }
 
