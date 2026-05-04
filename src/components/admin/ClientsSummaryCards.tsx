@@ -111,13 +111,38 @@ export function ClientsSummaryCards({ shopifyOrders, ebdClients }: ClientsSummar
   });
 
   // Total de Igrejas ADVEC direto do Bling (Clientes/Fornecedores)
+  // Processado em chunks para evitar timeout de 150s da edge function
   const { data: blingAdvecTotalData } = useQuery({
     queryKey: ["bling-advec-total"],
     staleTime: 1000 * 60 * 10,
     queryFn: async () => {
-      const { data, error } = await supabase.functions.invoke("bling-advec-total");
-      if (error) throw error;
-      return data as { totalAdvec?: number };
+      let nextPage: number | null = 1;
+      let existingKeys: string[] = [];
+      let total = 0;
+      let safety = 0;
+
+      while (nextPage !== null && safety < 25) {
+        safety++;
+        const { data, error } = await supabase.functions.invoke("bling-advec-total", {
+          body: { startPage: nextPage, pagesPerChunk: 20, existingKeys },
+        });
+        if (error) throw error;
+        const resp = data as {
+          totalAdvec?: number;
+          done?: boolean;
+          nextPage?: number | null;
+          existingKeys?: string[];
+        };
+        total = resp.totalAdvec ?? total;
+        if (resp.done) {
+          nextPage = null;
+        } else {
+          nextPage = resp.nextPage ?? null;
+          existingKeys = resp.existingKeys ?? existingKeys;
+        }
+      }
+
+      return { totalAdvec: total };
     },
   });
   const blingAdvecTotal = blingAdvecTotalData?.totalAdvec;
