@@ -41,14 +41,21 @@ interface Props {
 export function ImplementacoesModal({ open, onOpenChange }: Props) {
   const { novidades, naoLidasCount, totalPorTipo, marcarComoLida, marcarTodasComoLidas } = useImplementacoes();
   const [tab, setTab] = useState<"nova_funcao" | "correcao">("nova_funcao");
-  const [filter, setFilter] = useState<"todas" | "nao_lidas">("nao_lidas");
+  const [filter, setFilter] = useState<"nao_lidas" | "lidas" | "todas">("nao_lidas");
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
+  const porTipo = useMemo(() => novidades.filter((n) => n.tipo === tab), [novidades, tab]);
+  const counts = useMemo(() => ({
+    nao_lidas: porTipo.filter((n) => !n.lida).length,
+    lidas: porTipo.filter((n) => n.lida).length,
+    todas: porTipo.length,
+  }), [porTipo]);
+
   const filteredList = useMemo(() => {
-    let list = novidades.filter((n) => n.tipo === tab);
-    if (filter === "nao_lidas") list = list.filter((n) => !n.lida);
-    return list;
-  }, [novidades, tab, filter]);
+    if (filter === "nao_lidas") return porTipo.filter((n) => !n.lida);
+    if (filter === "lidas") return porTipo.filter((n) => n.lida);
+    return porTipo;
+  }, [porTipo, filter]);
 
   const selected = novidades.find((n) => n.id === selectedId) || filteredList[0] || null;
 
@@ -121,16 +128,20 @@ export function ImplementacoesModal({ open, onOpenChange }: Props) {
           </Tabs>
 
           <div className="inline-flex rounded-full border bg-muted p-1 text-xs">
-            <button
-              onClick={() => setFilter("todas")}
-              className={cn("px-3 py-1 rounded-full transition-colors",
-                filter === "todas" ? "bg-background shadow font-medium" : "text-muted-foreground")}
-            >Todas</button>
-            <button
-              onClick={() => setFilter("nao_lidas")}
-              className={cn("px-3 py-1 rounded-full transition-colors",
-                filter === "nao_lidas" ? "bg-background shadow font-medium" : "text-muted-foreground")}
-            >Não lidas</button>
+            {([
+              { key: "nao_lidas", label: "Não lidas" },
+              { key: "lidas", label: "Lidas" },
+              { key: "todas", label: "Todas" },
+            ] as const).map((opt) => (
+              <button
+                key={opt.key}
+                onClick={() => setFilter(opt.key)}
+                className={cn("px-3 py-1 rounded-full transition-colors",
+                  filter === opt.key ? "bg-background shadow font-medium" : "text-muted-foreground")}
+              >
+                {opt.label} ({counts[opt.key]})
+              </button>
+            ))}
           </div>
         </div>
 
