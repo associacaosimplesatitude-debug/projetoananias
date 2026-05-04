@@ -121,10 +121,10 @@ export function ClientsSummaryCards({ shopifyOrders, ebdClients }: ClientsSummar
       let total = 0;
       let safety = 0;
 
-      while (nextPage !== null && safety < 25) {
+      while (nextPage !== null && safety < 60) {
         safety++;
         const { data, error } = await supabase.functions.invoke("bling-advec-total", {
-          body: { startPage: nextPage, pagesPerChunk: 20, existingKeys },
+          body: { startPage: nextPage, pagesPerChunk: 5, existingKeys },
         });
         if (error) throw error;
         const resp = data as {

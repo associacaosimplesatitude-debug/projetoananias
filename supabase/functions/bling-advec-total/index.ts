@@ -7,6 +7,17 @@ const corsHeaders = {
 };
 
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const DEFAULT_PAGES_PER_CHUNK = 5;
+const MAX_PAGES_PER_CHUNK = 10;
+const REQUEST_TIMEOUT_MS = 12_000;
+const MAX_CHUNK_RUNTIME_MS = 45_000;
+
+async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = REQUEST_TIMEOUT_MS) {
+  return await fetch(url, {
+    ...options,
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+}
 
 async function refreshBlingToken(supabase: any, config: any): Promise<string> {
   if (!config.refresh_token) throw new Error("Refresh token não disponível");
@@ -132,7 +143,7 @@ serve(async (req) => {
 
     // Parse params (chunked execution to avoid 150s idle timeout)
     let startPage = 1;
-    let pagesPerChunk = 20;
+    let pagesPerChunk = DEFAULT_PAGES_PER_CHUNK;
     let existingKeys: string[] = [];
     const maxPages = 200;
 
@@ -141,7 +152,7 @@ serve(async (req) => {
         const body = await req.json();
         if (typeof body?.startPage === "number" && body.startPage > 0) startPage = body.startPage;
         if (typeof body?.pagesPerChunk === "number" && body.pagesPerChunk > 0) {
-          pagesPerChunk = Math.min(body.pagesPerChunk, 50);
+          pagesPerChunk = Math.min(body.pagesPerChunk, MAX_PAGES_PER_CHUNK);
         }
         if (Array.isArray(body?.existingKeys)) existingKeys = body.existingKeys;
       } catch (_) { /* no body */ }
@@ -167,22 +178,43 @@ serve(async (req) => {
     const endPage = startPage + pagesPerChunk; // exclusive
     let hasMore = true;
     let done = false;
+    const chunkStartedAt = Date.now();
 
     let retryCount = 0;
     const maxRetries = 3;
 
     while (hasMore && page < endPage) {
+      if (Date.now() - chunkStartedAt >= MAX_CHUNK_RUNTIME_MS) {
+        console.log(`Encerrando chunk antecipadamente para evitar timeout. Próxima página: ${page}`);
+        break;
+      }
+
       const url = `https://www.bling.com.br/Api/v3/contatos?pagina=${page}&limite=${limit}`;
 
-      if (page > 1) await delay(400);
+      if (page > 1) await delay(250);
 
-      const resp = await fetch(url, {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          Accept: "application/json",
-        },
-      });
+      let resp: Response;
+      try {
+        resp = await fetchWithTimeout(url, {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            Accept: "application/json",
+          },
+        });
+      } catch (error) {
+        retryCount++;
+        console.error(`Falha/timeout ao listar contatos na página ${page}, tentativa ${retryCount}/${maxRetries}`, error);
+
+        if (retryCount >= maxRetries) {
+          console.error(`Pulando página ${page} após falhas consecutivas`);
+          page++;
+          retryCount = 0;
+        } else {
+          await delay(1200);
+        }
+        continue;
+      }
 
       if (resp.status === 401) {
         accessToken = await refreshBlingToken(supabase, blingConfig);
@@ -192,7 +224,7 @@ serve(async (req) => {
 
       if (resp.status === 429) {
         console.log(`Rate limit na página ${page}, aguardando 2s...`);
-        await delay(2000);
+        await delay(1200);
         continue;
       }
 
@@ -206,11 +238,11 @@ serve(async (req) => {
           // Pular esta página e continuar com a próxima
           page++;
           retryCount = 0;
-          await delay(3000);
+          await delay(1500);
           continue;
         }
         
-        await delay(3000); // Espera 3 segundos antes de tentar novamente
+        await delay(1500); // Espera antes de tentar novamente
         continue;
       }
 
@@ -220,7 +252,7 @@ serve(async (req) => {
         // Em vez de lançar erro, logar e continuar
         page++;
         retryCount = 0;
-        await delay(1000);
+        await delay(300);
         continue;
       }
       
