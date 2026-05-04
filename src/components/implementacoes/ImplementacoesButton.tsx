@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useNovidades } from "@/hooks/useNovidades";
-import { NovidadesModal } from "./NovidadesModal";
+import { useImplementacoes } from "@/hooks/useImplementacoes";
+import { ImplementacoesModal } from "./ImplementacoesModal";
 
-export function NovidadesButton({ className }: { className?: string }) {
+export function ImplementacoesButton({ className }: { className?: string }) {
   const [open, setOpen] = useState(false);
-  const { naoLidasCount } = useNovidades();
+  const { naoLidasCount } = useImplementacoes();
 
   const badgeText = naoLidasCount === 0 ? null : naoLidasCount > 9 ? "9+" : String(naoLidasCount);
 
@@ -21,14 +21,14 @@ export function NovidadesButton({ className }: { className?: string }) {
         )}
       >
         <Sparkles className="h-4 w-4" />
-        <span className="hidden sm:inline">Novidades</span>
+        <span className="hidden sm:inline">Implementações</span>
         {badgeText && (
           <span className="ml-0.5 inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-emerald-600 px-1.5 text-[11px] font-bold text-white">
             {badgeText}
           </span>
         )}
       </button>
-      <NovidadesModal open={open} onOpenChange={setOpen} />
+      <ImplementacoesModal open={open} onOpenChange={setOpen} />
     </>
   );
 }
