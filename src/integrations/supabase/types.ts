@@ -5179,6 +5179,141 @@ export type Database = {
         }
         Relationships: []
       }
+      implementacoes: {
+        Row: {
+          ativo: boolean
+          audience_roles: string[] | null
+          audience_type: string
+          audience_user_ids: string[] | null
+          categoria: string | null
+          created_at: string | null
+          criado_por: string | null
+          data_publicacao: string
+          descricao_completa: string | null
+          descricao_curta: string
+          id: string
+          tipo: string
+          titulo: string
+          updated_at: string
+          versao: string | null
+        }
+        Insert: {
+          ativo?: boolean
+          audience_roles?: string[] | null
+          audience_type?: string
+          audience_user_ids?: string[] | null
+          categoria?: string | null
+          created_at?: string | null
+          criado_por?: string | null
+          data_publicacao: string
+          descricao_completa?: string | null
+          descricao_curta: string
+          id?: string
+          tipo?: string
+          titulo: string
+          updated_at?: string
+          versao?: string | null
+        }
+        Update: {
+          ativo?: boolean
+          audience_roles?: string[] | null
+          audience_type?: string
+          audience_user_ids?: string[] | null
+          categoria?: string | null
+          created_at?: string | null
+          criado_por?: string | null
+          data_publicacao?: string
+          descricao_completa?: string | null
+          descricao_curta?: string
+          id?: string
+          tipo?: string
+          titulo?: string
+          updated_at?: string
+          versao?: string | null
+        }
+        Relationships: []
+      }
+      implementacoes_attachments: {
+        Row: {
+          created_at: string
+          id: string
+          implementacao_id: string
+          mime_type: string | null
+          nome_arquivo: string
+          storage_path: string
+          tamanho_bytes: number | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          implementacao_id: string
+          mime_type?: string | null
+          nome_arquivo: string
+          storage_path: string
+          tamanho_bytes?: number | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          implementacao_id?: string
+          mime_type?: string | null
+          nome_arquivo?: string
+          storage_path?: string
+          tamanho_bytes?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "implementacoes_attachments_implementacao_id_fkey"
+            columns: ["implementacao_id"]
+            isOneToOne: false
+            referencedRelation: "implementacoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "implementacoes_attachments_implementacao_id_fkey"
+            columns: ["implementacao_id"]
+            isOneToOne: false
+            referencedRelation: "v_implementacoes_for_user"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      implementacoes_reads: {
+        Row: {
+          id: string
+          implementacao_id: string
+          lido_em: string
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          implementacao_id: string
+          lido_em?: string
+          user_id: string
+        }
+        Update: {
+          id?: string
+          implementacao_id?: string
+          lido_em?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "implementacoes_reads_implementacao_id_fkey"
+            columns: ["implementacao_id"]
+            isOneToOne: false
+            referencedRelation: "implementacoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "implementacoes_reads_implementacao_id_fkey"
+            columns: ["implementacao_id"]
+            isOneToOne: false
+            referencedRelation: "v_implementacoes_for_user"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lancamentos_contabeis: {
         Row: {
           church_id: string
@@ -7433,165 +7568,6 @@ export type Database = {
         }
         Relationships: []
       }
-      system_implementations: {
-        Row: {
-          category: string | null
-          created_at: string | null
-          description: string | null
-          id: string
-          implemented_at: string
-          title: string
-        }
-        Insert: {
-          category?: string | null
-          created_at?: string | null
-          description?: string | null
-          id?: string
-          implemented_at: string
-          title: string
-        }
-        Update: {
-          category?: string | null
-          created_at?: string | null
-          description?: string | null
-          id?: string
-          implemented_at?: string
-          title?: string
-        }
-        Relationships: []
-      }
-      system_news: {
-        Row: {
-          ativo: boolean
-          audience_roles: string[] | null
-          audience_type: string
-          audience_user_ids: string[] | null
-          created_at: string
-          criado_por: string | null
-          data_publicacao: string
-          descricao_completa: string
-          descricao_curta: string
-          id: string
-          tipo: string
-          titulo: string
-          updated_at: string
-          versao: string | null
-        }
-        Insert: {
-          ativo?: boolean
-          audience_roles?: string[] | null
-          audience_type?: string
-          audience_user_ids?: string[] | null
-          created_at?: string
-          criado_por?: string | null
-          data_publicacao?: string
-          descricao_completa: string
-          descricao_curta: string
-          id?: string
-          tipo: string
-          titulo: string
-          updated_at?: string
-          versao?: string | null
-        }
-        Update: {
-          ativo?: boolean
-          audience_roles?: string[] | null
-          audience_type?: string
-          audience_user_ids?: string[] | null
-          created_at?: string
-          criado_por?: string | null
-          data_publicacao?: string
-          descricao_completa?: string
-          descricao_curta?: string
-          id?: string
-          tipo?: string
-          titulo?: string
-          updated_at?: string
-          versao?: string | null
-        }
-        Relationships: []
-      }
-      system_news_attachments: {
-        Row: {
-          created_at: string
-          id: string
-          mime_type: string | null
-          news_id: string
-          nome_arquivo: string
-          storage_path: string
-          tamanho_bytes: number | null
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          mime_type?: string | null
-          news_id: string
-          nome_arquivo: string
-          storage_path: string
-          tamanho_bytes?: number | null
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          mime_type?: string | null
-          news_id?: string
-          nome_arquivo?: string
-          storage_path?: string
-          tamanho_bytes?: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "system_news_attachments_news_id_fkey"
-            columns: ["news_id"]
-            isOneToOne: false
-            referencedRelation: "system_news"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "system_news_attachments_news_id_fkey"
-            columns: ["news_id"]
-            isOneToOne: false
-            referencedRelation: "v_system_news_for_user"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      system_news_reads: {
-        Row: {
-          id: string
-          lido_em: string
-          news_id: string
-          user_id: string
-        }
-        Insert: {
-          id?: string
-          lido_em?: string
-          news_id: string
-          user_id: string
-        }
-        Update: {
-          id?: string
-          lido_em?: string
-          news_id?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "system_news_reads_news_id_fkey"
-            columns: ["news_id"]
-            isOneToOne: false
-            referencedRelation: "system_news"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "system_news_reads_news_id_fkey"
-            columns: ["news_id"]
-            isOneToOne: false
-            referencedRelation: "v_system_news_for_user"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       system_settings: {
         Row: {
           created_at: string
@@ -8649,10 +8625,11 @@ export type Database = {
       }
     }
     Views: {
-      v_system_news_for_user: {
+      v_implementacoes_for_user: {
         Row: {
           ativo: boolean | null
           audience_type: string | null
+          categoria: string | null
           created_at: string | null
           criado_por: string | null
           data_publicacao: string | null
@@ -8679,8 +8656,8 @@ export type Database = {
         Returns: string
       }
       can_manage_revistas: { Args: { _user_id: string }; Returns: boolean }
-      can_view_system_news: {
-        Args: { _news_id: string; _user_id: string }
+      can_view_implementacao: {
+        Args: { _impl_id: string; _user_id: string }
         Returns: boolean
       }
       execute_readonly_query: { Args: { sql_query: string }; Returns: Json }
