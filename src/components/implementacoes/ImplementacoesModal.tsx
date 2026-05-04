@@ -128,16 +128,20 @@ export function ImplementacoesModal({ open, onOpenChange }: Props) {
           </Tabs>
 
           <div className="inline-flex rounded-full border bg-muted p-1 text-xs">
-            <button
-              onClick={() => setFilter("todas")}
-              className={cn("px-3 py-1 rounded-full transition-colors",
-                filter === "todas" ? "bg-background shadow font-medium" : "text-muted-foreground")}
-            >Todas</button>
-            <button
-              onClick={() => setFilter("nao_lidas")}
-              className={cn("px-3 py-1 rounded-full transition-colors",
-                filter === "nao_lidas" ? "bg-background shadow font-medium" : "text-muted-foreground")}
-            >Não lidas</button>
+            {([
+              { key: "nao_lidas", label: "Não lidas" },
+              { key: "lidas", label: "Lidas" },
+              { key: "todas", label: "Todas" },
+            ] as const).map((opt) => (
+              <button
+                key={opt.key}
+                onClick={() => setFilter(opt.key)}
+                className={cn("px-3 py-1 rounded-full transition-colors",
+                  filter === opt.key ? "bg-background shadow font-medium" : "text-muted-foreground")}
+              >
+                {opt.label} ({counts[opt.key]})
+              </button>
+            ))}
           </div>
         </div>
 
