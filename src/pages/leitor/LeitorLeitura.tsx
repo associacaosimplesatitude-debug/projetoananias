@@ -492,6 +492,22 @@ export default function LeitorLeitura() {
                 >
                   {r.titulo}
                 </p>
+                {r.tipo_conteudo === "infografico" && (
+                  <p
+                    style={{
+                      margin: "0 12px 12px",
+                      padding: "6px 10px",
+                      borderRadius: "6px",
+                      backgroundColor: "#FFC107",
+                      color: "#000",
+                      fontSize: "11px",
+                      fontWeight: 600,
+                      textAlign: "center",
+                    }}
+                  >
+                    📥 Baixar PDF
+                  </p>
+                )}
               </button>
             ))}
           </div>
