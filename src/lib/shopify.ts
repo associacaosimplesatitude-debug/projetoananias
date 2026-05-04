@@ -171,22 +171,92 @@ const CART_CREATE_MUTATION = `
   }
 `;
 
-// Buscar produtos via Edge Function (usa token do secret)
-export async function fetchShopifyProducts(first: number = 250, query?: string): Promise<ShopifyProduct[]> {
-  const { data, error } = await supabase.functions.invoke('shopify-storefront-products', {
-    body: { first, query }
+// Catálogo agora vem da Nova Loja (centralgospel.com.br) via Edge Function pública
+const NOVA_LOJA_CATALOGO_URL =
+  "https://otynmnmazarsrddvxvmy.supabase.co/functions/v1/catalogo-publico";
+
+interface NovaLojaProduct {
+  id: string;
+  title: string;
+  slug?: string;
+  description?: string;
+  sku: string;
+  price: number | string;
+  compare_at_price?: number | string | null;
+  image?: string | null;
+  stock?: number;
+  available?: boolean;
+  is_digital?: boolean;
+}
+
+// Mantém o nome e o shape de retorno para preservar a UI existente.
+export async function fetchShopifyProducts(_first: number = 250, query?: string): Promise<ShopifyProduct[]> {
+  const res = await fetch(NOVA_LOJA_CATALOGO_URL, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
   });
-  
-  if (error) {
-    console.error('Error fetching Shopify products:', error);
-    throw new Error(`Erro ao buscar produtos: ${error.message}`);
+
+  if (!res.ok) {
+    console.error("Nova Loja catálogo error:", res.status);
+    throw new Error("catalog_unavailable");
   }
-  
-  if (!data.success) {
-    throw new Error(data.error || 'Erro desconhecido ao buscar produtos');
-  }
-  
-  return data.products || [];
+
+  const raw = (await res.json()) as NovaLojaProduct[] | { products?: NovaLojaProduct[] };
+  const list: NovaLojaProduct[] = Array.isArray(raw) ? raw : (raw.products || []);
+
+  const q = (query || "").toLowerCase().trim();
+  const filtered = q
+    ? list.filter(
+        (p) =>
+          p.title?.toLowerCase().includes(q) ||
+          p.sku?.toLowerCase().includes(q),
+      )
+    : list;
+
+  return filtered.map((p) => {
+    const priceAmount = String(p.price ?? "0");
+    const compareAmount =
+      p.compare_at_price != null ? String(p.compare_at_price) : null;
+    const stock = typeof p.stock === "number" ? p.stock : 0;
+    const available = p.available ?? stock > 0;
+
+    return {
+      node: {
+        id: p.id,
+        title: p.title || "",
+        description: p.description || "",
+        handle: p.slug || p.id,
+        priceRange: {
+          minVariantPrice: {
+            amount: priceAmount,
+            currencyCode: "BRL",
+          },
+        },
+        images: {
+          edges: p.image
+            ? [{ node: { url: p.image, altText: p.title || null } }]
+            : [],
+        },
+        variants: {
+          edges: [
+            {
+              node: {
+                id: `nova-loja-variant-${p.id}`,
+                title: "Default",
+                sku: p.sku || null,
+                price: { amount: priceAmount, currencyCode: "BRL" },
+                availableForSale: available,
+                weight: null,
+                weightUnit: null,
+                selectedOptions: [],
+              },
+            },
+          ],
+        },
+        options: [],
+      },
+    } as ShopifyProduct;
+  });
 }
 
 export interface BuyerInfo {
