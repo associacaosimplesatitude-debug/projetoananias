@@ -404,8 +404,8 @@ function ImplementacaoFormDialog({ open, impl, onClose, onSaved }: {
 
     let userIds: string[] | null = null;
     if (audienceType === "users") {
-      userIds = audienceUsers.split(",").map((s) => s.trim()).filter(Boolean);
-      if (userIds.length === 0) return toast.error("Informe ao menos 1 user_id");
+      userIds = audienceUserIds;
+      if (userIds.length === 0) return toast.error("Selecione ao menos 1 usuário");
     }
     let roles: string[] | null = null;
     if (audienceType === "roles") {
