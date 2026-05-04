@@ -19,6 +19,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
@@ -317,7 +318,8 @@ function ImplementacaoFormDialog({ open, impl, onClose, onSaved }: {
   const [ativo, setAtivo] = useState(impl?.ativo ?? true);
   const [audienceType, setAudienceType] = useState<"all" | "roles" | "users">(impl?.audience_type || "all");
   const [audienceRoles, setAudienceRoles] = useState<string[]>(impl?.audience_roles || []);
-  const [audienceUsers, setAudienceUsers] = useState<string>((impl?.audience_user_ids || []).join(", "));
+  const [audienceUserIds, setAudienceUserIds] = useState<string[]>(impl?.audience_user_ids || []);
+  const [userSearch, setUserSearch] = useState("");
   const [saving, setSaving] = useState(false);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -333,6 +335,36 @@ function ImplementacaoFormDialog({ open, impl, onClose, onSaved }: {
     },
     enabled: !!impl?.id,
   });
+
+  const { data: profiles = [] } = useQuery({
+    queryKey: ["impl-profiles-picker"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("profiles")
+        .select("id, full_name, email")
+        .order("full_name", { ascending: true });
+      if (error) throw error;
+      return (data || []) as { id: string; full_name: string | null; email: string }[];
+    },
+    enabled: audienceType === "users",
+    staleTime: 5 * 60_000,
+  });
+
+  const filteredProfiles = useMemo(() => {
+    const q = userSearch.trim().toLowerCase();
+    if (!q) return profiles;
+    return profiles.filter(
+      (p) =>
+        (p.full_name || "").toLowerCase().includes(q) ||
+        p.email.toLowerCase().includes(q)
+    );
+  }, [profiles, userSearch]);
+
+  const profilesById = useMemo(() => {
+    const m = new Map<string, { id: string; full_name: string | null; email: string }>();
+    profiles.forEach((p) => m.set(p.id, p));
+    return m;
+  }, [profiles]);
 
   const handleAddFiles = (files: FileList | null) => {
     if (!files) return;
@@ -372,8 +404,8 @@ function ImplementacaoFormDialog({ open, impl, onClose, onSaved }: {
 
     let userIds: string[] | null = null;
     if (audienceType === "users") {
-      userIds = audienceUsers.split(",").map((s) => s.trim()).filter(Boolean);
-      if (userIds.length === 0) return toast.error("Informe ao menos 1 user_id");
+      userIds = audienceUserIds;
+      if (userIds.length === 0) return toast.error("Selecione ao menos 1 usuário");
     }
     let roles: string[] | null = null;
     if (audienceType === "roles") {
@@ -494,9 +526,68 @@ function ImplementacaoFormDialog({ open, impl, onClose, onSaved }: {
               </div>
             )}
             {audienceType === "users" && (
-              <div className="mt-3">
-                <Textarea value={audienceUsers} onChange={(e) => setAudienceUsers(e.target.value)}
-                  placeholder="UUIDs de usuários separados por vírgula" rows={3} />
+              <div className="mt-3 space-y-2">
+                <Input
+                  value={userSearch}
+                  onChange={(e) => setUserSearch(e.target.value)}
+                  placeholder="Buscar por nome ou e-mail…"
+                />
+                {audienceUserIds.length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    <span className="text-xs text-muted-foreground self-center mr-1">
+                      {audienceUserIds.length} selecionado(s):
+                    </span>
+                    {audienceUserIds.map((uid) => {
+                      const p = profilesById.get(uid);
+                      return (
+                        <Badge key={uid} variant="secondary" className="gap-1">
+                          {p?.full_name || p?.email || uid.slice(0, 8)}
+                          <button
+                            type="button"
+                            onClick={() => setAudienceUserIds((prev) => prev.filter((x) => x !== uid))}
+                            className="ml-1 hover:text-destructive"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </Badge>
+                      );
+                    })}
+                  </div>
+                )}
+                <ScrollArea className="h-64 border rounded-md p-2">
+                  {filteredProfiles.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-4">
+                      Nenhum usuário encontrado.
+                    </p>
+                  ) : (
+                    <div className="space-y-1">
+                      {filteredProfiles.map((p) => {
+                        const checked = audienceUserIds.includes(p.id);
+                        return (
+                          <label
+                            key={p.id}
+                            className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted/50 cursor-pointer"
+                          >
+                            <Checkbox
+                              checked={checked}
+                              onCheckedChange={(c) =>
+                                setAudienceUserIds((prev) =>
+                                  c ? [...prev, p.id] : prev.filter((x) => x !== p.id)
+                                )
+                              }
+                            />
+                            <div className="flex-1 min-w-0">
+                              <div className="text-sm font-medium truncate">
+                                {p.full_name || "(sem nome)"}
+                              </div>
+                              <div className="text-xs text-muted-foreground truncate">{p.email}</div>
+                            </div>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                </ScrollArea>
               </div>
             )}
           </div>
