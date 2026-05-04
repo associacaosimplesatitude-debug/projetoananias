@@ -37,6 +37,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { UserProfileDropdown } from "@/components/layout/UserProfileDropdown";
+import { ImplementacoesButton } from "@/components/implementacoes/ImplementacoesButton";
 import { useAuth } from "@/hooks/useAuth";
 import { NavLink as RouterNavLink } from "@/components/NavLink";
 import {
@@ -714,6 +715,7 @@ export function AdminEBDLayout() {
           <header className="border-b bg-background h-14 flex items-center px-4 gap-4">
             <SidebarTrigger />
             <div className="flex-1" />
+            <ImplementacoesButton />
             <UserProfileDropdown />
           </header>
 
