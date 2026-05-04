@@ -337,6 +337,14 @@ function AdminSidebar() {
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={isActive('/admin/novidades')}>
+                  <RouterNavLink to="/admin/novidades">
+                    <Sparkles className="h-4 w-4" />
+                    <span>Novidades</span>
+                  </RouterNavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={isActive('/admin/apresentacao')}>
                   <RouterNavLink to="/admin/apresentacao">
                     <Presentation className="h-4 w-4" />
