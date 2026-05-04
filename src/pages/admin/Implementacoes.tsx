@@ -318,7 +318,8 @@ function ImplementacaoFormDialog({ open, impl, onClose, onSaved }: {
   const [ativo, setAtivo] = useState(impl?.ativo ?? true);
   const [audienceType, setAudienceType] = useState<"all" | "roles" | "users">(impl?.audience_type || "all");
   const [audienceRoles, setAudienceRoles] = useState<string[]>(impl?.audience_roles || []);
-  const [audienceUsers, setAudienceUsers] = useState<string>((impl?.audience_user_ids || []).join(", "));
+  const [audienceUserIds, setAudienceUserIds] = useState<string[]>(impl?.audience_user_ids || []);
+  const [userSearch, setUserSearch] = useState("");
   const [saving, setSaving] = useState(false);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
