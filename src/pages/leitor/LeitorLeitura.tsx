@@ -103,7 +103,13 @@ export default function LeitorLeitura() {
 
   const cacheAllRevistas = async (revistasToCache: Revista[]) => {
     setCaching(true);
-    const uncached = revistasToCache.filter((r) => !localStorage.getItem(getCacheKey(r.id)));
+    const uncached = revistasToCache.filter(
+      (r) => r.tipo_conteudo !== "infografico" && !localStorage.getItem(getCacheKey(r.id))
+    );
+    // Mark infograficos as "cached" so the all-cached check passes
+    revistasToCache
+      .filter((r) => r.tipo_conteudo === "infografico")
+      .forEach((r) => localStorage.setItem(getCacheKey(r.id), "true"));
     if (uncached.length === 0) { setCaching(false); return; }
 
     let cache: Cache | null = null;
@@ -215,7 +221,26 @@ export default function LeitorLeitura() {
     }
   }, []);
 
-  const handleSelectRevista = (r: Revista) => {
+  const handleSelectRevista = async (r: Revista) => {
+    if (r.tipo_conteudo === "infografico") {
+      try {
+        const token = localStorage.getItem(REVISTA_KEYS.TOKEN);
+        const { data, error } = await supabase.functions.invoke("download-infografico", {
+          body: { infografico_id: r.id, token },
+        });
+        if (error || !data?.url) {
+          const errCode = (data as any)?.error;
+          alert(errCode === "license_invalid"
+            ? "Licença indisponível para este infográfico."
+            : "Não foi possível gerar o download do infográfico.");
+          return;
+        }
+        window.open(data.url, "_blank", "noopener,noreferrer");
+      } catch {
+        alert("Não foi possível gerar o download do infográfico.");
+      }
+      return;
+    }
     setSelectedRevista(r);
     setScrollProgress(0);
     loadAllPages(r.id);
@@ -473,6 +498,22 @@ export default function LeitorLeitura() {
                 >
                   {r.titulo}
                 </p>
+                {r.tipo_conteudo === "infografico" && (
+                  <p
+                    style={{
+                      margin: "0 12px 12px",
+                      padding: "6px 10px",
+                      borderRadius: "6px",
+                      backgroundColor: "#FFC107",
+                      color: "#000",
+                      fontSize: "11px",
+                      fontWeight: 600,
+                      textAlign: "center",
+                    }}
+                  >
+                    📥 Baixar PDF
+                  </p>
+                )}
               </button>
             ))}
           </div>

@@ -6490,6 +6490,7 @@ export type Database = {
           descricao: string | null
           id: string
           leitura_continua: boolean
+          pdf_storage_path: string | null
           pdf_url: string | null
           status_publicacao: string | null
           tipo: string
@@ -6511,6 +6512,7 @@ export type Database = {
           descricao?: string | null
           id?: string
           leitura_continua?: boolean
+          pdf_storage_path?: string | null
           pdf_url?: string | null
           status_publicacao?: string | null
           tipo?: string
@@ -6532,6 +6534,7 @@ export type Database = {
           descricao?: string | null
           id?: string
           leitura_continua?: boolean
+          pdf_storage_path?: string | null
           pdf_url?: string | null
           status_publicacao?: string | null
           tipo?: string
