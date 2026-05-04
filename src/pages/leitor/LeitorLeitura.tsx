@@ -215,7 +215,26 @@ export default function LeitorLeitura() {
     }
   }, []);
 
-  const handleSelectRevista = (r: Revista) => {
+  const handleSelectRevista = async (r: Revista) => {
+    if (r.tipo_conteudo === "infografico") {
+      try {
+        const token = localStorage.getItem(REVISTA_KEYS.TOKEN);
+        const { data, error } = await supabase.functions.invoke("download-infografico", {
+          body: { infografico_id: r.id, token },
+        });
+        if (error || !data?.url) {
+          const errCode = (data as any)?.error;
+          alert(errCode === "license_invalid"
+            ? "Licença indisponível para este infográfico."
+            : "Não foi possível gerar o download do infográfico.");
+          return;
+        }
+        window.open(data.url, "_blank", "noopener,noreferrer");
+      } catch {
+        alert("Não foi possível gerar o download do infográfico.");
+      }
+      return;
+    }
     setSelectedRevista(r);
     setScrollProgress(0);
     loadAllPages(r.id);
