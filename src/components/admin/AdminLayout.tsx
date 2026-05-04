@@ -29,7 +29,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { UserProfileDropdown } from "@/components/layout/UserProfileDropdown";
-import { NovidadesButton } from "@/components/novidades/NovidadesButton";
+import { ImplementacoesButton } from "@/components/implementacoes/ImplementacoesButton";
 import { NavLink as RouterNavLink } from "@/components/NavLink";
 import {
   Sidebar,
@@ -338,14 +338,6 @@ function AdminSidebar() {
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={isActive('/admin/novidades')}>
-                  <RouterNavLink to="/admin/novidades">
-                    <Sparkles className="h-4 w-4" />
-                    <span>Novidades</span>
-                  </RouterNavLink>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={isActive('/admin/apresentacao')}>
                   <RouterNavLink to="/admin/apresentacao">
                     <Presentation className="h-4 w-4" />
@@ -391,7 +383,7 @@ export function AdminLayout() {
           <header className="border-b bg-background h-14 flex items-center px-4 gap-4">
             <SidebarTrigger />
             <div className="flex-1" />
-            <NovidadesButton />
+            <ImplementacoesButton />
             <UserProfileDropdown />
           </header>
 
