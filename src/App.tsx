@@ -237,6 +237,7 @@ import GestaoTutoriais from "./pages/admin/GestaoTutoriais";
 import Apresentacao from "./pages/Apresentacao";
 import ApresentacaoScreenshots from "./pages/admin/ApresentacaoScreenshots";
 import Implementacoes from "./pages/admin/Implementacoes";
+import AdminNovidades from "./pages/admin/AdminNovidades";
 import GoogleAdsDashboard from "./pages/admin/GoogleAdsDashboard";
 import GoogleAdsFaturamento from "./pages/admin/GoogleAdsFaturamento";
 import GoogleAdsDocumentos from "./pages/admin/GoogleAdsDocumentos";
