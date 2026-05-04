@@ -336,6 +336,36 @@ function ImplementacaoFormDialog({ open, impl, onClose, onSaved }: {
     enabled: !!impl?.id,
   });
 
+  const { data: profiles = [] } = useQuery({
+    queryKey: ["impl-profiles-picker"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("profiles")
+        .select("id, full_name, email")
+        .order("full_name", { ascending: true });
+      if (error) throw error;
+      return (data || []) as { id: string; full_name: string | null; email: string }[];
+    },
+    enabled: audienceType === "users",
+    staleTime: 5 * 60_000,
+  });
+
+  const filteredProfiles = useMemo(() => {
+    const q = userSearch.trim().toLowerCase();
+    if (!q) return profiles;
+    return profiles.filter(
+      (p) =>
+        (p.full_name || "").toLowerCase().includes(q) ||
+        p.email.toLowerCase().includes(q)
+    );
+  }, [profiles, userSearch]);
+
+  const profilesById = useMemo(() => {
+    const m = new Map<string, { id: string; full_name: string | null; email: string }>();
+    profiles.forEach((p) => m.set(p.id, p));
+    return m;
+  }, [profiles]);
+
   const handleAddFiles = (files: FileList | null) => {
     if (!files) return;
     const valid = Array.from(files).filter((f) => {
