@@ -240,14 +240,22 @@ serve(async (req) => {
       hasMore = contatos.length === limit;
       page++;
 
-      if (page > 200) {
+      if (page > maxPages) {
         console.log("Limite de páginas atingido (200)");
+        done = true;
         break;
       }
     }
 
+    if (!hasMore) done = true;
+
     return new Response(
-      JSON.stringify({ totalAdvec: unique.size }),
+      JSON.stringify({
+        totalAdvec: unique.size,
+        done,
+        nextPage: done ? null : page,
+        existingKeys: done ? undefined : Array.from(unique),
+      }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (error) {
