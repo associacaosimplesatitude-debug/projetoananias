@@ -7460,6 +7460,138 @@ export type Database = {
         }
         Relationships: []
       }
+      system_news: {
+        Row: {
+          ativo: boolean
+          audience_roles: string[] | null
+          audience_type: string
+          audience_user_ids: string[] | null
+          created_at: string
+          criado_por: string | null
+          data_publicacao: string
+          descricao_completa: string
+          descricao_curta: string
+          id: string
+          tipo: string
+          titulo: string
+          updated_at: string
+          versao: string | null
+        }
+        Insert: {
+          ativo?: boolean
+          audience_roles?: string[] | null
+          audience_type?: string
+          audience_user_ids?: string[] | null
+          created_at?: string
+          criado_por?: string | null
+          data_publicacao?: string
+          descricao_completa: string
+          descricao_curta: string
+          id?: string
+          tipo: string
+          titulo: string
+          updated_at?: string
+          versao?: string | null
+        }
+        Update: {
+          ativo?: boolean
+          audience_roles?: string[] | null
+          audience_type?: string
+          audience_user_ids?: string[] | null
+          created_at?: string
+          criado_por?: string | null
+          data_publicacao?: string
+          descricao_completa?: string
+          descricao_curta?: string
+          id?: string
+          tipo?: string
+          titulo?: string
+          updated_at?: string
+          versao?: string | null
+        }
+        Relationships: []
+      }
+      system_news_attachments: {
+        Row: {
+          created_at: string
+          id: string
+          mime_type: string | null
+          news_id: string
+          nome_arquivo: string
+          storage_path: string
+          tamanho_bytes: number | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          mime_type?: string | null
+          news_id: string
+          nome_arquivo: string
+          storage_path: string
+          tamanho_bytes?: number | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          mime_type?: string | null
+          news_id?: string
+          nome_arquivo?: string
+          storage_path?: string
+          tamanho_bytes?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "system_news_attachments_news_id_fkey"
+            columns: ["news_id"]
+            isOneToOne: false
+            referencedRelation: "system_news"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "system_news_attachments_news_id_fkey"
+            columns: ["news_id"]
+            isOneToOne: false
+            referencedRelation: "v_system_news_for_user"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      system_news_reads: {
+        Row: {
+          id: string
+          lido_em: string
+          news_id: string
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          lido_em?: string
+          news_id: string
+          user_id: string
+        }
+        Update: {
+          id?: string
+          lido_em?: string
+          news_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "system_news_reads_news_id_fkey"
+            columns: ["news_id"]
+            isOneToOne: false
+            referencedRelation: "system_news"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "system_news_reads_news_id_fkey"
+            columns: ["news_id"]
+            isOneToOne: false
+            referencedRelation: "v_system_news_for_user"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       system_settings: {
         Row: {
           created_at: string
@@ -8517,7 +8649,25 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      v_system_news_for_user: {
+        Row: {
+          ativo: boolean | null
+          audience_type: string | null
+          created_at: string | null
+          criado_por: string | null
+          data_publicacao: string | null
+          descricao_completa: string | null
+          descricao_curta: string | null
+          id: string | null
+          lida: boolean | null
+          lido_em: string | null
+          tipo: string | null
+          titulo: string | null
+          updated_at: string | null
+          versao: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       adicionar_pontos_aluno: {
@@ -8529,6 +8679,10 @@ export type Database = {
         Returns: string
       }
       can_manage_revistas: { Args: { _user_id: string }; Returns: boolean }
+      can_view_system_news: {
+        Args: { _news_id: string; _user_id: string }
+        Returns: boolean
+      }
       execute_readonly_query: { Args: { sql_query: string }; Returns: Json }
       get_auth_email: { Args: never; Returns: string }
       get_autor_id_by_user: { Args: { _user_id: string }; Returns: string }
