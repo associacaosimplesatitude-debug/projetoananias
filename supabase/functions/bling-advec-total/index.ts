@@ -130,6 +130,23 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    // Parse params (chunked execution to avoid 150s idle timeout)
+    let startPage = 1;
+    let pagesPerChunk = 20;
+    let existingKeys: string[] = [];
+    const maxPages = 200;
+
+    if (req.method === "POST") {
+      try {
+        const body = await req.json();
+        if (typeof body?.startPage === "number" && body.startPage > 0) startPage = body.startPage;
+        if (typeof body?.pagesPerChunk === "number" && body.pagesPerChunk > 0) {
+          pagesPerChunk = Math.min(body.pagesPerChunk, 50);
+        }
+        if (Array.isArray(body?.existingKeys)) existingKeys = body.existingKeys;
+      } catch (_) { /* no body */ }
+    }
+
     const { data: blingConfig, error: configError } = await supabase
       .from("bling_config")
       .select("*")
@@ -144,15 +161,17 @@ serve(async (req) => {
       accessToken = await refreshBlingToken(supabase, blingConfig);
     }
 
-    const unique = new Set<string>();
+    const unique = new Set<string>(existingKeys);
     const limit = 100;
-    let page = 1;
+    let page = startPage;
+    const endPage = startPage + pagesPerChunk; // exclusive
     let hasMore = true;
+    let done = false;
 
     let retryCount = 0;
     const maxRetries = 3;
 
-    while (hasMore) {
+    while (hasMore && page < endPage) {
       const url = `https://www.bling.com.br/Api/v3/contatos?pagina=${page}&limite=${limit}`;
 
       if (page > 1) await delay(400);
