@@ -103,7 +103,13 @@ export default function LeitorLeitura() {
 
   const cacheAllRevistas = async (revistasToCache: Revista[]) => {
     setCaching(true);
-    const uncached = revistasToCache.filter((r) => !localStorage.getItem(getCacheKey(r.id)));
+    const uncached = revistasToCache.filter(
+      (r) => r.tipo_conteudo !== "infografico" && !localStorage.getItem(getCacheKey(r.id))
+    );
+    // Mark infograficos as "cached" so the all-cached check passes
+    revistasToCache
+      .filter((r) => r.tipo_conteudo === "infografico")
+      .forEach((r) => localStorage.setItem(getCacheKey(r.id), "true"));
     if (uncached.length === 0) { setCaching(false); return; }
 
     let cache: Cache | null = null;
