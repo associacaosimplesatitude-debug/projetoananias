@@ -1,39 +1,31 @@
-## Objetivo
-Expandir o seletor de país em `src/pages/revista/RevistaAcesso.tsx` para listar **todos os países** com bandeira + nome + DDI, em vez de apenas BR / PT / US. Nada mais muda — formatação, layout, validação, lógica de envio e identificador WhatsApp permanecem iguais.
+# Aba "Lidas" no modal de Implementações
 
-## Mudanças
+## Problema
+Hoje o modal tem apenas dois filtros: **Todas** / **Não lidas**. Quando o usuário marca um item como lido, ele some da visualização "Não lidas" (default) e fica difícil reencontrá-lo.
 
-### Único arquivo editado
-`src/pages/revista/RevistaAcesso.tsx`
+## Solução
+Transformar o filtro atual em **três opções**, sem mexer no layout geral:
 
-### O que muda
-1. Substituir o array `COUNTRIES` (hoje com 3 entradas) por uma lista completa (~240 países), cada item com:
-   - `code` (ISO-2, ex: "BR", "AR", "DE")
-   - `flag` (emoji da bandeira)
-   - `ddi` (código telefônico, ex: "55", "54", "49")
-   - `label` (nome em português, ex: "Brasil", "Argentina", "Alemanha")
-   - `maxDigits` / `minDigits` — para países sem regra específica, usar valores genéricos permissivos (`minDigits: 6`, `maxDigits: 15`, conforme padrão E.164).
-   - `placeholder` — usar um genérico tipo `"Número de telefone"` para os países novos. BR / PT / US mantêm os placeholders e regras de dígitos atuais.
+```
+[ Não lidas ]  [ Lidas ]  [ Todas ]
+```
 
-2. Adicionar **busca** dentro do dropdown (input no topo) — com 240 países uma lista rolável sem busca fica inviável. Filtra por nome ou DDI.
+- **Não lidas** (default): só itens com `lida = false`
+- **Lidas**: só itens com `lida = true` — para consultar histórico
+- **Todas**: tudo
 
-3. Aumentar a altura máxima do dropdown (`max-h-80 overflow-y-auto`) e ajustar largura (`w-72`) para caber nome + DDI confortavelmente.
+A contagem `(N)` ao lado de cada label mostra quantos itens existem em cada filtro, dentro da aba ativa (Novas funções / Correções).
 
-4. Manter `BR` como país padrão (`COUNTRIES[0]` continua sendo Brasil).
-
-### O que NÃO muda
-- Formatação de telefone: `formatPhoneBR` / `formatPhonePT` / `formatPhoneUS` continuam exatamente iguais. Para os demais países, `formatPhone` cai no `formatPhoneBR` — para evitar máscara errada, ajusto `formatPhone` para retornar apenas dígitos crus (sem máscara) quando o país não for BR/PT/US.
-- `buildWhatsappIdentifier` continua: BR sem DDI no início, demais países com DDI prefixado.
-- Lógica de validação (`isInputValid`), envio OTP, sessão, layout do card, estilo dos botões — tudo intacto.
-- Nenhum outro arquivo é tocado.
+## Comportamento ao marcar como lido
+- Mantém o comportamento atual: ao clicar num item ele é marcado como lido automaticamente.
+- Se o usuário está em "Não lidas" e marca um item, ele desaparece da lista (vai para a aba "Lidas"). Isso é o esperado e o que o usuário quer.
+- O item permanece selecionado no painel direito até o usuário trocar.
 
 ## Detalhes técnicos
-- A lista de países será inline no arquivo (constante exportada local). Fonte: lista padrão ISO-3166 + códigos E.164. Aproximadamente 240 entradas.
-- Bandeiras via emoji Unicode (não precisa imagem externa, já é o padrão atual da página).
-- Busca: estado local `countrySearch`, filtra `COUNTRIES` por `label.toLowerCase().includes(query)` ou `ddi.includes(query)`. Reset ao fechar dropdown.
-- Acessibilidade: input de busca com `autoFocus` quando dropdown abre.
+- Arquivo: `src/components/implementacoes/ImplementacoesModal.tsx`
+- Trocar o estado `filter: "todas" | "nao_lidas"` por `filter: "nao_lidas" | "lidas" | "todas"`.
+- Atualizar `filteredList` para aplicar o terceiro caso.
+- Substituir o segmented control de 2 botões por 3 botões com a mesma estética (rounded-full, mesma cor emerald do projeto).
+- Mostrar contadores ao lado de cada label baseados em `novidades` filtradas pelo `tipo` da aba ativa.
 
-## Fora de escopo
-- Não mexer em `DistribuirLicencaDialog` nem em outras telas.
-- Não criar máscaras específicas para os ~237 países novos (entrada livre de dígitos basta).
-- Não alterar Edge Functions, schema ou `revistaSession`.
+Sem mudanças no banco, sem mudanças em hooks, sem mudanças em outras páginas.
