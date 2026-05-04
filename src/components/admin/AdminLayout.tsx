@@ -382,6 +382,7 @@ export function AdminLayout() {
           <header className="border-b bg-background h-14 flex items-center px-4 gap-4">
             <SidebarTrigger />
             <div className="flex-1" />
+            <NovidadesButton />
             <UserProfileDropdown />
           </header>
 
