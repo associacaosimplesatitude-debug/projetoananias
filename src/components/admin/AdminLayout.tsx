@@ -28,6 +28,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { UserProfileDropdown } from "@/components/layout/UserProfileDropdown";
+import { NovidadesButton } from "@/components/novidades/NovidadesButton";
 import { NavLink as RouterNavLink } from "@/components/NavLink";
 import {
   Sidebar,
