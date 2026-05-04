@@ -245,9 +245,6 @@ export async function fetchShopifyProducts(_first: number = 250, query?: string)
                 title: "Default",
                 sku: p.sku || null,
                 price: { amount: priceAmount, currencyCode: "BRL" },
-                compareAtPrice: compareAmount
-                  ? { amount: compareAmount, currencyCode: "BRL" }
-                  : null,
                 availableForSale: available,
                 weight: null,
                 weightUnit: null,
