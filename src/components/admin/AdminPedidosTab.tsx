@@ -1298,12 +1298,16 @@ export function AdminPedidosTab({ vendedores = [], hideStats = false }: AdminPed
                                     )}
                                   </Button>
                                 )}
-                                <Button variant="ghost" size="icon" onClick={() => handleEditPedido(pedido)}>
-                                  <Pencil className="h-4 w-4" />
-                                </Button>
-                                <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => handleDeletePedido(pedido)}>
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
+                                {!isNovaLoja && (
+                                  <>
+                                    <Button variant="ghost" size="icon" onClick={() => handleEditPedido(pedido)}>
+                                      <Pencil className="h-4 w-4" />
+                                    </Button>
+                                    <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => handleDeletePedido(pedido)}>
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </>
+                                )}
                               </div>
                             </TableCell>
                           </TableRow>
