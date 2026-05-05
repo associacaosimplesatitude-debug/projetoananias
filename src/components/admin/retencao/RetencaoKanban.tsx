@@ -33,6 +33,7 @@ const COLUNAS = [
   { key: "contato_feito", label: "✅ Contato Feito", color: "border-t-blue-500" },
   { key: "retorno_agendado", label: "📅 Retorno Agendado", color: "border-t-yellow-500" },
   { key: "perdido", label: "❌ Perdido", color: "border-t-destructive" },
+  { key: "fechados", label: "🎯 Fechados (mês)", color: "border-t-emerald-500" },
 ];
 
 const canalBadgeColor = (canal: string) => {
