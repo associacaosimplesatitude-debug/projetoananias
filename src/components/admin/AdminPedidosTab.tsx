@@ -276,7 +276,7 @@ export function AdminPedidosTab({ vendedores = [], hideStats = false }: AdminPed
         codigo_rastreio: p.codigo_rastreio,
         codigo_rastreio_bling: null,
         url_rastreio: p.url_rastreio,
-        vendedor: p.vendedor,
+        vendedor: null,
         comissao_aprovada: p.comissao_aprovada,
         bling_order_id: null,
         sync_error: null,
