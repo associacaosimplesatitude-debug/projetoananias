@@ -213,9 +213,13 @@ export function AdminPedidosTab({ vendedores = [], hideStats = false }: AdminPed
   const { data: shopifyPedidos = [], isLoading } = useQuery({
     queryKey: ["admin-all-shopify-pedidos"],
     queryFn: async () => {
-      const [shopifyRes, lojaRes] = await Promise.all([
+      const [shopifyRes, shopifyCgRes, lojaRes] = await Promise.all([
         supabase
           .from("ebd_shopify_pedidos")
+          .select("*, vendedor:vendedores(nome)")
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("ebd_shopify_pedidos_cg")
           .select("*, vendedor:vendedores(nome)")
           .order("created_at", { ascending: false }),
         supabase
@@ -223,6 +227,66 @@ export function AdminPedidosTab({ vendedores = [], hideStats = false }: AdminPed
           .select("*, vendedor:vendedores(nome)")
           .order("created_at", { ascending: false }),
       ]);
+
+      if (shopifyRes.error) throw shopifyRes.error;
+      if (shopifyCgRes.error) throw shopifyCgRes.error;
+      if (lojaRes.error) throw lojaRes.error;
+
+      const shopifyOrders: ShopifyPedido[] = (shopifyRes.data || []).map((p: any) => ({
+        ...p,
+        origem: 'shopify' as const,
+      }));
+
+      const shopifyCgOrders: ShopifyPedido[] = (shopifyCgRes.data || []).map((p: any) => ({
+        id: p.id,
+        shopify_order_id: p.shopify_order_id ?? null,
+        order_number: p.order_number,
+        vendedor_id: p.vendedor_id,
+        cliente_id: p.cliente_id,
+        status_pagamento: p.status_pagamento,
+        valor_total: Number(p.valor_total) || 0,
+        valor_frete: Number(p.valor_frete) || 0,
+        valor_para_meta: Math.max(0, (Number(p.valor_total) || 0) - (Number(p.valor_frete) || 0)),
+        customer_email: p.customer_email,
+        customer_name: p.customer_name,
+        created_at: p.created_at,
+        codigo_rastreio: p.codigo_rastreio,
+        codigo_rastreio_bling: null,
+        url_rastreio: p.url_rastreio,
+        vendedor: p.vendedor,
+        comissao_aprovada: p.comissao_aprovada,
+        bling_order_id: null,
+        sync_error: null,
+        origem: 'shopify_cg' as const,
+      }));
+
+      const lojaOrders: ShopifyPedido[] = (lojaRes.data || []).map((p: any) => ({
+        id: p.id,
+        shopify_order_id: p.loja_order_id ?? null,
+        order_number: `#${p.loja_order_number}`,
+        vendedor_id: p.vendedor_id,
+        cliente_id: p.cliente_id,
+        status_pagamento: p.status_pagamento,
+        valor_total: Number(p.valor_total) || 0,
+        valor_frete: Number(p.valor_frete) || 0,
+        valor_para_meta: Math.max(0, (Number(p.valor_total) || 0) - (Number(p.valor_frete) || 0)),
+        customer_email: p.customer_email,
+        customer_name: p.customer_name,
+        created_at: p.created_at,
+        codigo_rastreio: p.codigo_rastreio,
+        codigo_rastreio_bling: null,
+        url_rastreio: p.url_rastreio,
+        vendedor: p.vendedor,
+        comissao_aprovada: p.comissao_aprovada,
+        bling_order_id: null,
+        sync_error: null,
+        origem: 'nova_loja' as const,
+      }));
+
+      return [...shopifyOrders, ...shopifyCgOrders, ...lojaOrders].sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+    },
 
       if (shopifyRes.error) throw shopifyRes.error;
       if (lojaRes.error) throw lojaRes.error;
