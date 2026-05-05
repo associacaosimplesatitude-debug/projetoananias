@@ -78,7 +78,7 @@ interface ShopifyPedido {
   comissao_aprovada?: boolean | null;
   bling_order_id: number | null;
   sync_error?: string | null;
-  origem?: 'shopify' | 'nova_loja';
+  origem?: 'shopify' | 'shopify_cg' | 'nova_loja';
 }
 
 interface MercadoPagoPedido {
