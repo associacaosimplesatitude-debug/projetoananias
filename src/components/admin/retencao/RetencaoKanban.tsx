@@ -20,6 +20,7 @@ export interface KanbanCliente {
   ultimo_resultado: string | null;
   ultimo_contato_data: string | null;
   coluna_kanban: string;
+  dias_para_fechar?: number | null;
 }
 
 interface Props {
