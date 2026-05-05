@@ -1,13 +1,15 @@
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 import { RetencaoKanban, type KanbanCliente } from "@/components/admin/retencao/RetencaoKanban";
+import { DispararCampanhaModal } from "@/components/admin/retencao/DispararCampanhaModal";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useVendedor } from "@/hooks/useVendedor";
-import { Shield, AlertTriangle, Clock, XCircle, CheckCircle } from "lucide-react";
+import { Shield, AlertTriangle, Clock, XCircle, CheckCircle, Megaphone } from "lucide-react";
 
 interface RetencaoDashboard {
   faixas: { verde: number; amarelo: number; vermelho: number; perdido: number; fechados: number };
