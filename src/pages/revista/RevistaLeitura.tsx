@@ -1471,11 +1471,33 @@ export default function RevistaLeitura() {
               Minha Biblioteca
             </h1>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {licencas.map((l) => (
+              {licencas.map((l) => {
+                const isInfografico = l.revistas_digitais?.tipo_conteudo === "infografico";
+                return (
                 <Card
                   key={l.id}
                   className={`cursor-pointer hover:shadow-lg transition-shadow overflow-hidden ${modoNoturno ? "bg-[#1a1a1a] border-white/10" : ""}`}
-                  onClick={() => setSelectedRevista(l.revista_id)}
+                  onClick={async () => {
+                    if (isInfografico) {
+                      try {
+                        const token = localStorage.getItem(REVISTA_KEYS.TOKEN);
+                        const { data, error } = await supabase.functions.invoke("download-infografico", {
+                          body: { infografico_id: l.revista_id, token },
+                        });
+                        if (error || !data?.url) {
+                          alert((data as any)?.error === "license_invalid"
+                            ? "Licença indisponível para este infográfico."
+                            : "Não foi possível gerar o download do infográfico.");
+                          return;
+                        }
+                        window.open(data.url, "_blank", "noopener,noreferrer");
+                      } catch {
+                        alert("Não foi possível gerar o download do infográfico.");
+                      }
+                      return;
+                    }
+                    setSelectedRevista(l.revista_id);
+                  }}
                 >
                   {l.revistas_digitais?.capa_url && (
                     <div className="w-full aspect-[3/4] flex items-center justify-center bg-muted">
@@ -1490,10 +1512,13 @@ export default function RevistaLeitura() {
                     <h2 className={`text-lg font-semibold ${modoNoturno ? "text-white" : ""}`}>
                       {l.revistas_digitais?.titulo || "Revista"}
                     </h2>
-                    <Button className="w-full mt-3 h-12 text-base" style={{ background: '#f6ba32', color: '#1c1915' }}>Ler</Button>
+                    <Button className="w-full mt-3 h-12 text-base" style={{ background: '#f6ba32', color: '#1c1915' }}>
+                      {isInfografico ? "📥 Baixar PDF" : "Ler"}
+                    </Button>
                   </CardContent>
                 </Card>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
