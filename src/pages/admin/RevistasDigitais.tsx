@@ -1388,6 +1388,14 @@ export default function RevistasDigitais() {
                     ? "As páginas serão distribuídas entre as lições existentes" 
                     : "Após salvar, as páginas serão distribuídas automaticamente"}
                 </p>
+                {editingRevista && ((editingRevista as any).pdf_storage_path || (editingRevista as any).pdf_url) && (
+                  <div className="mb-2 flex items-center gap-2 rounded-md border border-green-200 bg-green-50 px-2 py-1.5 text-[10px] text-green-700">
+                    <FileText className="h-3 w-3 shrink-0" />
+                    <span className="truncate">
+                      PDF já enviado{(editingRevista as any).pdf_storage_path ? ` — ${String((editingRevista as any).pdf_storage_path).split('/').pop()}` : ''}
+                    </span>
+                  </div>
+                )}
                 <Button
                   variant="outline"
                   size="sm"
@@ -1396,7 +1404,11 @@ export default function RevistasDigitais() {
                   onClick={(e) => { e.stopPropagation(); pdfGlobalInputRef.current?.click(); }}
                 >
                   {uploadingPdfGlobal ? <Loader2 className="h-3 w-3 animate-spin" /> : <FileText className="h-3 w-3" />}
-                  {uploadingPdfGlobal ? pdfProgress : "📄 Subir PDF"}
+                  {uploadingPdfGlobal
+                    ? pdfProgress
+                    : (editingRevista && ((editingRevista as any).pdf_storage_path || (editingRevista as any).pdf_url))
+                      ? "📄 Substituir PDF"
+                      : "📄 Subir PDF"}
                 </Button>
                 <input
                   ref={pdfGlobalInputRef}
