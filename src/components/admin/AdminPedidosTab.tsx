@@ -78,7 +78,6 @@ interface ShopifyPedido {
   comissao_aprovada?: boolean | null;
   bling_order_id: number | null;
   sync_error?: string | null;
-  origem?: 'shopify' | 'nova_loja';
 }
 
 interface MercadoPagoPedido {
@@ -209,59 +208,19 @@ export function AdminPedidosTab({ vendedores = [], hideStats = false }: AdminPed
     [clientes]
   );
 
-  // Fetch all Shopify orders with vendedor info + Nova Loja CG orders
+  // Fetch all Shopify orders with vendedor info
   const { data: shopifyPedidos = [], isLoading } = useQuery({
     queryKey: ["admin-all-shopify-pedidos"],
     queryFn: async () => {
-      const [shopifyRes, lojaRes] = await Promise.all([
-        supabase
-          .from("ebd_shopify_pedidos")
-          .select("*, vendedor:vendedores(nome)")
-          .order("created_at", { ascending: false }),
-        supabase
-          .from("ebd_loja_pedidos_cg")
-          .select("*, vendedor:vendedores(nome)")
-          .order("created_at", { ascending: false }),
-      ]);
-
-      if (shopifyRes.error) throw shopifyRes.error;
-      if (lojaRes.error) throw lojaRes.error;
-
-      const shopifyOrders: ShopifyPedido[] = (shopifyRes.data || []).map((p: any) => ({
-        ...p,
-        origem: 'shopify' as const,
-      }));
-
-      const lojaOrders: ShopifyPedido[] = (lojaRes.data || []).map((p: any) => ({
-        id: p.id,
-        shopify_order_id: p.loja_order_number,
-        order_number: `#${p.loja_order_number}`,
-        vendedor_id: p.vendedor_id,
-        cliente_id: p.cliente_id,
-        status_pagamento: p.status_pagamento,
-        valor_total: Number(p.valor_total) || 0,
-        valor_frete: Number(p.valor_frete) || 0,
-        valor_para_meta: Math.max(0, (Number(p.valor_total) || 0) - (Number(p.valor_frete) || 0)),
-        customer_email: p.customer_email,
-        customer_name: p.customer_name,
-        created_at: p.created_at,
-        codigo_rastreio: p.codigo_rastreio,
-        codigo_rastreio_bling: null,
-        url_rastreio: p.url_rastreio,
-        vendedor: p.vendedor,
-        comissao_aprovada: p.comissao_aprovada,
-        bling_order_id: null,
-        sync_error: null,
-        origem: 'nova_loja' as const,
-      }));
-
-      const merged = [...shopifyOrders, ...lojaOrders].sort(
-        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      );
-      return merged;
+      const { data, error } = await supabase
+        .from("ebd_shopify_pedidos")
+        .select("*, vendedor:vendedores(nome)")
+        .order("created_at", { ascending: false });
+      
+      if (error) throw error;
+      return (data || []) as ShopifyPedido[];
     },
   });
-
 
   // Fetch propostas faturadas (B2B orders approved by financial)
   const { data: propostasFaturadas = [], isLoading: isLoadingFaturadas } = useQuery({
@@ -1208,11 +1167,10 @@ export function AdminPedidosTab({ vendedores = [], hideStats = false }: AdminPed
                     <TableBody>
                       {filteredShopifyPedidos.map((pedido) => {
                         const vendedorNome = pedido.vendedor?.nome || (pedido.vendedor_id ? vendedores.find(v => v.id === pedido.vendedor_id)?.nome : null);
-                        const isNovaLoja = pedido.origem === 'nova_loja';
-                        const podeAprovar = !isNovaLoja && (pedido.status_pagamento === 'paid' || pedido.status_pagamento === 'Pago') && pedido.vendedor_id && !pedido.comissao_aprovada;
+                        const podeAprovar = (pedido.status_pagamento === 'paid' || pedido.status_pagamento === 'Pago') && pedido.vendedor_id && !pedido.comissao_aprovada;
                         
                         return (
-                          <TableRow key={`${pedido.origem || 'shopify'}-${pedido.id}`} className={selectedPedidos.has(pedido.id) ? "bg-primary/5" : ""}>
+                          <TableRow key={pedido.id} className={selectedPedidos.has(pedido.id) ? "bg-primary/5" : ""}>
                             {isAdmin && (
                               <TableCell>
                                 {podeAprovar && (
@@ -1249,9 +1207,7 @@ export function AdminPedidosTab({ vendedores = [], hideStats = false }: AdminPed
                             </TableCell>
                             <TableCell>{vendedorNome || 'E-commerce'}</TableCell>
                             <TableCell>
-                              {pedido.origem === 'nova_loja' ? (
-                                <span className="text-muted-foreground">—</span>
-                              ) : pedido.bling_order_id ? (
+                              {pedido.bling_order_id ? (
                                 <Badge className="bg-green-500 hover:bg-green-600 text-white text-xs">{pedido.bling_order_id}</Badge>
                               ) : pedido.sync_error ? (
                                 <Badge className="bg-yellow-500 hover:bg-yellow-600 text-white text-xs">Erro sync</Badge>
@@ -1298,16 +1254,12 @@ export function AdminPedidosTab({ vendedores = [], hideStats = false }: AdminPed
                                     )}
                                   </Button>
                                 )}
-                                {!isNovaLoja && (
-                                  <>
-                                    <Button variant="ghost" size="icon" onClick={() => handleEditPedido(pedido)}>
-                                      <Pencil className="h-4 w-4" />
-                                    </Button>
-                                    <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => handleDeletePedido(pedido)}>
-                                      <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                  </>
-                                )}
+                                <Button variant="ghost" size="icon" onClick={() => handleEditPedido(pedido)}>
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
+                                <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => handleDeletePedido(pedido)}>
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
                               </div>
                             </TableCell>
                           </TableRow>
