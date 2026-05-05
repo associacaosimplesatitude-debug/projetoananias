@@ -114,7 +114,7 @@ export function RetencaoKanban({ clientes, filtroVendedor, filtroCanal }: Props)
                       </div>
 
                       <p className="text-xs text-muted-foreground">
-                        Ticket médio: R$ {c.valor_medio.toFixed(2)}
+                        Compra: R$ {(c.valor_total_compras ?? c.valor_medio).toFixed(2)}
                       </p>
 
                       {c.ultimo_contato_data && (
