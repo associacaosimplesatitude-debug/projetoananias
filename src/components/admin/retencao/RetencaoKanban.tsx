@@ -22,6 +22,7 @@ export interface KanbanCliente {
   coluna_kanban: string;
   dias_para_fechar?: number | null;
   valor_total_compras?: number;
+  valor_ultima_compra?: number;
 }
 
 const formatBRL = (n: number) =>
