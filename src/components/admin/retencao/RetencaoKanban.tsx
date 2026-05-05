@@ -21,7 +21,11 @@ export interface KanbanCliente {
   ultimo_contato_data: string | null;
   coluna_kanban: string;
   dias_para_fechar?: number | null;
+  valor_total_compras?: number;
 }
+
+const formatBRL = (n: number) =>
+  n.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
 
 interface Props {
   clientes: KanbanCliente[];
@@ -66,10 +70,17 @@ export function RetencaoKanban({ clientes, filtroVendedor, filtroCanal }: Props)
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
         {COLUNAS.map(col => {
           const items = filtered.filter(c => c.coluna_kanban === col.key);
+          const showTotal = col.key === "a_contatar" || col.key === "fechados";
+          const totalCol = showTotal
+            ? items.reduce((acc, c) => acc + (c.valor_total_compras ?? 0), 0)
+            : 0;
           return (
             <div key={col.key} className="space-y-3">
               <div className={`rounded-lg border-t-4 ${col.color} bg-muted/30 p-3`}>
                 <h3 className="font-semibold text-sm">{col.label} ({items.length})</h3>
+                {showTotal && (
+                  <p className="text-[11px] text-muted-foreground mt-0.5">Total: {formatBRL(totalCol)}</p>
+                )}
               </div>
               <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
                 {items.length === 0 && (
@@ -103,7 +114,7 @@ export function RetencaoKanban({ clientes, filtroVendedor, filtroCanal }: Props)
                       </div>
 
                       <p className="text-xs text-muted-foreground">
-                        Ticket médio: R$ {c.valor_medio.toFixed(2)}
+                        Compra: R$ {(c.valor_total_compras ?? c.valor_medio).toFixed(2)}
                       </p>
 
                       {c.ultimo_contato_data && (
