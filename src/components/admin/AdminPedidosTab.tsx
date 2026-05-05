@@ -1248,7 +1248,9 @@ export function AdminPedidosTab({ vendedores = [], hideStats = false }: AdminPed
                             </TableCell>
                             <TableCell>{vendedorNome || 'E-commerce'}</TableCell>
                             <TableCell>
-                              {pedido.bling_order_id ? (
+                              {pedido.origem === 'nova_loja' ? (
+                                <span className="text-muted-foreground">—</span>
+                              ) : pedido.bling_order_id ? (
                                 <Badge className="bg-green-500 hover:bg-green-600 text-white text-xs">{pedido.bling_order_id}</Badge>
                               ) : pedido.sync_error ? (
                                 <Badge className="bg-yellow-500 hover:bg-yellow-600 text-white text-xs">Erro sync</Badge>
