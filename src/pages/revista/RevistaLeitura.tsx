@@ -638,6 +638,55 @@ export default function RevistaLeitura() {
 
   const readerBg = modoNoturno ? "#0a0a0a" : "#000";
 
+  // ─── INFOGRÁFICO: tela mínima com botão de download ───────────
+  if (selectedRevista && revista?.tipo_conteudo === "infografico") {
+    return (
+      <div className="container py-8 max-w-3xl mx-auto">
+        <button
+          onClick={() => setSelectedRevista(null)}
+          className="text-sm text-muted-foreground hover:text-foreground"
+        >
+          ← Voltar às revistas
+        </button>
+        <div className="flex flex-col items-center gap-6 mt-6">
+          {revista.capa_url && (
+            <img
+              src={revista.capa_url}
+              alt={revista.titulo}
+              className="max-w-md w-full rounded-lg shadow-lg"
+            />
+          )}
+          <h1 className="text-2xl font-bold text-center">{revista.titulo}</h1>
+          <button
+            className="bg-amber-500 hover:bg-amber-600 text-white px-8 py-4 rounded-lg text-lg font-semibold flex items-center gap-2"
+            onClick={async () => {
+              try {
+                const token = localStorage.getItem(REVISTA_KEYS.TOKEN);
+                const { data, error } = await supabase.functions.invoke(
+                  "download-infografico",
+                  { body: { infografico_id: revista.id, token } }
+                );
+                if (error || !data?.url) {
+                  alert(
+                    (data as any)?.error === "license_invalid"
+                      ? "Licença indisponível para este infográfico."
+                      : "Não foi possível gerar o download do infográfico."
+                  );
+                  return;
+                }
+                window.open(data.url, "_blank", "noopener,noreferrer");
+              } catch {
+                alert("Não foi possível gerar o download do infográfico.");
+              }
+            }}
+          >
+            📥 Baixar PDF
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   // ─── MODO KINDLE (PDF / imagens) ──────────────────────────────
   const isMobile = typeof window !== 'undefined' && (
     window.innerWidth < 768 || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
