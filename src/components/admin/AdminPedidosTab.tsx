@@ -278,7 +278,7 @@ export function AdminPedidosTab({ vendedores = [], hideStats = false }: AdminPed
         origem: 'nova_loja' as const,
       }));
 
-      return [...shopifyOrders, ...shopifyCgOrders, ...lojaOrders].sort(
+      return [...shopifyOrders, ...lojaOrders].sort(
         (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       );
     },
