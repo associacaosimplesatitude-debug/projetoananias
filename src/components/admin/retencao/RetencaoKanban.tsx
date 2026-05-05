@@ -32,6 +32,7 @@ interface Props {
   clientes: KanbanCliente[];
   filtroVendedor?: string;
   filtroCanal?: string;
+  disparosMap?: Record<string, string>; // cliente_id -> ISO date do último envio
 }
 
 const COLUNAS = [
