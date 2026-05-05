@@ -395,15 +395,26 @@ export function SalesChannelCards({
 
       <CardContent className="space-y-4">
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-          <StandardCard
-            icon={<ShoppingCart className="h-4 w-4 text-blue-600" />}
-            title="E-commerce"
-            value={formatCurrency(periodMetrics.valorOnline)}
-            periodLabel={`${periodMetrics.qtdOnline} pedidos`}
-            colorClass="text-blue-700 dark:text-blue-300"
-            borderColorClass="border-blue-200 dark:border-blue-800"
-            bgClass="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900"
-          />
+          <div className="p-3 sm:p-4 rounded-xl border-2 border-blue-200 dark:border-blue-800 bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900 flex flex-col h-full min-h-[100px] sm:min-h-[120px] overflow-hidden">
+            <div className="flex items-center gap-1.5 sm:gap-2 mb-1.5 sm:mb-2 min-w-0">
+              <ShoppingCart className="h-4 w-4 text-blue-600 flex-shrink-0" />
+              <span className="text-[10px] sm:text-xs font-medium text-blue-700 dark:text-blue-300 truncate">E-commerce</span>
+            </div>
+            <p className="text-base sm:text-xl font-bold text-blue-700 dark:text-blue-300 truncate">
+              {formatCurrency(periodMetrics.valorOnline)}
+            </p>
+            <p className="text-[10px] sm:text-xs text-blue-700 dark:text-blue-300 opacity-70 mt-1 truncate">
+              {periodMetrics.qtdOnline} pedidos
+            </p>
+            <div className="border-t border-blue-300/40 dark:border-blue-700/40 mt-2 pt-1.5 space-y-0.5">
+              <p className="text-[10px] sm:text-xs text-blue-700 dark:text-blue-300 opacity-80 truncate">
+                Frete: <span className="font-medium">{formatCurrency(periodMetrics.freteOnline)}</span>
+              </p>
+              <p className="text-[10px] sm:text-xs text-blue-700 dark:text-blue-300 opacity-90 truncate">
+                Líquido: <span className="font-semibold">{formatCurrency(periodMetrics.liquidoOnline)}</span>
+              </p>
+            </div>
+          </div>
 
           <StandardCard
             icon={<Building2 className="h-4 w-4 text-green-600" />}
