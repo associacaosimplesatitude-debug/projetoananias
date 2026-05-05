@@ -1208,10 +1208,11 @@ export function AdminPedidosTab({ vendedores = [], hideStats = false }: AdminPed
                     <TableBody>
                       {filteredShopifyPedidos.map((pedido) => {
                         const vendedorNome = pedido.vendedor?.nome || (pedido.vendedor_id ? vendedores.find(v => v.id === pedido.vendedor_id)?.nome : null);
-                        const podeAprovar = (pedido.status_pagamento === 'paid' || pedido.status_pagamento === 'Pago') && pedido.vendedor_id && !pedido.comissao_aprovada;
+                        const isNovaLoja = pedido.origem === 'nova_loja';
+                        const podeAprovar = !isNovaLoja && (pedido.status_pagamento === 'paid' || pedido.status_pagamento === 'Pago') && pedido.vendedor_id && !pedido.comissao_aprovada;
                         
                         return (
-                          <TableRow key={pedido.id} className={selectedPedidos.has(pedido.id) ? "bg-primary/5" : ""}>
+                          <TableRow key={`${pedido.origem || 'shopify'}-${pedido.id}`} className={selectedPedidos.has(pedido.id) ? "bg-primary/5" : ""}>
                             {isAdmin && (
                               <TableCell>
                                 {podeAprovar && (
