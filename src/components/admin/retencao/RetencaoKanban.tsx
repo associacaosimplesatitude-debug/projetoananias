@@ -21,7 +21,11 @@ export interface KanbanCliente {
   ultimo_contato_data: string | null;
   coluna_kanban: string;
   dias_para_fechar?: number | null;
+  valor_total_compras?: number;
 }
+
+const formatBRL = (n: number) =>
+  n.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
 
 interface Props {
   clientes: KanbanCliente[];
