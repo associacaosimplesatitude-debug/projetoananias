@@ -321,7 +321,7 @@ export default function RevistaLeitura() {
       if (parsed.length > 0) {
         setNomeComprador(parsed[0].nome_comprador || "");
       }
-      if (parsed.length === 1 && parsed[0].revista_id) {
+      if (parsed.length === 1 && parsed[0].revista_id && parsed[0].revistas_digitais?.tipo_conteudo !== "infografico") {
         setSelectedRevista(parsed[0].revista_id);
       }
 
