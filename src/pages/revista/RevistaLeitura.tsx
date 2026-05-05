@@ -667,23 +667,16 @@ export default function RevistaLeitura() {
                   { body: { infografico_id: revista.id, token } }
                 );
                 if (error || !data?.url) {
-                  toast({
-                    title: "Erro",
-                    description:
-                      (data as any)?.error === "license_invalid"
-                        ? "Licença indisponível para este infográfico."
-                        : "Não foi possível gerar o download do infográfico.",
-                    variant: "destructive",
-                  });
+                  alert(
+                    (data as any)?.error === "license_invalid"
+                      ? "Licença indisponível para este infográfico."
+                      : "Não foi possível gerar o download do infográfico."
+                  );
                   return;
                 }
                 window.open(data.url, "_blank", "noopener,noreferrer");
               } catch {
-                toast({
-                  title: "Erro",
-                  description: "Não foi possível gerar o download do infográfico.",
-                  variant: "destructive",
-                });
+                alert("Não foi possível gerar o download do infográfico.");
               }
             }}
           >
