@@ -224,7 +224,7 @@ export function AdminPedidosTab({ vendedores = [], hideStats = false }: AdminPed
           .order("created_at", { ascending: false }),
         supabase
           .from("ebd_loja_pedidos_cg")
-          .select("*, vendedor:vendedores(nome)")
+          .select("*")
           .order("created_at", { ascending: false }),
       ]);
 
@@ -276,7 +276,7 @@ export function AdminPedidosTab({ vendedores = [], hideStats = false }: AdminPed
         codigo_rastreio: p.codigo_rastreio,
         codigo_rastreio_bling: null,
         url_rastreio: p.url_rastreio,
-        vendedor: p.vendedor,
+        vendedor: null,
         comissao_aprovada: p.comissao_aprovada,
         bling_order_id: null,
         sync_error: null,
