@@ -1207,9 +1207,16 @@ export function AdminPedidosTab({ vendedores = [], hideStats = false }: AdminPed
                 </div>
               ) : (
                 <>
-                  <p className="text-sm text-muted-foreground mb-2">
-                    {filteredShopifyPedidos.length} pedidos — Total: <strong className="text-foreground">{formatCurrency(filteredShopifyPedidos.reduce((a, p) => a + p.valor_para_meta, 0))}</strong>
-                  </p>
+                  {(() => {
+                    const bruto = filteredShopifyPedidos.reduce((a, p) => a + (Number(p.valor_total) || 0), 0);
+                    const frete = filteredShopifyPedidos.reduce((a, p) => a + (Number(p.valor_frete) || 0), 0);
+                    const liquido = bruto - frete;
+                    return (
+                      <p className="text-sm text-muted-foreground mb-2">
+                        {filteredShopifyPedidos.length} pedidos — Bruto: <strong className="text-foreground">{formatCurrency(bruto)}</strong> • Frete: <strong className="text-foreground">{formatCurrency(frete)}</strong> • Líquido: <strong className="text-foreground">{formatCurrency(liquido)}</strong>
+                      </p>
+                    );
+                  })()}
                   <Table>
                     <TableHeader>
                       <TableRow>
