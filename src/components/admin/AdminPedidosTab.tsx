@@ -216,18 +216,23 @@ export function AdminPedidosTab({ vendedores = [], hideStats = false }: AdminPed
       // Paginate to bypass the 1000-row default limit per request
       const PAGE_SIZE = 1000;
       const fetchAllPaginated = async (
-        table: "ebd_shopify_pedidos" | "ebd_shopify_pedidos_cg" | "ebd_loja_pedidos_cg",
-        select: string
+        table: "ebd_shopify_pedidos" | "ebd_loja_pedidos_cg",
+        select: string,
+        applyB2BFilter = false
       ) => {
         const all: any[] = [];
         let from = 0;
-        // Hard cap to avoid runaway loops
         for (let page = 0; page < 50; page++) {
-          const { data, error } = await supabase
+          let q = supabase
             .from(table)
             .select(select)
             .order("created_at", { ascending: false })
             .range(from, from + PAGE_SIZE - 1);
+          // Excluir registros B2B (faturados via aprovar-faturamento) — eles têm aba própria
+          if (applyB2BFilter) {
+            q = (q as any).not("order_number", "ilike", "BLING-%");
+          }
+          const { data, error } = await q;
           if (error) throw error;
           const rows = data || [];
           all.push(...rows);
@@ -237,42 +242,17 @@ export function AdminPedidosTab({ vendedores = [], hideStats = false }: AdminPed
         return all;
       };
 
-      const [shopifyData, shopifyCgData, lojaData] = await Promise.all([
-        fetchAllPaginated("ebd_shopify_pedidos", "*, vendedor:vendedores(nome)"),
-        fetchAllPaginated("ebd_shopify_pedidos_cg", "*, vendedor:vendedores(nome)"),
+      const [shopifyData, lojaData] = await Promise.all([
+        fetchAllPaginated("ebd_shopify_pedidos", "*, vendedor:vendedores(nome)", true),
         fetchAllPaginated("ebd_loja_pedidos_cg", "*"),
       ]);
 
       const shopifyRes = { data: shopifyData, error: null as any };
-      const shopifyCgRes = { data: shopifyCgData, error: null as any };
       const lojaRes = { data: lojaData, error: null as any };
 
       const shopifyOrders: ShopifyPedido[] = (shopifyRes.data || []).map((p: any) => ({
         ...p,
         origem: 'shopify' as const,
-      }));
-
-      const shopifyCgOrders: ShopifyPedido[] = (shopifyCgRes.data || []).map((p: any) => ({
-        id: p.id,
-        shopify_order_id: p.shopify_order_id ?? null,
-        order_number: p.order_number,
-        vendedor_id: p.vendedor_id,
-        cliente_id: p.cliente_id,
-        status_pagamento: p.status_pagamento,
-        valor_total: Number(p.valor_total) || 0,
-        valor_frete: Number(p.valor_frete) || 0,
-        valor_para_meta: Math.max(0, (Number(p.valor_total) || 0) - (Number(p.valor_frete) || 0)),
-        customer_email: p.customer_email,
-        customer_name: p.customer_name,
-        created_at: p.created_at,
-        codigo_rastreio: p.codigo_rastreio,
-        codigo_rastreio_bling: null,
-        url_rastreio: p.url_rastreio,
-        vendedor: p.vendedor,
-        comissao_aprovada: p.comissao_aprovada,
-        bling_order_id: null,
-        sync_error: null,
-        origem: 'shopify_cg' as const,
       }));
 
       const lojaOrders: ShopifyPedido[] = (lojaRes.data || []).map((p: any) => ({
