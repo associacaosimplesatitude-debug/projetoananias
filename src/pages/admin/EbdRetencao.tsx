@@ -136,6 +136,13 @@ export default function EbdRetencao() {
             <SelectItem value="Faturado">Faturado</SelectItem>
           </SelectContent>
         </Select>
+
+        {podeDisparar && (
+          <Button onClick={() => setCampanhaOpen(true)} className="ml-auto">
+            <Megaphone className="h-4 w-4 mr-2" />
+            Disparar campanha WhatsApp
+          </Button>
+        )}
       </div>
 
       {/* Kanban */}
@@ -150,6 +157,19 @@ export default function EbdRetencao() {
           clientes={data?.kanban_clientes || []}
           filtroVendedor={filtroVendedor}
           filtroCanal={filtroCanal}
+          disparosMap={disparosMap}
+        />
+      )}
+
+      {podeDisparar && (
+        <DispararCampanhaModal
+          open={campanhaOpen}
+          onOpenChange={setCampanhaOpen}
+          clientes={data?.kanban_clientes || []}
+          onDispatched={() => {
+            queryClient.invalidateQueries({ queryKey: ["retencao-dashboard"] });
+            queryClient.invalidateQueries({ queryKey: ["retencao-disparos-map"] });
+          }}
         />
       )}
     </div>
