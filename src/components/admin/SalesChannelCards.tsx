@@ -185,7 +185,7 @@ export function SalesChannelCards({
       }
       
       return data as {
-        ecommerce: { valor: number; qtd: number };
+        ecommerce: { valor: number; qtd: number; frete?: number; liquido?: number };
         igreja_cnpj: { valor: number; qtd: number };
         igreja_cpf: { valor: number; qtd: number };
         lojistas: { valor: number; qtd: number };
@@ -210,6 +210,8 @@ export function SalesChannelCards({
       return {
         qtdOnline: 0,
         valorOnline: 0,
+        freteOnline: 0,
+        liquidoOnline: 0,
         qtdIgrejas: 0,
         valorIgrejas: 0,
         qtdIgrejasCNPJ: 0,
@@ -226,6 +228,8 @@ export function SalesChannelCards({
     return {
       qtdOnline: channelTotals.ecommerce?.qtd || 0,
       valorOnline: Number(channelTotals.ecommerce?.valor) || 0,
+      freteOnline: Number(channelTotals.ecommerce?.frete) || 0,
+      liquidoOnline: Number(channelTotals.ecommerce?.liquido) || 0,
       qtdIgrejas: channelTotals.igrejas_total?.qtd || 0,
       valorIgrejas: Number(channelTotals.igrejas_total?.valor) || 0,
       qtdIgrejasCNPJ: channelTotals.igreja_cnpj?.qtd || 0,
