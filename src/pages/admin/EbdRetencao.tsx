@@ -17,10 +17,13 @@ interface RetencaoDashboard {
 }
 
 export default function EbdRetencao() {
-  const { isAdmin } = useUserRole();
+  const { isAdmin, isGerenteEbd } = useUserRole();
   const { vendedor } = useVendedor();
   const [filtroVendedor, setFiltroVendedor] = useState<string>("");
   const [filtroCanal, setFiltroCanal] = useState<string>("");
+  const [campanhaOpen, setCampanhaOpen] = useState(false);
+  const queryClient = useQueryClient();
+  const podeDisparar = isAdmin || isGerenteEbd;
 
   // For non-admin, use their vendedor_id
   const vendedorIdParam = isAdmin ? (filtroVendedor || null) : vendedor?.id || null;
