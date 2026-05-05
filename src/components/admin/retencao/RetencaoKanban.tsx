@@ -32,6 +32,7 @@ interface Props {
   clientes: KanbanCliente[];
   filtroVendedor?: string;
   filtroCanal?: string;
+  disparosMap?: Record<string, string>; // cliente_id -> ISO date do último envio
 }
 
 const COLUNAS = [
@@ -51,7 +52,7 @@ const canalBadgeColor = (canal: string) => {
   }
 };
 
-export function RetencaoKanban({ clientes, filtroVendedor, filtroCanal }: Props) {
+export function RetencaoKanban({ clientes, filtroVendedor, filtroCanal, disparosMap }: Props) {
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedCliente, setSelectedCliente] = useState<KanbanCliente | null>(null);
 
@@ -110,6 +111,11 @@ export function RetencaoKanban({ clientes, filtroVendedor, filtroCanal }: Props)
                         {c.vendedor_nome && (
                           <Badge variant="outline" className="text-[10px]">
                             {c.vendedor_nome}
+                          </Badge>
+                        )}
+                        {disparosMap?.[c.cliente_id] && (
+                          <Badge variant="secondary" className="text-[10px]">
+                            📩 Enviada em {format(new Date(disparosMap[c.cliente_id]), "dd/MM", { locale: ptBR })}
                           </Badge>
                         )}
                       </div>

@@ -1,13 +1,15 @@
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 import { RetencaoKanban, type KanbanCliente } from "@/components/admin/retencao/RetencaoKanban";
+import { DispararCampanhaModal } from "@/components/admin/retencao/DispararCampanhaModal";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useVendedor } from "@/hooks/useVendedor";
-import { Shield, AlertTriangle, Clock, XCircle, CheckCircle } from "lucide-react";
+import { Shield, AlertTriangle, Clock, XCircle, CheckCircle, Megaphone } from "lucide-react";
 
 interface RetencaoDashboard {
   faixas: { verde: number; amarelo: number; vermelho: number; perdido: number; fechados: number };
@@ -15,10 +17,13 @@ interface RetencaoDashboard {
 }
 
 export default function EbdRetencao() {
-  const { isAdmin } = useUserRole();
+  const { isAdmin, isGerenteEbd } = useUserRole();
   const { vendedor } = useVendedor();
   const [filtroVendedor, setFiltroVendedor] = useState<string>("");
   const [filtroCanal, setFiltroCanal] = useState<string>("");
+  const [campanhaOpen, setCampanhaOpen] = useState(false);
+  const queryClient = useQueryClient();
+  const podeDisparar = isAdmin || isGerenteEbd;
 
   // For non-admin, use their vendedor_id
   const vendedorIdParam = isAdmin ? (filtroVendedor || null) : vendedor?.id || null;
@@ -46,6 +51,24 @@ export default function EbdRetencao() {
       return data || [];
     },
     enabled: isAdmin,
+  });
+
+  // Load disparos map (last sent date per cliente)
+  const { data: disparosMap = {} } = useQuery<Record<string, string>>({
+    queryKey: ["retencao-disparos-map"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("retencao_disparos")
+        .select("cliente_id, enviado_em")
+        .eq("status", "sucesso")
+        .order("enviado_em", { ascending: false });
+      const map: Record<string, string> = {};
+      (data || []).forEach((r: any) => {
+        if (!map[r.cliente_id]) map[r.cliente_id] = r.enviado_em;
+      });
+      return map;
+    },
+    enabled: podeDisparar,
   });
 
   const faixas = data?.faixas || { verde: 0, amarelo: 0, vermelho: 0, perdido: 0, fechados: 0 };
@@ -113,6 +136,13 @@ export default function EbdRetencao() {
             <SelectItem value="Faturado">Faturado</SelectItem>
           </SelectContent>
         </Select>
+
+        {podeDisparar && (
+          <Button onClick={() => setCampanhaOpen(true)} className="ml-auto">
+            <Megaphone className="h-4 w-4 mr-2" />
+            Disparar campanha WhatsApp
+          </Button>
+        )}
       </div>
 
       {/* Kanban */}
@@ -127,6 +157,19 @@ export default function EbdRetencao() {
           clientes={data?.kanban_clientes || []}
           filtroVendedor={filtroVendedor}
           filtroCanal={filtroCanal}
+          disparosMap={disparosMap}
+        />
+      )}
+
+      {podeDisparar && (
+        <DispararCampanhaModal
+          open={campanhaOpen}
+          onOpenChange={setCampanhaOpen}
+          clientes={data?.kanban_clientes || []}
+          onDispatched={() => {
+            queryClient.invalidateQueries({ queryKey: ["retencao-dashboard"] });
+            queryClient.invalidateQueries({ queryKey: ["retencao-disparos-map"] });
+          }}
         />
       )}
     </div>

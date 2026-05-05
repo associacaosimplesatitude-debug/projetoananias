@@ -5568,6 +5568,48 @@ export type Database = {
           },
         ]
       }
+      retencao_disparos: {
+        Row: {
+          cliente_id: string
+          created_at: string
+          enviado_em: string
+          enviado_por: string | null
+          erro: string | null
+          faixa: string
+          id: string
+          meta_message_id: string | null
+          status: string
+          telefone: string
+          template_nome: string
+        }
+        Insert: {
+          cliente_id: string
+          created_at?: string
+          enviado_em?: string
+          enviado_por?: string | null
+          erro?: string | null
+          faixa: string
+          id?: string
+          meta_message_id?: string | null
+          status: string
+          telefone: string
+          template_nome: string
+        }
+        Update: {
+          cliente_id?: string
+          created_at?: string
+          enviado_em?: string
+          enviado_por?: string | null
+          erro?: string | null
+          faixa?: string
+          id?: string
+          meta_message_id?: string | null
+          status?: string
+          telefone?: string
+          template_nome?: string
+        }
+        Relationships: []
+      }
       revista_acessos: {
         Row: {
           cliente_id: string
