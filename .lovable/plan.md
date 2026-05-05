@@ -1,46 +1,71 @@
-Objetivo: corrigir a aba E-commerce em `src/components/admin/AdminPedidosTab.tsx` com a menor alteração possível, sem mexer em UI, abas, layout ou outras telas.
+## Diagnóstico
 
-Problema confirmado
-- A query da aba E-commerce já foi expandida para 3 fontes:
-  - `ebd_shopify_pedidos`
-  - `ebd_shopify_pedidos_cg`
-  - `ebd_loja_pedidos_cg`
-- Porém o terceiro select está fazendo:
-  - `.from("ebd_loja_pedidos_cg").select("*, vendedor:vendedores(nome)")`
-- Esse relacionamento não existe para `ebd_loja_pedidos_cg`.
-- O preview mostra a requisição retornando `400 PGRST200` com a mensagem de que não há relação entre `ebd_loja_pedidos_cg` e `vendedores`.
-- Como os 3 selects estão dentro de `Promise.all`, a falha de uma fonte derruba a query inteira, então `shopifyPedidos` não carrega e a aba fica zerada.
+A aba **E-commerce** em `src/components/admin/AdminPedidosTab.tsx`:
 
-Plano de correção mínima
-1. Editar somente `src/components/admin/AdminPedidosTab.tsx`.
-2. Manter a estrutura atual da `useQuery(["admin-all-shopify-pedidos"])`.
-3. Corrigir apenas o bloco da consulta de `ebd_loja_pedidos_cg` para não depender do join inexistente com `vendedores`.
-4. Buscar `ebd_loja_pedidos_cg` sem relacionamento embutido e continuar resolvendo o nome do vendedor pelo fallback já existente no componente:
-   - `pedido.vendedor?.nome || (pedido.vendedor_id ? vendedores.find(...) : null)`
-5. Preservar o merge das três fontes e a ordenação por `created_at desc`.
-6. Não tocar em filtros, colunas, tabs, badges, renderização ou mutations.
+- busca os pedidos em `useQuery(["admin-all-shopify-pedidos"])` nas linhas **213-289**
+- aplica o filtro de período **no cliente**, em `matchesFilters(...)` nas linhas **598-625**
+- monta `filteredShopifyPedidos` nas linhas **629-643**
 
-Resultado esperado
-- A query deixa de quebrar.
-- A aba E-commerce volta a carregar.
-- Passam a aparecer juntas as 3 bases:
-  - Shopify principal
-  - Shopify CG legado
-  - Nova Loja CG
-- A contagem não ficará mais zerada e deve subir conforme os registros existentes.
+### Causa raiz confirmada
+As 3 consultas da `queryFn` fazem apenas:
 
-Detalhes técnicos
-- Arquivo: `src/components/admin/AdminPedidosTab.tsx`
-- Trecho com erro atual:
-  - `ebd_loja_pedidos_cg` usando `vendedor:vendedores(nome)` sem FK disponível
-- Ajuste previsto:
-  - trocar esse select por `select("*")` para `ebd_loja_pedidos_cg`
-  - manter o mapeamento para `ShopifyPedido`
-  - opcionalmente normalizar `vendedor: null` no mapping dessa fonte, se necessário para o tipo
+- `from("ebd_shopify_pedidos").select(...).order("created_at", { ascending: false })`
+- `from("ebd_shopify_pedidos_cg").select(...).order("created_at", { ascending: false })`
+- `from("ebd_loja_pedidos_cg").select(...).order("created_at", { ascending: false })`
 
-Validação após implementar
-- Abrir `/admin/ebd/propostas`
-- Ir na aba `E-commerce`
-- Confirmar que deixou de aparecer zero
-- Confirmar que não há mais erro `PGRST200` dessa query no tráfego
-- Confirmar que somente `AdminPedidosTab.tsx` foi alterado
+Sem `.range(...)`, a API retorna só o recorte padrão de até **1000 registros por tabela**.
+
+Como o filtro de março é aplicado **depois**, no frontend, os pedidos antigos nem chegam ao navegador.
+
+### Evidência do backend
+Contagem real em **março/2026**:
+
+- `ebd_shopify_pedidos`: **450** registros no mês
+- `ebd_shopify_pedidos_cg`: **196** registros no mês
+- `ebd_loja_pedidos_cg`: **0** registros no mês
+
+Com a regra atual da aba E-commerce, ainda há exclusão de `order_number like 'BLING-%'`, então o volume visível esperado para março fica em aproximadamente:
+
+- `ebd_shopify_pedidos`: **254** visíveis na aba
+- `ebd_shopify_pedidos_cg`: **196** visíveis na aba
+- `ebd_loja_pedidos_cg`: **0** em março
+- **Total esperado em março na aba E-commerce: ~450**
+
+### Prova de que o recorte atual corta março
+Nos **1000 mais recentes** de cada fonte hoje:
+
+- `ebd_shopify_pedidos`: o mais antigo carregado é **2026-04-05**
+- `ebd_shopify_pedidos_cg`: o mais antigo carregado é **2026-04-05**
+- `ebd_loja_pedidos_cg`: só tem dados a partir de **2026-04-24**
+
+Resultado: ao filtrar **01/03/2026 até 31/03/2026**, a aba fica zerada porque março não está dentro do lote carregado.
+
+## Correção mínima proposta
+Alterar **somente** `src/components/admin/AdminPedidosTab.tsx`, dentro da `queryFn` de `admin-all-shopify-pedidos`, para:
+
+1. Criar um helper local de paginação com `.range(offset, offset + 999)`
+2. Buscar **todas** as páginas de:
+   - `ebd_shopify_pedidos`
+   - `ebd_shopify_pedidos_cg`
+   - `ebd_loja_pedidos_cg`
+3. Manter o merge atual das 3 fontes
+4. Manter o sort final por `created_at desc`
+5. Não mexer em abas, UI, filtros visuais, tabelas ou backend
+
+## Escopo exato
+Somente este arquivo:
+
+- `src/components/admin/AdminPedidosTab.tsx`
+
+Sem migration. Sem mudança de UI. Sem refatoração de componente. Sem tocar Mercado Pago / Balcão / B2B.
+
+## Validação após aplicar
+Depois da correção, com filtro personalizado **01/03/2026 → 31/03/2026**, a aba **E-commerce** deve deixar de mostrar `0` e passar a mostrar aproximadamente **450 pedidos** com a lógica atual.
+
+## Detalhes técnicos
+- O problema não é ausência de dados históricos no banco.
+- O problema não é a aba em si.
+- O problema é o padrão de paginação implícita da consulta, combinado com filtro de data feito no frontend.
+- A menor correção segura é paginar a carga das 3 tabelas dentro da própria `queryFn`.
+
+Se você aprovar, eu aplico exatamente essa correção mínima.
