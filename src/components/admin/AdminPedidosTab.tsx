@@ -213,24 +213,39 @@ export function AdminPedidosTab({ vendedores = [], hideStats = false }: AdminPed
   const { data: shopifyPedidos = [], isLoading } = useQuery({
     queryKey: ["admin-all-shopify-pedidos"],
     queryFn: async () => {
-      const [shopifyRes, shopifyCgRes, lojaRes] = await Promise.all([
-        supabase
-          .from("ebd_shopify_pedidos")
-          .select("*, vendedor:vendedores(nome)")
-          .order("created_at", { ascending: false }),
-        supabase
-          .from("ebd_shopify_pedidos_cg")
-          .select("*, vendedor:vendedores(nome)")
-          .order("created_at", { ascending: false }),
-        supabase
-          .from("ebd_loja_pedidos_cg")
-          .select("*")
-          .order("created_at", { ascending: false }),
+      // Paginate to bypass the 1000-row default limit per request
+      const PAGE_SIZE = 1000;
+      const fetchAllPaginated = async (
+        table: "ebd_shopify_pedidos" | "ebd_shopify_pedidos_cg" | "ebd_loja_pedidos_cg",
+        select: string
+      ) => {
+        const all: any[] = [];
+        let from = 0;
+        // Hard cap to avoid runaway loops
+        for (let page = 0; page < 50; page++) {
+          const { data, error } = await supabase
+            .from(table)
+            .select(select)
+            .order("created_at", { ascending: false })
+            .range(from, from + PAGE_SIZE - 1);
+          if (error) throw error;
+          const rows = data || [];
+          all.push(...rows);
+          if (rows.length < PAGE_SIZE) break;
+          from += PAGE_SIZE;
+        }
+        return all;
+      };
+
+      const [shopifyData, shopifyCgData, lojaData] = await Promise.all([
+        fetchAllPaginated("ebd_shopify_pedidos", "*, vendedor:vendedores(nome)"),
+        fetchAllPaginated("ebd_shopify_pedidos_cg", "*, vendedor:vendedores(nome)"),
+        fetchAllPaginated("ebd_loja_pedidos_cg", "*"),
       ]);
 
-      if (shopifyRes.error) throw shopifyRes.error;
-      if (shopifyCgRes.error) throw shopifyCgRes.error;
-      if (lojaRes.error) throw lojaRes.error;
+      const shopifyRes = { data: shopifyData, error: null as any };
+      const shopifyCgRes = { data: shopifyCgData, error: null as any };
+      const lojaRes = { data: lojaData, error: null as any };
 
       const shopifyOrders: ShopifyPedido[] = (shopifyRes.data || []).map((p: any) => ({
         ...p,
