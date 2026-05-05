@@ -53,6 +53,24 @@ export default function EbdRetencao() {
     enabled: isAdmin,
   });
 
+  // Load disparos map (last sent date per cliente)
+  const { data: disparosMap = {} } = useQuery<Record<string, string>>({
+    queryKey: ["retencao-disparos-map"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("retencao_disparos")
+        .select("cliente_id, enviado_em")
+        .eq("status", "sucesso")
+        .order("enviado_em", { ascending: false });
+      const map: Record<string, string> = {};
+      (data || []).forEach((r: any) => {
+        if (!map[r.cliente_id]) map[r.cliente_id] = r.enviado_em;
+      });
+      return map;
+    },
+    enabled: podeDisparar,
+  });
+
   const faixas = data?.faixas || { verde: 0, amarelo: 0, vermelho: 0, perdido: 0, fechados: 0 };
 
   const cards = [
