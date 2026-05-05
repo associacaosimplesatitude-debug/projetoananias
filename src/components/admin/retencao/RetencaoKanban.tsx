@@ -20,6 +20,7 @@ export interface KanbanCliente {
   ultimo_resultado: string | null;
   ultimo_contato_data: string | null;
   coluna_kanban: string;
+  dias_para_fechar?: number | null;
 }
 
 interface Props {
@@ -79,9 +80,15 @@ export function RetencaoKanban({ clientes, filtroVendedor, filtroCanal }: Props)
                     <CardContent className="p-3 space-y-2">
                       <div className="flex items-start justify-between gap-1">
                         <p className="font-medium text-sm leading-tight">{c.nome_igreja}</p>
-                        <Badge variant="destructive" className="text-[10px] shrink-0">
-                          {c.dias_sem_compra}d
-                        </Badge>
+                        {c.coluna_kanban === "fechados" && c.dias_para_fechar != null ? (
+                          <Badge className="text-[10px] shrink-0 bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200">
+                            Fechou em {c.dias_para_fechar}d
+                          </Badge>
+                        ) : (
+                          <Badge variant="destructive" className="text-[10px] shrink-0">
+                            {c.dias_sem_compra}d
+                          </Badge>
+                        )}
                       </div>
 
                       <div className="flex flex-wrap gap-1">
