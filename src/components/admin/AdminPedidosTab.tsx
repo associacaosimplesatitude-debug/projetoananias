@@ -60,7 +60,7 @@ interface PropostaFaturada {
 
 interface ShopifyPedido {
   id: string;
-  shopify_order_id: number;
+  shopify_order_id: number | null;
   order_number: string;
   vendedor_id: string | null;
   cliente_id: string | null;
@@ -78,6 +78,7 @@ interface ShopifyPedido {
   comissao_aprovada?: boolean | null;
   bling_order_id: number | null;
   sync_error?: string | null;
+  origem?: 'shopify' | 'nova_loja';
 }
 
 interface MercadoPagoPedido {
