@@ -22,6 +22,7 @@ export interface KanbanCliente {
   coluna_kanban: string;
   dias_para_fechar?: number | null;
   valor_total_compras?: number;
+  valor_ultima_compra?: number;
 }
 
 const formatBRL = (n: number) =>
@@ -113,9 +114,12 @@ export function RetencaoKanban({ clientes, filtroVendedor, filtroCanal }: Props)
                         )}
                       </div>
 
-                      <p className="text-xs text-muted-foreground">
-                        Compra: R$ {(c.valor_total_compras ?? c.valor_medio).toFixed(2)}
-                      </p>
+                      <div className="text-xs text-muted-foreground space-y-0.5">
+                        <p>Total compras: R$ {(c.valor_total_compras ?? c.valor_medio).toFixed(2)}</p>
+                        {c.valor_ultima_compra != null && c.valor_ultima_compra > 0 && (
+                          <p>Última: R$ {c.valor_ultima_compra.toFixed(2)}</p>
+                        )}
+                      </div>
 
                       {c.ultimo_contato_data && (
                         <p className="text-[10px] text-muted-foreground">

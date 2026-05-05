@@ -1,19 +1,18 @@
-## Mostrar "dias até fechar" no card Fechados
+## Mostrar valor total + valor da última compra no card
 
-No Kanban da Retenção, na coluna **Fechados (mês)**, exibir quantos dias o cliente demorou para voltar a comprar (gap entre a compra anterior e a compra do mês atual).
+No Kanban da Retenção, manter o valor total acumulado e adicionar abaixo o valor da última compra (a mais recente entre Shopify, Mercado Pago e Faturado).
 
 ### Alterações
 
 **1. RPC `get_retencao_dashboard` (migration)**
-- No CTE `com_dias`, calcular para cada cliente fechado o `dias_para_fechar`:
-  - Se `marcado_comprou_mes` (registro manual em `ebd_retencao_contatos` com resultado `comprou`): usar `data_contato` desse registro menos `dt_compra_anterior`.
-  - Caso contrário: `dt_mes_compra` (a compra mais recente do mês, vinda do MAX entre `s.dt_mes`, `m.dt_mes`, `f.dt_mes`) menos `dt_compra_anterior`.
-- Adicionar campo `dias_para_fechar` (int, nullable) ao JSON `kanban_clientes`.
+- No CTE `base`, adicionar `valor_ultima_compra`: o `valor_total` do pedido cuja data corresponde a `data_ultima_compra` (vem da CTE de canal vencedor — Shopify, MP ou Faturado).
+- Implementação: nas CTEs `ult_shopify`, `ult_mp`, `ult_fat`, capturar também `val_ultimo` = `(array_agg(valor_total ORDER BY created_at DESC))[1]`. Em `base`, escolher o `val_ultimo` do canal cuja `dt` é a maior (mesmo critério já usado para `canal_ultima_compra`).
+- Adicionar `valor_ultima_compra` (numeric, 2 casas) ao JSON `kanban_clientes`.
 
 **2. `RetencaoKanban.tsx`**
-- Adicionar `dias_para_fechar?: number | null` à interface `KanbanCliente`.
-- Na coluna `fechados`, substituir/complementar o badge de "Xd sem compra" por um badge verde **"Fechou em Yd"** quando o campo existir.
-- Manter o resto do card idêntico (canal, vendedor, ticket médio, ações).
+- Adicionar `valor_ultima_compra?: number` à interface `KanbanCliente`.
+- No card, manter a linha "Compra: R$ X" mostrando `valor_total_compras` (renomear para "Total compras: R$ X" para clareza).
+- Adicionar nova linha logo abaixo: "Última: R$ Y" com `valor_ultima_compra`.
 
 ### Fora de escopo
-- Não alterar cards do dashboard, filtros, modal de registro, nem outras colunas do Kanban.
+- Faixas, totais por coluna, lógica de classificação, modais.
