@@ -224,7 +224,7 @@ export function AdminPedidosTab({ vendedores = [], hideStats = false }: AdminPed
           .order("created_at", { ascending: false }),
         supabase
           .from("ebd_loja_pedidos_cg")
-          .select("*, vendedor:vendedores(nome)")
+          .select("*")
           .order("created_at", { ascending: false }),
       ]);
 
