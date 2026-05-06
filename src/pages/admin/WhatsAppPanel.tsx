@@ -320,6 +320,8 @@ function CredentialsTab() {
         </CardContent>
       </Card>
 
+      <OtpVerificationCard />
+
       {connectionResult && (
         <Card>
           <CardHeader>
