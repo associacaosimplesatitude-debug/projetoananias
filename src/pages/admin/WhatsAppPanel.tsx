@@ -52,6 +52,92 @@ function JsonBlock({ data, label }: { data: unknown; label: string }) {
   );
 }
 
+function OtpVerificationCard() {
+  const [requesting, setRequesting] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const [code, setCode] = useState("");
+  const [codeRequested, setCodeRequested] = useState(false);
+
+  async function requestCode() {
+    setRequesting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("whatsapp-meta-otp", {
+        body: { action: "request" },
+      });
+      if (error) throw error;
+      if (data?.success) {
+        setCodeRequested(true);
+        toast.success("Código OTP solicitado! Verifique o SMS no número 99606-0743.");
+      } else {
+        toast.error(data?.data?.error?.message || data?.error || "Falha ao solicitar código");
+      }
+    } catch (err: any) {
+      toast.error(err?.message || "Erro ao solicitar código");
+    } finally {
+      setRequesting(false);
+    }
+  }
+
+  async function verifyCode() {
+    if (!code.trim()) return;
+    setVerifying(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("whatsapp-meta-otp", {
+        body: { action: "verify", code: code.trim() },
+      });
+      if (error) throw error;
+      if (data?.success) {
+        toast.success("Número verificado com sucesso na Meta!");
+        setCode("");
+      } else {
+        toast.error(data?.data?.error?.message || data?.error || "Código inválido");
+      }
+    } catch (err: any) {
+      toast.error(err?.message || "Erro ao verificar código");
+    } finally {
+      setVerifying(false);
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-lg flex items-center gap-2">
+          <Smartphone className="h-5 w-5" />
+          Re-verificação OTP — 99606-0743
+        </CardTitle>
+        <CardDescription>
+          Solicita um código SMS via Meta para re-verificar o número (Phone Number ID: 1050166738160490).
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <Button onClick={requestCode} disabled={requesting} className="gap-2">
+          {requesting ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageSquare className="h-4 w-4" />}
+          Solicitar código OTP WhatsApp
+        </Button>
+
+        {codeRequested && (
+          <div className="flex gap-2 items-end">
+            <div className="flex-1 space-y-2">
+              <Label htmlFor="otp-code">Código recebido</Label>
+              <Input
+                id="otp-code"
+                placeholder="123456"
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+              />
+            </div>
+            <Button onClick={verifyCode} disabled={verifying || !code.trim()} className="gap-2">
+              {verifying ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+              Verificar código
+            </Button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function CredentialsTab() {
   const queryClient = useQueryClient();
   const [showAccessToken, setShowAccessToken] = useState(false);
