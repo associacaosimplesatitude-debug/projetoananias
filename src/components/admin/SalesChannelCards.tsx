@@ -199,6 +199,7 @@ export function SalesChannelCards({
         propostas_revendedores: { valor: number; qtd: number };
         propostas_representantes: { valor: number; qtd: number };
         pdv_balcao: { valor: number; qtd: number };
+        outros_b2b?: { valor: number; qtd: number };
       };
     },
     staleTime: 30000, // Cache por 30 segundos
