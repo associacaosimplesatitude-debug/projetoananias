@@ -48,10 +48,19 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json();
+    console.log("[retencao-disparar-whatsapp] body recebido:", JSON.stringify(body));
     const faixa: string = body.faixa;
     const excluirRecentes: boolean = body.excluir_recentes !== false;
-    const numerosTeste: Array<{ nome: string; telefone: string }> = Array.isArray(body.numeros_teste) ? body.numeros_teste : [];
-    const isTeste = numerosTeste.length > 0;
+    const rawNumerosTeste: any[] = Array.isArray(body.numeros_teste) ? body.numeros_teste : [];
+    const detalhes: any[] = Array.isArray(body.numeros_teste_detalhes) ? body.numeros_teste_detalhes : [];
+    const numerosTeste: Array<{ nome: string; telefone: string }> = rawNumerosTeste.map((item, idx) => {
+      if (typeof item === "string") {
+        const det = detalhes[idx];
+        return { nome: det?.nome || "Teste", telefone: item };
+      }
+      return { nome: item?.nome || "Teste", telefone: item?.telefone || "" };
+    }).filter((n) => n.telefone);
+    const isTeste = numerosTeste.length > 0 || body.isTeste === true;
 
     if (!isTeste && !["atencao", "critico", "urgente"].includes(faixa)) {
       return new Response(JSON.stringify({ error: "Faixa inválida" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
