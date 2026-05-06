@@ -127,14 +127,34 @@ export function DispararCampanhaModal({ open, onOpenChange, clientes, onDispatch
               id="excl"
               checked={excluirRecentes}
               onCheckedChange={(v) => setExcluirRecentes(!!v)}
+              disabled={isTeste}
             />
-            <Label htmlFor="excl" className="text-sm cursor-pointer">
+            <Label htmlFor="excl" className={`text-sm cursor-pointer ${isTeste ? "opacity-50" : ""}`}>
               Excluir clientes que receberam mensagem nos últimos 30 dias
             </Label>
           </div>
 
-          <div className="rounded-md bg-primary/10 border border-primary/20 px-3 py-2 text-sm font-medium">
-            Serão impactados <span className="text-lg font-bold">{alvo.length}</span> clientes
+          <div className="rounded-md border border-dashed p-3 space-y-2">
+            <p className="text-xs font-semibold uppercase text-muted-foreground">Envio de teste</p>
+            <p className="text-[11px] text-muted-foreground">
+              Se selecionar números abaixo, a campanha será enviada APENAS para eles, ignorando a faixa de risco.
+            </p>
+            {NUMEROS_TESTE.map((n) => (
+              <div key={n.id} className="flex items-center gap-2">
+                <Checkbox
+                  id={`teste-${n.id}`}
+                  checked={testeIds.has(n.id)}
+                  onCheckedChange={() => toggleTeste(n.id)}
+                />
+                <Label htmlFor={`teste-${n.id}`} className="text-sm cursor-pointer">
+                  {n.nome} — <span className="font-mono">{n.telefone}</span>
+                </Label>
+              </div>
+            ))}
+          </div>
+
+          <div className={`rounded-md px-3 py-2 text-sm font-medium border ${isTeste ? "bg-amber-100 border-amber-300 text-amber-900 dark:bg-amber-900/30 dark:text-amber-200" : "bg-primary/10 border-primary/20"}`}>
+            {isTeste ? "Modo teste — " : ""}Serão impactados <span className="text-lg font-bold">{totalImpactados}</span> {isTeste ? "número(s)" : "clientes"}
           </div>
 
           <div className="rounded-md bg-muted p-3 text-sm space-y-1">
@@ -152,8 +172,8 @@ export function DispararCampanhaModal({ open, onOpenChange, clientes, onDispatch
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
             Cancelar
           </Button>
-          <Button onClick={handleConfirm} disabled={loading || alvo.length === 0}>
-            {loading ? (<><Loader2 className="h-4 w-4 mr-2 animate-spin" />Enviando…</>) : "Confirmar e disparar"}
+          <Button onClick={handleConfirm} disabled={loading || totalImpactados === 0}>
+            {loading ? (<><Loader2 className="h-4 w-4 mr-2 animate-spin" />Enviando…</>) : isTeste ? "Enviar teste" : "Confirmar e disparar"}
           </Button>
         </DialogFooter>
       </DialogContent>
