@@ -319,7 +319,8 @@ export function SalesChannelCards({
       marketplaceData.revendedores.valor + 
       marketplaceData.atacado.valor + 
       marketplaceData.representantes.valor +
-      marketplaceData.pdvBalcao.valor;
+      marketplaceData.pdvBalcao.valor +
+      marketplaceData.outrosB2B.valor;
     
     const qtdTotal = 
       periodMetrics.qtdOnline + 
@@ -334,7 +335,8 @@ export function SalesChannelCards({
       marketplaceData.revendedores.qtd + 
       marketplaceData.atacado.qtd + 
       marketplaceData.representantes.qtd +
-      marketplaceData.pdvBalcao.qtd;
+      marketplaceData.pdvBalcao.qtd +
+      marketplaceData.outrosB2B.qtd;
     
     return { valorTotal, qtdTotal };
   }, [periodMetrics, marketplaceData]);
