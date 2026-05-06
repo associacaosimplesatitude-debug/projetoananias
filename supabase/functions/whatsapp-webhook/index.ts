@@ -278,7 +278,46 @@ async function handleMetaPost(
           contentToSave = "[Áudio]";
         } else if (msgType === "button") {
           const btnObj = message.button as Record<string, unknown> | undefined;
-          contentToSave = (btnObj?.text as string) || (btnObj?.payload as string) || "[Botão]";
+          const btnText = (btnObj?.text as string) || (btnObj?.payload as string) || "";
+          contentToSave = btnText || "[Botão]";
+
+          // Map retencao template quick-reply button → kanban column (by label)
+          const labelMap: Record<string, string> = {
+            "falar com consultor": "falar_com_consultor",
+            "tenho interesse": "interessado",
+            "interessado": "interessado",
+            "não tenho interesse": "recusou",
+            "nao tenho interesse": "recusou",
+            "recusar": "recusou",
+          };
+          const novoResultadoBtn = labelMap[btnText.trim().toLowerCase()];
+          if (novoResultadoBtn) {
+            const senderPhoneTmp = normalizePhone(telefone);
+            const sufs = [senderPhoneTmp, senderPhoneTmp.slice(-11), senderPhoneTmp.slice(-10)];
+            let cliId: string | null = null;
+            let vendId: string | null = null;
+            for (const sf of sufs) {
+              const { data } = await supabase
+                .from("ebd_clientes")
+                .select("id, vendedor_id")
+                .or(`telefone.ilike.%${sf}`)
+                .limit(1)
+                .maybeSingle();
+              if (data) { cliId = data.id; vendId = data.vendedor_id; break; }
+            }
+            if (cliId) {
+              await supabase.from("ebd_retencao_contatos").insert({
+                cliente_id: cliId,
+                vendedor_id: vendId,
+                tipo_contato: "whatsapp",
+                resultado: novoResultadoBtn,
+                observacao: `Resposta automática do template (botão: ${btnText})`,
+              });
+              console.log(`[Retencao/button] cliente ${cliId} -> ${novoResultadoBtn}`);
+            } else {
+              console.log(`[Retencao/button] cliente não encontrado para ${senderPhoneTmp}`);
+            }
+          }
         } else if (msgType === "interactive") {
           const intObj = message.interactive as Record<string, unknown> | undefined;
           const btnReply = intObj?.button_reply as Record<string, unknown> | undefined;
