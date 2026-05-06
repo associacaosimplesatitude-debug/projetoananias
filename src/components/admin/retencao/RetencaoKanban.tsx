@@ -2,10 +2,13 @@ import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Phone, Mail, MessageSquare } from "lucide-react";
+import { Mail, MessageSquare } from "lucide-react";
 import { RegistrarContatoModal } from "./RegistrarContatoModal";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 
 export interface KanbanCliente {
   cliente_id: string;
@@ -37,11 +40,25 @@ interface Props {
 
 const COLUNAS = [
   { key: "a_contatar", label: "📞 A Contatar", color: "border-t-orange-500" },
+  { key: "interessado", label: "🌱 Interessado", color: "border-t-green-500" },
+  { key: "falar_com_consultor", label: "💬 Falar com Consultor", color: "border-t-amber-500" },
   { key: "contato_feito", label: "✅ Contato Feito", color: "border-t-blue-500" },
   { key: "retorno_agendado", label: "📅 Retorno Agendado", color: "border-t-yellow-500" },
+  { key: "recusou", label: "🙅 Recusou", color: "border-t-rose-400" },
   { key: "perdido", label: "❌ Perdido", color: "border-t-destructive" },
   { key: "fechados", label: "🎯 Fechados (mês)", color: "border-t-emerald-500" },
 ];
+
+const COLUNA_TO_RESULTADO: Record<string, string | null> = {
+  a_contatar: null,
+  interessado: "interessado",
+  falar_com_consultor: "falar_com_consultor",
+  contato_feito: "sem_resposta",
+  retorno_agendado: "retorno_agendado",
+  recusou: "recusou",
+  perdido: "nao_quer_mais",
+  fechados: "comprou",
+};
 
 const canalBadgeColor = (canal: string) => {
   switch (canal) {
@@ -67,9 +84,38 @@ export function RetencaoKanban({ clientes, filtroVendedor, filtroCanal, disparos
     setModalOpen(true);
   };
 
+  const queryClient = useQueryClient();
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [overCol, setOverCol] = useState<string | null>(null);
+
+  const handleDrop = async (colKey: string, cliente: KanbanCliente) => {
+    setDragId(null);
+    setOverCol(null);
+    if (cliente.coluna_kanban === colKey) return;
+    const novoResultado = COLUNA_TO_RESULTADO[colKey];
+    if (novoResultado === undefined) return;
+    if (colKey === "a_contatar") {
+      toast.info("Para mover para 'A Contatar', remova os contatos manualmente.");
+      return;
+    }
+    const { error } = await supabase.from("ebd_retencao_contatos").insert({
+      cliente_id: cliente.cliente_id,
+      vendedor_id: cliente.vendedor_id,
+      tipo_contato: "manual",
+      resultado: novoResultado,
+      observacao: "Movido manualmente no Kanban",
+    });
+    if (error) {
+      toast.error("Erro ao mover: " + error.message);
+    } else {
+      toast.success("Card movido");
+      queryClient.invalidateQueries({ queryKey: ["retencao-dashboard"] });
+    }
+  };
+
   return (
     <>
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-8 gap-4">
         {COLUNAS.map(col => {
           const items = filtered.filter(c => c.coluna_kanban === col.key);
           const showTotal = col.key === "a_contatar" || col.key === "fechados";
@@ -77,8 +123,18 @@ export function RetencaoKanban({ clientes, filtroVendedor, filtroCanal, disparos
             ? items.reduce((acc, c) => acc + (c.valor_total_compras ?? 0), 0)
             : 0;
           return (
-            <div key={col.key} className="space-y-3">
-              <div className={`rounded-lg border-t-4 ${col.color} bg-muted/30 p-3`}>
+            <div
+              key={col.key}
+              className="space-y-3"
+              onDragOver={(e) => { e.preventDefault(); setOverCol(col.key); }}
+              onDragLeave={() => setOverCol(prev => prev === col.key ? null : prev)}
+              onDrop={(e) => {
+                e.preventDefault();
+                const c = filtered.find(x => x.cliente_id === dragId);
+                if (c) handleDrop(col.key, c);
+              }}
+            >
+              <div className={`rounded-lg border-t-4 ${col.color} bg-muted/30 p-3 ${overCol === col.key ? "ring-2 ring-primary" : ""}`}>
                 <h3 className="font-semibold text-sm">{col.label} ({items.length})</h3>
                 {showTotal && (
                   <p className="text-[11px] text-muted-foreground mt-0.5">Total: {formatBRL(totalCol)}</p>
@@ -89,7 +145,13 @@ export function RetencaoKanban({ clientes, filtroVendedor, filtroCanal, disparos
                   <p className="text-xs text-muted-foreground text-center py-4">Nenhum cliente</p>
                 )}
                 {items.map(c => (
-                  <Card key={c.cliente_id} className="shadow-sm hover:shadow-md transition-shadow">
+                  <Card
+                    key={c.cliente_id}
+                    draggable
+                    onDragStart={() => setDragId(c.cliente_id)}
+                    onDragEnd={() => setDragId(null)}
+                    className="shadow-sm hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing"
+                  >
                     <CardContent className="p-3 space-y-2">
                       <div className="flex items-start justify-between gap-1">
                         <p className="font-medium text-sm leading-tight">{c.nome_igreja}</p>
