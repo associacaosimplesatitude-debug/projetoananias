@@ -284,6 +284,40 @@ async function handleMetaPost(
           const btnReply = intObj?.button_reply as Record<string, unknown> | undefined;
           const listReply = intObj?.list_reply as Record<string, unknown> | undefined;
           contentToSave = (btnReply?.title as string) || (listReply?.title as string) || "[Interação]";
+
+          // Map retencao campaign button → kanban column
+          const btnId = (btnReply?.id as string) || "";
+          const retencaoMap: Record<string, string> = {
+            ver_novidades: "interessado",
+            falar_consultor: "falar_com_consultor",
+            nao_obrigado: "recusou",
+          };
+          const novoResultado = retencaoMap[btnId];
+          if (novoResultado) {
+            const senderPhoneTmp = normalizePhone(telefone);
+            const sufs = [senderPhoneTmp, senderPhoneTmp.slice(-11), senderPhoneTmp.slice(-10)];
+            let cliId: string | null = null;
+            let vendId: string | null = null;
+            for (const sf of sufs) {
+              const { data } = await supabase
+                .from("ebd_clientes")
+                .select("id, vendedor_id")
+                .or(`telefone.ilike.%${sf}`)
+                .limit(1)
+                .maybeSingle();
+              if (data) { cliId = data.id; vendId = data.vendedor_id; break; }
+            }
+            if (cliId) {
+              await supabase.from("ebd_retencao_contatos").insert({
+                cliente_id: cliId,
+                vendedor_id: vendId,
+                tipo_contato: "whatsapp",
+                resultado: novoResultado,
+                observacao: `Resposta automática do template (botão: ${btnReply?.title || btnId})`,
+              });
+              console.log(`[Retencao] cliente ${cliId} -> ${novoResultado}`);
+            }
+          }
         } else if (msgType === "sticker") {
           contentToSave = "[Sticker]";
         } else if (msgType === "video") {
