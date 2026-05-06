@@ -546,6 +546,16 @@ export function SalesChannelCards({
           />
 
           <StandardCard
+            icon={<Briefcase className="h-4 w-4 text-slate-600" />}
+            title="Outros B2B"
+            value={formatCurrency(marketplaceData.outrosB2B.valor)}
+            periodLabel={`${marketplaceData.outrosB2B.qtd} pedidos`}
+            colorClass="text-slate-700 dark:text-slate-300"
+            borderColorClass="border-slate-200 dark:border-slate-800"
+            bgClass="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900"
+          />
+
+          <StandardCard
             icon={<DollarSign className="h-4 w-4 text-emerald-600" />}
             title="TOTAL GERAL"
             value={formatCurrency(totalGeral.valorTotal)}
