@@ -30,14 +30,21 @@ function inFaixa(d: number, f: Faixa) {
   return d >= 90;
 }
 
+const NUMEROS_TESTE = [
+  { id: "cleuton", nome: "Cleuton Soares", telefone: "11947141878" },
+  { id: "cayk", nome: "Cayk Soares", telefone: "11954937736" },
+];
+
 export function DispararCampanhaModal({ open, onOpenChange, clientes, onDispatched }: Props) {
   const [faixa, setFaixa] = useState<Faixa>("atencao");
   const [excluirRecentes, setExcluirRecentes] = useState(true);
   const [loading, setLoading] = useState(false);
   const [recentesIds, setRecentesIds] = useState<Set<string>>(new Set());
+  const [testeIds, setTesteIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (!open) return;
+    setTesteIds(new Set());
     (async () => {
       const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
       const { data } = await supabase
@@ -49,23 +56,37 @@ export function DispararCampanhaModal({ open, onOpenChange, clientes, onDispatch
     })();
   }, [open]);
 
+  const isTeste = testeIds.size > 0;
+
   const alvo = useMemo(() => {
     let list = clientes.filter((c) => inFaixa(c.dias_sem_compra || 0, faixa));
     if (excluirRecentes) list = list.filter((c) => !recentesIds.has(c.cliente_id));
     return list;
   }, [clientes, faixa, excluirRecentes, recentesIds]);
 
+  const totalImpactados = isTeste ? testeIds.size : alvo.length;
+
   const preview = alvo[0];
   const previewMsg = preview
     ? `Olá ${preview.nome_igreja}! Sentimos sua falta na Editora Central Gospel. ${preview.vendedor_nome || "Nosso consultor"} preparou novidades especiais para você. Quer dar uma olhada?`
     : "Nenhum cliente para preview.";
 
+  const toggleTeste = (id: string) => {
+    setTesteIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
   const handleConfirm = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke("retencao-disparar-whatsapp", {
-        body: { faixa, excluir_recentes: excluirRecentes },
-      });
+      const body: any = isTeste
+        ? { numeros_teste: NUMEROS_TESTE.filter((n) => testeIds.has(n.id)) }
+        : { faixa, excluir_recentes: excluirRecentes };
+      const { data, error } = await supabase.functions.invoke("retencao-disparar-whatsapp", { body });
       if (error) throw error;
       const r = data as { total: number; sucesso: number; falha: number };
       toast.success(`✅ ${r.sucesso} enviadas. ${r.falha} falharam.`);
@@ -106,14 +127,34 @@ export function DispararCampanhaModal({ open, onOpenChange, clientes, onDispatch
               id="excl"
               checked={excluirRecentes}
               onCheckedChange={(v) => setExcluirRecentes(!!v)}
+              disabled={isTeste}
             />
-            <Label htmlFor="excl" className="text-sm cursor-pointer">
+            <Label htmlFor="excl" className={`text-sm cursor-pointer ${isTeste ? "opacity-50" : ""}`}>
               Excluir clientes que receberam mensagem nos últimos 30 dias
             </Label>
           </div>
 
-          <div className="rounded-md bg-primary/10 border border-primary/20 px-3 py-2 text-sm font-medium">
-            Serão impactados <span className="text-lg font-bold">{alvo.length}</span> clientes
+          <div className="rounded-md border border-dashed p-3 space-y-2">
+            <p className="text-xs font-semibold uppercase text-muted-foreground">Envio de teste</p>
+            <p className="text-[11px] text-muted-foreground">
+              Se selecionar números abaixo, a campanha será enviada APENAS para eles, ignorando a faixa de risco.
+            </p>
+            {NUMEROS_TESTE.map((n) => (
+              <div key={n.id} className="flex items-center gap-2">
+                <Checkbox
+                  id={`teste-${n.id}`}
+                  checked={testeIds.has(n.id)}
+                  onCheckedChange={() => toggleTeste(n.id)}
+                />
+                <Label htmlFor={`teste-${n.id}`} className="text-sm cursor-pointer">
+                  {n.nome} — <span className="font-mono">{n.telefone}</span>
+                </Label>
+              </div>
+            ))}
+          </div>
+
+          <div className={`rounded-md px-3 py-2 text-sm font-medium border ${isTeste ? "bg-amber-100 border-amber-300 text-amber-900 dark:bg-amber-900/30 dark:text-amber-200" : "bg-primary/10 border-primary/20"}`}>
+            {isTeste ? "Modo teste — " : ""}Serão impactados <span className="text-lg font-bold">{totalImpactados}</span> {isTeste ? "número(s)" : "clientes"}
           </div>
 
           <div className="rounded-md bg-muted p-3 text-sm space-y-1">
@@ -131,8 +172,8 @@ export function DispararCampanhaModal({ open, onOpenChange, clientes, onDispatch
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
             Cancelar
           </Button>
-          <Button onClick={handleConfirm} disabled={loading || alvo.length === 0}>
-            {loading ? (<><Loader2 className="h-4 w-4 mr-2 animate-spin" />Enviando…</>) : "Confirmar e disparar"}
+          <Button onClick={handleConfirm} disabled={loading || totalImpactados === 0}>
+            {loading ? (<><Loader2 className="h-4 w-4 mr-2 animate-spin" />Enviando…</>) : isTeste ? "Enviar teste" : "Confirmar e disparar"}
           </Button>
         </DialogFooter>
       </DialogContent>

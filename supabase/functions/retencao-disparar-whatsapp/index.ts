@@ -50,7 +50,10 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const faixa: string = body.faixa;
     const excluirRecentes: boolean = body.excluir_recentes !== false;
-    if (!["atencao", "critico", "urgente"].includes(faixa)) {
+    const numerosTeste: Array<{ nome: string; telefone: string }> = Array.isArray(body.numeros_teste) ? body.numeros_teste : [];
+    const isTeste = numerosTeste.length > 0;
+
+    if (!isTeste && !["atencao", "critico", "urgente"].includes(faixa)) {
       return new Response(JSON.stringify({ error: "Faixa inválida" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
@@ -67,29 +70,37 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "WhatsApp não configurado" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    const { data: dash, error: dashErr } = await admin.rpc("get_retencao_dashboard", { p_vendedor_id: null });
-    if (dashErr) throw dashErr;
-    const clientes: any[] = (dash as any)?.kanban_clientes || [];
-
-    const inFaixa = clientes.filter((c) => {
-      const d = c.dias_sem_compra || 0;
-      if (faixa === "atencao") return d >= 30 && d < 60;
-      if (faixa === "critico") return d >= 60 && d < 90;
-      return d >= 90;
-    });
-
-    let alvo = inFaixa;
-    if (excluirRecentes && alvo.length > 0) {
-      const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-      const ids = alvo.map((c) => c.cliente_id);
-      const { data: recentes } = await admin
-        .from("retencao_disparos")
-        .select("cliente_id")
-        .eq("status", "sucesso")
-        .gt("enviado_em", cutoff)
-        .in("cliente_id", ids);
-      const exclSet = new Set((recentes || []).map((r: any) => r.cliente_id));
-      alvo = alvo.filter((c) => !exclSet.has(c.cliente_id));
+    let alvo: any[] = [];
+    if (isTeste) {
+      alvo = numerosTeste.map((n) => ({
+        cliente_id: null,
+        nome_igreja: n.nome,
+        telefone: n.telefone,
+        vendedor_nome: null,
+      }));
+    } else {
+      const { data: dash, error: dashErr } = await admin.rpc("get_retencao_dashboard", { p_vendedor_id: null });
+      if (dashErr) throw dashErr;
+      const clientes: any[] = (dash as any)?.kanban_clientes || [];
+      const inFaixa = clientes.filter((c) => {
+        const d = c.dias_sem_compra || 0;
+        if (faixa === "atencao") return d >= 30 && d < 60;
+        if (faixa === "critico") return d >= 60 && d < 90;
+        return d >= 90;
+      });
+      alvo = inFaixa;
+      if (excluirRecentes && alvo.length > 0) {
+        const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+        const ids = alvo.map((c) => c.cliente_id);
+        const { data: recentes } = await admin
+          .from("retencao_disparos")
+          .select("cliente_id")
+          .eq("status", "sucesso")
+          .gt("enviado_em", cutoff)
+          .in("cliente_id", ids);
+        const exclSet = new Set((recentes || []).map((r: any) => r.cliente_id));
+        alvo = alvo.filter((c) => !exclSet.has(c.cliente_id));
+      }
     }
 
     let sucesso = 0;
@@ -100,15 +111,17 @@ Deno.serve(async (req) => {
       const tel = normalizePhone(c.telefone);
       if (!tel) {
         falha++;
-        await admin.from("retencao_disparos").insert({
-          cliente_id: c.cliente_id,
-          telefone: c.telefone || "",
-          template_nome: "retencao_ebd_reengajamento",
-          faixa,
-          status: "falha",
-          erro: "Telefone inválido",
-          enviado_por: userId,
-        });
+        if (!isTeste) {
+          await admin.from("retencao_disparos").insert({
+            cliente_id: c.cliente_id,
+            telefone: c.telefone || "",
+            template_nome: "retencao_ebd_reengajamento",
+            faixa,
+            status: "falha",
+            erro: "Telefone inválido",
+            enviado_por: userId,
+          });
+        }
         continue;
       }
 
@@ -143,38 +156,45 @@ Deno.serve(async (req) => {
         const json = await resp.json();
         if (resp.ok && json?.messages?.[0]?.id) {
           sucesso++;
-          await admin.from("retencao_disparos").insert({
-            cliente_id: c.cliente_id,
-            telefone: tel,
-            template_nome: "retencao_ebd_reengajamento",
-            faixa,
-            status: "sucesso",
-            meta_message_id: json.messages[0].id,
-            enviado_por: userId,
-          });
+          if (!isTeste) {
+            await admin.from("retencao_disparos").insert({
+              cliente_id: c.cliente_id,
+              telefone: tel,
+              template_nome: "retencao_ebd_reengajamento",
+              faixa,
+              status: "sucesso",
+              meta_message_id: json.messages[0].id,
+              enviado_por: userId,
+            });
+          }
         } else {
           falha++;
+          console.error("[retencao] Meta erro:", JSON.stringify(json));
+          if (!isTeste) {
+            await admin.from("retencao_disparos").insert({
+              cliente_id: c.cliente_id,
+              telefone: tel,
+              template_nome: "retencao_ebd_reengajamento",
+              faixa,
+              status: "falha",
+              erro: JSON.stringify(json).slice(0, 1000),
+              enviado_por: userId,
+            });
+          }
+        }
+      } catch (e) {
+        falha++;
+        if (!isTeste) {
           await admin.from("retencao_disparos").insert({
             cliente_id: c.cliente_id,
             telefone: tel,
             template_nome: "retencao_ebd_reengajamento",
             faixa,
             status: "falha",
-            erro: JSON.stringify(json).slice(0, 1000),
+            erro: String(e).slice(0, 1000),
             enviado_por: userId,
           });
         }
-      } catch (e) {
-        falha++;
-        await admin.from("retencao_disparos").insert({
-          cliente_id: c.cliente_id,
-          telefone: tel,
-          template_nome: "retencao_ebd_reengajamento",
-          faixa,
-          status: "falha",
-          erro: String(e).slice(0, 1000),
-          enviado_por: userId,
-        });
       }
 
       await new Promise((r) => setTimeout(r, 100));
