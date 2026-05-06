@@ -111,15 +111,17 @@ Deno.serve(async (req) => {
       const tel = normalizePhone(c.telefone);
       if (!tel) {
         falha++;
-        await admin.from("retencao_disparos").insert({
-          cliente_id: c.cliente_id,
-          telefone: c.telefone || "",
-          template_nome: "retencao_ebd_reengajamento",
-          faixa,
-          status: "falha",
-          erro: "Telefone inválido",
-          enviado_por: userId,
-        });
+        if (!isTeste) {
+          await admin.from("retencao_disparos").insert({
+            cliente_id: c.cliente_id,
+            telefone: c.telefone || "",
+            template_nome: "retencao_ebd_reengajamento",
+            faixa,
+            status: "falha",
+            erro: "Telefone inválido",
+            enviado_por: userId,
+          });
+        }
         continue;
       }
 
@@ -154,38 +156,45 @@ Deno.serve(async (req) => {
         const json = await resp.json();
         if (resp.ok && json?.messages?.[0]?.id) {
           sucesso++;
-          await admin.from("retencao_disparos").insert({
-            cliente_id: c.cliente_id,
-            telefone: tel,
-            template_nome: "retencao_ebd_reengajamento",
-            faixa,
-            status: "sucesso",
-            meta_message_id: json.messages[0].id,
-            enviado_por: userId,
-          });
+          if (!isTeste) {
+            await admin.from("retencao_disparos").insert({
+              cliente_id: c.cliente_id,
+              telefone: tel,
+              template_nome: "retencao_ebd_reengajamento",
+              faixa,
+              status: "sucesso",
+              meta_message_id: json.messages[0].id,
+              enviado_por: userId,
+            });
+          }
         } else {
           falha++;
+          console.error("[retencao] Meta erro:", JSON.stringify(json));
+          if (!isTeste) {
+            await admin.from("retencao_disparos").insert({
+              cliente_id: c.cliente_id,
+              telefone: tel,
+              template_nome: "retencao_ebd_reengajamento",
+              faixa,
+              status: "falha",
+              erro: JSON.stringify(json).slice(0, 1000),
+              enviado_por: userId,
+            });
+          }
+        }
+      } catch (e) {
+        falha++;
+        if (!isTeste) {
           await admin.from("retencao_disparos").insert({
             cliente_id: c.cliente_id,
             telefone: tel,
             template_nome: "retencao_ebd_reengajamento",
             faixa,
             status: "falha",
-            erro: JSON.stringify(json).slice(0, 1000),
+            erro: String(e).slice(0, 1000),
             enviado_por: userId,
           });
         }
-      } catch (e) {
-        falha++;
-        await admin.from("retencao_disparos").insert({
-          cliente_id: c.cliente_id,
-          telefone: tel,
-          template_nome: "retencao_ebd_reengajamento",
-          faixa,
-          status: "falha",
-          erro: String(e).slice(0, 1000),
-          enviado_por: userId,
-        });
       }
 
       await new Promise((r) => setTimeout(r, 100));
