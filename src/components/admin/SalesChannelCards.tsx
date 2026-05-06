@@ -199,6 +199,7 @@ export function SalesChannelCards({
         propostas_revendedores: { valor: number; qtd: number };
         propostas_representantes: { valor: number; qtd: number };
         pdv_balcao: { valor: number; qtd: number };
+        outros_b2b?: { valor: number; qtd: number };
       };
     },
     staleTime: 30000, // Cache por 30 segundos
@@ -255,6 +256,7 @@ export function SalesChannelCards({
         atacado: { valor: 0, qtd: 0 },
         representantes: { valor: 0, qtd: 0 },
         pdvBalcao: { valor: 0, qtd: 0 },
+        outrosB2B: { valor: 0, qtd: 0 },
       };
     }
 
@@ -295,6 +297,10 @@ export function SalesChannelCards({
         valor: Number(channelTotals.pdv_balcao?.valor) || 0, 
         qtd: channelTotals.pdv_balcao?.qtd || 0 
       },
+      outrosB2B: {
+        valor: Number((channelTotals as any).outros_b2b?.valor) || 0,
+        qtd: (channelTotals as any).outros_b2b?.qtd || 0,
+      },
     };
   }, [channelTotals]);
 
@@ -313,7 +319,8 @@ export function SalesChannelCards({
       marketplaceData.revendedores.valor + 
       marketplaceData.atacado.valor + 
       marketplaceData.representantes.valor +
-      marketplaceData.pdvBalcao.valor;
+      marketplaceData.pdvBalcao.valor +
+      marketplaceData.outrosB2B.valor;
     
     const qtdTotal = 
       periodMetrics.qtdOnline + 
@@ -328,7 +335,8 @@ export function SalesChannelCards({
       marketplaceData.revendedores.qtd + 
       marketplaceData.atacado.qtd + 
       marketplaceData.representantes.qtd +
-      marketplaceData.pdvBalcao.qtd;
+      marketplaceData.pdvBalcao.qtd +
+      marketplaceData.outrosB2B.qtd;
     
     return { valorTotal, qtdTotal };
   }, [periodMetrics, marketplaceData]);
@@ -535,6 +543,16 @@ export function SalesChannelCards({
             colorClass="text-amber-700 dark:text-amber-300"
             borderColorClass="border-amber-200 dark:border-amber-800"
             bgClass="bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-950 dark:to-amber-900"
+          />
+
+          <StandardCard
+            icon={<Briefcase className="h-4 w-4 text-slate-600" />}
+            title="Outros B2B"
+            value={formatCurrency(marketplaceData.outrosB2B.valor)}
+            periodLabel={`${marketplaceData.outrosB2B.qtd} pedidos`}
+            colorClass="text-slate-700 dark:text-slate-300"
+            borderColorClass="border-slate-200 dark:border-slate-800"
+            bgClass="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900"
           />
 
           <StandardCard
