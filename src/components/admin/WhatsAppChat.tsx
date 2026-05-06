@@ -511,64 +511,77 @@ export default function WhatsAppChat() {
         .select("telefone_destino, nome_destino, mensagem, created_at")
         .order("created_at", { ascending: false });
 
-      // Build phone map
+      // Build phone map keyed by normalized phone (so received vs sent
+      // messages on the same number with/without country code merge into one).
       const phoneMap: Record<
         string,
-        { nome: string; ultimaMensagem: string; ultimaData: string }
+        { nome: string; ultimaMensagem: string; ultimaData: string; rawPhones: Set<string> }
       > = {};
 
-      (conversas || []).forEach((c: any) => {
-        if (!phoneMap[c.telefone]) {
-          phoneMap[c.telefone] = {
-            nome: c.telefone,
-            ultimaMensagem: c.content?.substring(0, 60) || "",
-            ultimaData: c.created_at,
+      const upsert = (
+        rawPhone: string,
+        nome: string,
+        content: string,
+        createdAt: string,
+      ) => {
+        if (!rawPhone) return;
+        const key = normalizePhone(rawPhone);
+        if (!key) return;
+        const snippet = (content || "").substring(0, 60);
+        const existing = phoneMap[key];
+        if (!existing) {
+          phoneMap[key] = {
+            nome: nome || rawPhone,
+            ultimaMensagem: snippet,
+            ultimaData: createdAt,
+            rawPhones: new Set([rawPhone]),
           };
+          return;
         }
+        existing.rawPhones.add(rawPhone);
+        if (nome && (existing.nome === existing.nome.replace(/\D/g, "") || /^\d+$/.test(existing.nome))) {
+          existing.nome = nome;
+        }
+        if (new Date(createdAt) > new Date(existing.ultimaData)) {
+          existing.ultimaMensagem = snippet;
+          existing.ultimaData = createdAt;
+        }
+      };
+
+      (conversas || []).forEach((c: any) => {
+        upsert(c.telefone, c.telefone, c.content, c.created_at);
       });
 
       (mensagens || []).forEach((m: any) => {
-        const msgPhone = m.telefone_destino;
-        if (!msgPhone) return;
-        // Try to find existing entry via phone variants
-        const variants = phoneVariants(msgPhone);
-        const existingKey = variants.find((v) => phoneMap[v]);
-        const key = existingKey || msgPhone;
-        if (!phoneMap[key]) {
-          phoneMap[key] = {
-            nome: m.nome_destino || msgPhone,
-            ultimaMensagem: m.mensagem?.substring(0, 60) || "",
-            ultimaData: m.created_at,
-          };
-        } else {
-          if (m.nome_destino && phoneMap[key].nome === key) {
-            phoneMap[key].nome = m.nome_destino;
-          }
-          if (new Date(m.created_at) > new Date(phoneMap[key].ultimaData)) {
-            phoneMap[key].ultimaMensagem = m.mensagem?.substring(0, 60) || "";
-            phoneMap[key].ultimaData = m.created_at;
-          }
-        }
+        upsert(m.telefone_destino, m.nome_destino, m.mensagem, m.created_at);
       });
 
-      // Get webhook info for names and photos
-      const phones = Object.keys(phoneMap);
-      const { data: webhooks } = await supabase
-        .from("whatsapp_webhooks")
-        .select("telefone, payload")
-        .eq("evento", "ReceivedCallback")
-        .in("telefone", phones)
-        .order("created_at", { ascending: false });
+      // Get webhook info for names and photos — match across all raw phone variants
+      const allRawPhones = Array.from(
+        new Set(Object.values(phoneMap).flatMap((v) => Array.from(v.rawPhones))),
+      );
+      const { data: webhooks } = allRawPhones.length
+        ? await supabase
+            .from("whatsapp_webhooks")
+            .select("telefone, payload")
+            .eq("evento", "ReceivedCallback")
+            .in("telefone", allRawPhones)
+            .order("created_at", { ascending: false })
+        : { data: [] as any[] };
 
       const photoMap: Record<string, { nome: string; foto: string | null }> = {};
       (webhooks || []).forEach((w: any) => {
-        if (!photoMap[w.telefone] && w.payload) {
-          photoMap[w.telefone] = {
+        const key = normalizePhone(w.telefone || "");
+        if (!key) return;
+        if (!photoMap[key] && w.payload) {
+          photoMap[key] = {
             nome: w.payload?.senderName || "",
             foto: w.payload?.photo || null,
           };
         }
       });
+
+      const phones = Object.keys(phoneMap);
 
       // Get vendor info from leads - fetch all leads with vendors then match by normalized phone
       const { data: leads } = await supabase
