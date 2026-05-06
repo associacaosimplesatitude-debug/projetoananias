@@ -42,10 +42,7 @@ const COLUNAS = [
   { key: "a_contatar", label: "📞 A Contatar", color: "border-t-orange-500" },
   { key: "interessado", label: "🌱 Interessado", color: "border-t-green-500" },
   { key: "falar_com_consultor", label: "💬 Falar com Consultor", color: "border-t-amber-500" },
-  { key: "contato_feito", label: "✅ Contato Feito", color: "border-t-blue-500" },
-  { key: "retorno_agendado", label: "📅 Retorno Agendado", color: "border-t-yellow-500" },
   { key: "recusou", label: "🙅 Recusou", color: "border-t-rose-400" },
-  { key: "perdido", label: "❌ Perdido", color: "border-t-destructive" },
   { key: "fechados", label: "🎯 Fechados (mês)", color: "border-t-emerald-500" },
 ];
 
@@ -53,10 +50,7 @@ const COLUNA_TO_RESULTADO: Record<string, string | null> = {
   a_contatar: null,
   interessado: "interessado",
   falar_com_consultor: "falar_com_consultor",
-  contato_feito: "sem_resposta",
-  retorno_agendado: "retorno_agendado",
   recusou: "recusou",
-  perdido: "nao_quer_mais",
   fechados: "comprou",
 };
 
@@ -115,7 +109,7 @@ export function RetencaoKanban({ clientes, filtroVendedor, filtroCanal, disparos
 
   return (
     <>
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-8 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
         {COLUNAS.map(col => {
           const items = filtered.filter(c => c.coluna_kanban === col.key);
           const showTotal = col.key === "a_contatar" || col.key === "fechados";

@@ -1,18 +1,28 @@
-## Mostrar valor total + valor da última compra no card
+## Remover 3 colunas do Kanban de Retenção
 
-No Kanban da Retenção, manter o valor total acumulado e adicionar abaixo o valor da última compra (a mais recente entre Shopify, Mercado Pago e Faturado).
+Remover as colunas que não fazem mais sentido na tela `/admin/ebd/retencao`:
+- Retorno Agendado
+- Perdido
+- Contato Feito
+
+### Layout final (5 colunas)
+
+```
+📞 A Contatar | 🌱 Interessado | 💬 Falar com Consultor | 🙅 Recusou | 🎯 Fechados (mês)
+```
 
 ### Alterações
 
-**1. RPC `get_retencao_dashboard` (migration)**
-- No CTE `base`, adicionar `valor_ultima_compra`: o `valor_total` do pedido cuja data corresponde a `data_ultima_compra` (vem da CTE de canal vencedor — Shopify, MP ou Faturado).
-- Implementação: nas CTEs `ult_shopify`, `ult_mp`, `ult_fat`, capturar também `val_ultimo` = `(array_agg(valor_total ORDER BY created_at DESC))[1]`. Em `base`, escolher o `val_ultimo` do canal cuja `dt` é a maior (mesmo critério já usado para `canal_ultima_compra`).
-- Adicionar `valor_ultima_compra` (numeric, 2 casas) ao JSON `kanban_clientes`.
+**1. `src/components/admin/retencao/RetencaoKanban.tsx`**
+- Remover do array `COLUNAS` as entradas `contato_feito`, `retorno_agendado` e `perdido`.
+- Remover do mapa `COLUNA_TO_RESULTADO` as chaves correspondentes (drag-and-drop só permitirá soltar nas 5 colunas restantes).
+- Ajustar o grid: `xl:grid-cols-5` (em vez de 8).
 
-**2. `RetencaoKanban.tsx`**
-- Adicionar `valor_ultima_compra?: number` à interface `KanbanCliente`.
-- No card, manter a linha "Compra: R$ X" mostrando `valor_total_compras` (renomear para "Total compras: R$ X" para clareza).
-- Adicionar nova linha logo abaixo: "Última: R$ Y" com `valor_ultima_compra`.
+**2. RPC `get_retencao_dashboard` (migration)**
+- Na expressão `coluna_kanban`, remover os `WHEN` para `nao_quer_mais` (perdido), `retorno_agendado` e o fallback genérico que mandava qualquer outro `ultimo_resultado` para `contato_feito`.
+- Clientes com esses resultados antigos cairão em `a_contatar` por padrão (volta a aparecer como pendente).
+- O filtro do `WHERE` final continua o mesmo (>60 dias OU fechado no mês OU resultado interessado/falar/recusou).
 
 ### Fora de escopo
-- Faixas, totais por coluna, lógica de classificação, modais.
+- Não mexer no modal `RegistrarContatoModal` (continua salvando os mesmos resultados; só não terão mais coluna dedicada).
+- Não mexer no webhook do WhatsApp.
