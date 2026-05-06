@@ -1,34 +1,38 @@
-## Objetivo
-Fazer a aba **Conversas** em `/admin/whatsapp` exibir também as mensagens recebidas, alinhando o painel com o volume que já aparece na Meta Business.
+## Diagnóstico
 
-## O que vou implementar
-1. **Validar a origem da divergência entre Meta e painel**
-   - Confirmar onde as mensagens recebidas estão sendo persistidas hoje.
-   - Verificar se a ausência no chat vem de ingestão incompleta do webhook, filtro de leitura, ou correspondência incorreta de telefone.
+O clique foi recebido e gravou corretamente em `ebd_retencao_contatos`:
 
-2. **Corrigir a fonte de dados do chat**
-   - Ajustar a lógica para que a conversa aberta carregue todas as mensagens recebidas realmente disponíveis para o número selecionado.
-   - Garantir compatibilidade entre variantes do telefone (com/sem 55, com/sem 9º dígito) sem duplicar mensagens.
+```
+cliente_id: 4590e8fe-... (Cleuton Soares)
+resultado: falar_com_consultor
+```
 
-3. **Corrigir a lista lateral de conversas**
-   - Fazer a sidebar refletir o último evento real da conversa, incluindo recebidas.
-   - Preservar nomes/fotos já enriquecidos pelos webhooks e manter a ordenação por mensagem mais recente.
+Porém o cliente **não tem nenhuma compra** registrada (Shopify/MP/Faturado todos `NULL`).
 
-4. **Validar com o número de teste informado**
-   - Conferir especificamente o fluxo do número `11947141878`.
-   - Verificar se, ao abrir a conversa, as mensagens recebidas passam a aparecer junto das enviadas.
+A função SQL `get_retencao_dashboard` monta o CTE `com_dias` filtrando `WHERE data_ultima_compra > '-infinity'`. Como esse cliente nunca comprou, ele é descartado antes de chegar no `kanban_clientes` — mesmo tendo `ultimo_resultado = 'falar_com_consultor'`.
 
-## Evidência já encontrada
-- O frontend da conversa já consulta `whatsapp_conversas` para mensagens recebidas e `whatsapp_mensagens` para enviadas.
-- Há mensagens recebidas no banco, mas o total salvo em `whatsapp_conversas` está abaixo do total de recebidas reportado nos webhooks/Meta, indicando que parte da divergência vem da ingestão.
-- A UI atual também depende de correspondência por telefone, o que pode ocultar mensagens quando o mesmo contato entra com formatos diferentes.
+Resultado: o card simplesmente não existe no Kanban.
 
-## Detalhes técnicos
-- Arquivos-alvo prováveis:
-  - `src/components/admin/WhatsAppChat.tsx`
-  - `supabase/functions/whatsapp-webhook/index.ts` (somente se a falha confirmada estiver na ingestão)
-- Manterei o escopo restrito ao módulo de WhatsApp admin e ao webhook relacionado.
-- Não vou alterar outras áreas administrativas nem fluxos não relacionados.
+## Plano (1 alteração — migration SQL)
+
+Atualizar a função `public.get_retencao_dashboard` para incluir clientes sem histórico de compras quando eles tiverem `ultimo_resultado IN ('interessado','falar_com_consultor','recusou')`.
+
+### Mudanças na função
+
+1. **CTE `com_dias`**: remover o filtro `WHERE data_ultima_compra > '-infinity'` ou flexibilizá-lo para manter clientes com `ultimo_resultado` relevante. `dias_sem_compra` será `NULL` quando não houver compra.
+
+2. **`kanban_clientes`**: o `WHERE` final já contempla `cd.ultimo_resultado IN ('interessado','falar_com_consultor','recusou')`, então clientes sem compra mas com resposta passarão a aparecer normalmente.
+
+3. **`coluna_kanban`**: a lógica `CASE WHEN cd.ultimo_resultado = 'falar_com_consultor' THEN 'falar_com_consultor'` já existe — funcionará automaticamente.
+
+4. **Faixas (contagem verde/amarelo/vermelho/perdido)**: manter o filtro `dias_sem_compra IS NOT NULL` nessas contagens para não inflar números com clientes sem compra.
+
+### Sem alterações em frontend
+
+`RetencaoKanban.tsx` já trata `dias_sem_compra` e renderiza a coluna `falar_com_consultor`. Nada a mudar lá.
 
 ## Resultado esperado
-Ao abrir uma conversa em `/admin/whatsapp`, o histórico exibirá mensagens **enviadas e recebidas**, em ordem cronológica, sem depender de o contato ter somente mensagens enviadas.
+
+Após a migration, ao recarregar `/admin/ebd/retencao`, o card "Cleuton Soares" aparecerá na coluna **💬 Falar com Consultor**.
+
+Posso aplicar?
