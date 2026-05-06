@@ -83,9 +83,15 @@ export function DispararCampanhaModal({ open, onOpenChange, clientes, onDispatch
   const handleConfirm = async () => {
     setLoading(true);
     try {
+      const selecionados = NUMEROS_TESTE.filter((n) => testeIds.has(n.id));
       const body: any = isTeste
-        ? { numeros_teste: NUMEROS_TESTE.filter((n) => testeIds.has(n.id)) }
+        ? {
+            isTeste: true,
+            numeros_teste: selecionados.map((n) => n.telefone),
+            numeros_teste_detalhes: selecionados,
+          }
         : { faixa, excluir_recentes: excluirRecentes };
+      console.log("[DispararCampanhaModal] invoking edge function with body:", body);
       const { data, error } = await supabase.functions.invoke("retencao-disparar-whatsapp", { body });
       if (error) throw error;
       const r = data as { total: number; sucesso: number; falha: number };
