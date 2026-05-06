@@ -1,28 +1,35 @@
-## Remover 3 colunas do Kanban de Retenção
+## Problema
 
-Remover as colunas que não fazem mais sentido na tela `/admin/ebd/retencao`:
-- Retorno Agendado
-- Perdido
-- Contato Feito
+Na aba **Conversas** de `/admin/whatsapp`, ao abrir um contato (ex.: 11947141878), só aparecem as mensagens enviadas. As mensagens recebidas não aparecem mesmo existindo no banco (7 mensagens "user" para esse número em `whatsapp_conversas`).
 
-### Layout final (5 colunas)
+## Causa raiz
 
+A tabela `whatsapp_conversas` tem RLS habilitado mas a única policy existente é `"Service role full access"`. Não há policy permitindo `SELECT` para admins/gerente_ebd autenticados via app.
+
+Resultado: o `supabase.from("whatsapp_conversas").select(...)` no `WhatsAppChat.tsx` (linha 210) retorna `[]` para o usuário admin logado, então só as mensagens da tabela `whatsapp_mensagens` (que tem policy de admin) aparecem.
+
+As outras tabelas relacionadas (`whatsapp_mensagens`, `whatsapp_webhooks`) já têm policy de admin/gerente_ebd para SELECT — só `whatsapp_conversas` ficou sem.
+
+## Correção
+
+Migration única adicionando policy de SELECT em `whatsapp_conversas` para admin e gerente_ebd, no mesmo padrão das tabelas vizinhas:
+
+```sql
+CREATE POLICY "Admins can read whatsapp_conversas"
+ON public.whatsapp_conversas
+FOR SELECT
+USING (
+  EXISTS (
+    SELECT 1 FROM public.user_roles
+    WHERE user_id = auth.uid()
+      AND role = ANY (ARRAY['admin'::app_role, 'gerente_ebd'::app_role])
+  )
+);
 ```
-📞 A Contatar | 🌱 Interessado | 💬 Falar com Consultor | 🙅 Recusou | 🎯 Fechados (mês)
-```
 
-### Alterações
+Nenhuma alteração de código frontend necessária — o `WhatsAppChat.tsx` já busca corretamente de `whatsapp_conversas` (role=user → recebida, role=assistant → enviada). Após a policy, as mensagens recebidas aparecerão automaticamente no chat.
 
-**1. `src/components/admin/retencao/RetencaoKanban.tsx`**
-- Remover do array `COLUNAS` as entradas `contato_feito`, `retorno_agendado` e `perdido`.
-- Remover do mapa `COLUNA_TO_RESULTADO` as chaves correspondentes (drag-and-drop só permitirá soltar nas 5 colunas restantes).
-- Ajustar o grid: `xl:grid-cols-5` (em vez de 8).
+## Escopo
 
-**2. RPC `get_retencao_dashboard` (migration)**
-- Na expressão `coluna_kanban`, remover os `WHEN` para `nao_quer_mais` (perdido), `retorno_agendado` e o fallback genérico que mandava qualquer outro `ultimo_resultado` para `contato_feito`.
-- Clientes com esses resultados antigos cairão em `a_contatar` por padrão (volta a aparecer como pendente).
-- O filtro do `WHERE` final continua o mesmo (>60 dias OU fechado no mês OU resultado interessado/falar/recusou).
-
-### Fora de escopo
-- Não mexer no modal `RegistrarContatoModal` (continua salvando os mesmos resultados; só não terão mais coluna dedicada).
-- Não mexer no webhook do WhatsApp.
+- Apenas 1 migration SQL (criar policy de SELECT)
+- Sem alterações em código frontend ou edge functions
