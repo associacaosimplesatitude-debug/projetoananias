@@ -133,8 +133,38 @@ function OtpVerificationCard() {
             </Button>
           </div>
         )}
+
+        <SubscribeWabaButton />
       </CardContent>
     </Card>
+  );
+}
+
+function SubscribeWabaButton() {
+  const [loading, setLoading] = useState(false);
+  async function handleClick() {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("whatsapp-subscribe-waba", {
+        body: {},
+      });
+      if (error) throw error;
+      if (data?.success) {
+        toast.success("WABA vinculada ao app! Resposta: " + JSON.stringify(data.data));
+      } else {
+        toast.error(data?.data?.error?.message || data?.error || "Falha ao vincular WABA");
+      }
+    } catch (err: any) {
+      toast.error(err?.message || "Erro ao vincular WABA");
+    } finally {
+      setLoading(false);
+    }
+  }
+  return (
+    <Button onClick={handleClick} disabled={loading} variant="secondary" className="gap-2">
+      {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Webhook className="h-4 w-4" />}
+      Vincular WABA ao App
+    </Button>
   );
 }
 
