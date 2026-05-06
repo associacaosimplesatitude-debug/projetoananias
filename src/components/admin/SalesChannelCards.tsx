@@ -297,6 +297,10 @@ export function SalesChannelCards({
         valor: Number(channelTotals.pdv_balcao?.valor) || 0, 
         qtd: channelTotals.pdv_balcao?.qtd || 0 
       },
+      outrosB2B: {
+        valor: Number((channelTotals as any).outros_b2b?.valor) || 0,
+        qtd: (channelTotals as any).outros_b2b?.qtd || 0,
+      },
     };
   }, [channelTotals]);
 
