@@ -288,9 +288,9 @@ async function handleMetaPost(
           // Map retencao campaign button → kanban column
           const btnId = (btnReply?.id as string) || "";
           const retencaoMap: Record<string, string> = {
-            ver_novidades: "interessado",
-            falar_consultor: "falar_com_consultor",
-            nao_obrigado: "recusou",
+            "0": "interessado",
+            "1": "falar_com_consultor",
+            "2": "recusou",
           };
           const novoResultado = retencaoMap[btnId];
           if (novoResultado) {
