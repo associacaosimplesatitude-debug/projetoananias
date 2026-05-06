@@ -14,8 +14,11 @@ function normalizePhone(raw: string | null): string | null {
   return p;
 }
 
+console.log("[retencao-disparar-whatsapp] função iniciada");
+
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  console.log("[retencao-disparar-whatsapp] request recebido", req.method);
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
     const authHeader = req.headers.get("Authorization");
