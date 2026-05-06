@@ -37,7 +37,26 @@ export default function EbdRetencao() {
       if (error) throw error;
       return data as unknown as RetencaoDashboard;
     },
+    refetchInterval: 30000,
+    refetchOnWindowFocus: true,
   });
+
+  // Realtime: atualiza quando chega novo contato (ex.: clique em botão WhatsApp)
+  useEffect(() => {
+    const channel = supabase
+      .channel("retencao-contatos-realtime")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "ebd_retencao_contatos" },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["retencao-dashboard"] });
+        }
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
 
   // Load vendedores for filter (admin only)
   const { data: vendedores } = useQuery({
