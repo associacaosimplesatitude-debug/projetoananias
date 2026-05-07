@@ -202,6 +202,19 @@ export default function EbdRetencao() {
             >
               Reenviar interesse pendentes
             </Button>
+            <Button
+              variant="outline"
+              onClick={async () => {
+                const { toast } = await import("sonner");
+                toast.info("Reprocessando presentes pendentes...");
+                const { data, error } = await supabase.functions.invoke("reprocessar-presentes-pendentes");
+                if (error) toast.error("Erro: " + error.message);
+                else toast.success(`Enfileirados ${data?.total ?? 0} clientes (3s entre cada).`);
+                queryClient.invalidateQueries({ queryKey: ["retencao-dashboard"] });
+              }}
+            >
+              Reprocessar presentes pendentes
+            </Button>
             <Button onClick={() => setCampanhaOpen(true)}>
               <Megaphone className="h-4 w-4 mr-2" />
               Disparar campanha WhatsApp
