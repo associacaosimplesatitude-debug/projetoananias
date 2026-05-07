@@ -263,16 +263,17 @@ async function processarRespostaRetencao(
   for (const sf of sufs) {
     const { data } = await supabase
       .from("ebd_clientes")
-      .select("id, vendedor_id, nome_igreja, email_superintendente, telefone")
+      .select("id, vendedor_id, nome_igreja, email_superintendente, telefone, updated_at")
       .or(`telefone.ilike.%${sf}`)
-      .limit(1)
-      .maybeSingle();
-    if (data) { cliente = data as any; break; }
+      .order("updated_at", { ascending: false })
+      .limit(1);
+    if (data && data.length > 0) { cliente = data[0] as any; break; }
   }
   if (!cliente) {
     console.log(`[Retencao] cliente não encontrado p/ ${senderPhone}`);
     return;
   }
+  console.log(`[Retencao] match cliente=${cliente.id} (${cliente.nome_igreja}) tipo=${match.tipo} btn=${btnId || texto}`);
 
   // Inserir histórico
   await supabase.from("ebd_retencao_contatos").insert({
@@ -452,12 +453,12 @@ async function handleMetaPost(
         for (const suffix of phoneSuffixes) {
           const { data } = await supabase
             .from("ebd_clientes")
-            .select("id")
+            .select("id, updated_at")
             .or(`telefone.ilike.%${suffix}`)
-            .limit(1)
-            .single();
-          if (data) {
-            clienteId = data.id;
+            .order("updated_at", { ascending: false })
+            .limit(1);
+          if (data && data.length > 0) {
+            clienteId = data[0].id;
             break;
           }
         }
