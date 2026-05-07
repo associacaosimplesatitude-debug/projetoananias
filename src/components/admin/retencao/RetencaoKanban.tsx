@@ -175,7 +175,11 @@ export function RetencaoKanban({ clientes, filtroVendedor, filtroCanal, disparos
                             📩 Enviada em {format(new Date(disparosMap[c.cliente_id]), "dd/MM", { locale: ptBR })}
                           </Badge>
                         )}
-                        {autoRepliedMap?.[c.cliente_id] && (
+                        {c.coluna_kanban === "aceitou_presente" && licencaConcedidaMap?.[c.cliente_id] ? (
+                          <Badge className="text-[10px] bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-100">
+                            📦 Acesso liberado em {format(new Date(licencaConcedidaMap[c.cliente_id]), "dd/MM HH:mm", { locale: ptBR })}
+                          </Badge>
+                        ) : autoRepliedMap?.[c.cliente_id] && (
                           <Badge className="text-[10px] bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200">
                             ✅ Interesse respondido em {format(new Date(autoRepliedMap[c.cliente_id]), "dd/MM HH:mm", { locale: ptBR })}
                           </Badge>
