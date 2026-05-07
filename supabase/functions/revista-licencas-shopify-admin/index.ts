@@ -110,10 +110,15 @@ serve(async (req) => {
     }
 
     if (action === "insert") {
-      const { error } = await supabaseAdmin
+      const { data: inserted, error } = await supabaseAdmin
         .from("revista_licencas_shopify")
-        .insert(params.record);
+        .insert(params.record)
+        .select("id")
+        .single();
       if (error) throw error;
+      return new Response(JSON.stringify({ success: true, id: inserted?.id }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
       return new Response(JSON.stringify({ success: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
