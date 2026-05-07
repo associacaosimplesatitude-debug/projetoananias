@@ -5674,6 +5674,7 @@ export type Database = {
           mensagem_recebida: string | null
           telefone: string
           tipo: string
+          wa_acesso_enviado_em: string | null
         }
         Insert: {
           auto_replied_em?: string | null
@@ -5687,6 +5688,7 @@ export type Database = {
           mensagem_recebida?: string | null
           telefone: string
           tipo: string
+          wa_acesso_enviado_em?: string | null
         }
         Update: {
           auto_replied_em?: string | null
@@ -5700,6 +5702,7 @@ export type Database = {
           mensagem_recebida?: string | null
           telefone?: string
           tipo?: string
+          wa_acesso_enviado_em?: string | null
         }
         Relationships: [
           {

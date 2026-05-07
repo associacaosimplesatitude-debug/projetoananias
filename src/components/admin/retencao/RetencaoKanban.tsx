@@ -37,11 +37,13 @@ interface Props {
   filtroCanal?: string;
   disparosMap?: Record<string, string>; // cliente_id -> ISO date do último envio
   autoRepliedMap?: Record<string, string>; // cliente_id -> ISO date da auto-resposta de interesse
+  licencaConcedidaMap?: Record<string, string>; // cliente_id -> ISO date da concessão de licença do presente
 }
 
 const COLUNAS = [
   { key: "a_contatar", label: "📞 A Contatar", color: "border-t-orange-500" },
   { key: "interessado", label: "🌱 Interessado", color: "border-t-green-500" },
+  { key: "aceitou_presente", label: "🎁 Aceitou Presente", color: "border-t-amber-400" },
   { key: "falar_com_consultor", label: "💬 Falar com Consultor", color: "border-t-amber-500" },
   { key: "recusou", label: "🙅 Recusou", color: "border-t-rose-400" },
   { key: "fechados", label: "🎯 Fechados (mês)", color: "border-t-emerald-500" },
@@ -64,7 +66,7 @@ const canalBadgeColor = (canal: string) => {
   }
 };
 
-export function RetencaoKanban({ clientes, filtroVendedor, filtroCanal, disparosMap, autoRepliedMap }: Props) {
+export function RetencaoKanban({ clientes, filtroVendedor, filtroCanal, disparosMap, autoRepliedMap, licencaConcedidaMap }: Props) {
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedCliente, setSelectedCliente] = useState<KanbanCliente | null>(null);
 
@@ -110,7 +112,7 @@ export function RetencaoKanban({ clientes, filtroVendedor, filtroCanal, disparos
 
   return (
     <>
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-4">
         {COLUNAS.map(col => {
           const items = filtered.filter(c => c.coluna_kanban === col.key);
           const totalCol = items.reduce(
@@ -173,7 +175,11 @@ export function RetencaoKanban({ clientes, filtroVendedor, filtroCanal, disparos
                             📩 Enviada em {format(new Date(disparosMap[c.cliente_id]), "dd/MM", { locale: ptBR })}
                           </Badge>
                         )}
-                        {autoRepliedMap?.[c.cliente_id] && (
+                        {c.coluna_kanban === "aceitou_presente" && licencaConcedidaMap?.[c.cliente_id] ? (
+                          <Badge className="text-[10px] bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-100">
+                            📦 Acesso liberado em {format(new Date(licencaConcedidaMap[c.cliente_id]), "dd/MM HH:mm", { locale: ptBR })}
+                          </Badge>
+                        ) : autoRepliedMap?.[c.cliente_id] && (
                           <Badge className="text-[10px] bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200">
                             ✅ Interesse respondido em {format(new Date(autoRepliedMap[c.cliente_id]), "dd/MM HH:mm", { locale: ptBR })}
                           </Badge>

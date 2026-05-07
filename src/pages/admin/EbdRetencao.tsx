@@ -109,6 +109,26 @@ export default function EbdRetencao() {
     refetchInterval: 30000,
   });
 
+  // Mapa de licença concedida (presente cartas da prisão liberado)
+  const { data: licencaConcedidaMap = {} } = useQuery<Record<string, string>>({
+    queryKey: ["retencao-licenca-concedida-map"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("retencao_respostas")
+        .select("cliente_id, licenca_concedida_em")
+        .eq("tipo", "aceitar_presente")
+        .not("licenca_concedida_em", "is", null)
+        .order("licenca_concedida_em", { ascending: false });
+      const map: Record<string, string> = {};
+      (data || []).forEach((r: any) => {
+        if (r.cliente_id && !map[r.cliente_id]) map[r.cliente_id] = r.licenca_concedida_em;
+      });
+      return map;
+    },
+    enabled: podeDisparar,
+    refetchInterval: 30000,
+  });
+
   const faixas = data?.faixas || { verde: 0, amarelo: 0, vermelho: 0, perdido: 0, fechados: 0 };
 
   const cards = [
@@ -237,6 +257,7 @@ export default function EbdRetencao() {
           filtroCanal={filtroCanal}
           disparosMap={disparosMap}
           autoRepliedMap={autoRepliedMap}
+          licencaConcedidaMap={licencaConcedidaMap}
         />
       )}
 
