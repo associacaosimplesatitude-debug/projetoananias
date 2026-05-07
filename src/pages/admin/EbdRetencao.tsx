@@ -157,7 +157,7 @@ export default function EbdRetencao() {
         </Select>
 
         {podeDisparar && (
-          <>
+          <div className="ml-auto flex gap-2">
             <Button
               variant="outline"
               onClick={async () => {
