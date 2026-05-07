@@ -286,9 +286,16 @@ async function handleMetaPost(
             "falar com consultor": "falar_com_consultor",
             "tenho interesse": "interessado",
             "interessado": "interessado",
+            "quero ver as novidades": "interessado",
+            "ver novidades": "interessado",
+            "quero novidades": "interessado",
             "não tenho interesse": "recusou",
             "nao tenho interesse": "recusou",
             "recusar": "recusou",
+            "agora não, obrigado": "recusou",
+            "agora nao, obrigado": "recusou",
+            "agora não obrigado": "recusou",
+            "agora nao obrigado": "recusou",
           };
           const novoResultadoBtn = labelMap[btnText.trim().toLowerCase()];
           if (novoResultadoBtn) {
