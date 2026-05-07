@@ -37,11 +37,13 @@ interface Props {
   filtroCanal?: string;
   disparosMap?: Record<string, string>; // cliente_id -> ISO date do último envio
   autoRepliedMap?: Record<string, string>; // cliente_id -> ISO date da auto-resposta de interesse
+  licencaConcedidaMap?: Record<string, string>; // cliente_id -> ISO date da concessão de licença do presente
 }
 
 const COLUNAS = [
   { key: "a_contatar", label: "📞 A Contatar", color: "border-t-orange-500" },
   { key: "interessado", label: "🌱 Interessado", color: "border-t-green-500" },
+  { key: "aceitou_presente", label: "🎁 Aceitou Presente", color: "border-t-amber-400" },
   { key: "falar_com_consultor", label: "💬 Falar com Consultor", color: "border-t-amber-500" },
   { key: "recusou", label: "🙅 Recusou", color: "border-t-rose-400" },
   { key: "fechados", label: "🎯 Fechados (mês)", color: "border-t-emerald-500" },
