@@ -157,7 +157,20 @@ export default function EbdRetencao() {
         </Select>
 
         {podeDisparar && (
-          <div className="ml-auto flex gap-2">
+          <div className="ml-auto flex gap-2 flex-wrap">
+            <Button
+              variant="outline"
+              onClick={async () => {
+                const { toast } = await import("sonner");
+                toast.info("Reprocessando cliques perdidos...");
+                const { data, error } = await supabase.functions.invoke("backfill-cliques-novidades-perdidos");
+                if (error) toast.error("Erro: " + error.message);
+                else toast.success(`Cliques: ${data?.sucesso ?? 0} ok, ${data?.jaTinha ?? 0} já existiam, ${data?.semCliente ?? 0} sem cadastro, ${data?.falha ?? 0} falha (total ${data?.total ?? 0})`);
+                queryClient.invalidateQueries({ queryKey: ["retencao-dashboard"] });
+              }}
+            >
+              Reprocessar cliques perdidos
+            </Button>
             <Button
               variant="outline"
               onClick={async () => {
