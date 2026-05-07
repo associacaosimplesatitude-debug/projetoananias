@@ -213,6 +213,142 @@ async function getVerifyToken(supabase: ReturnType<typeof createClient>): Promis
   return "centralgospel123"; // fallback
 }
 
+// ── Classifica resposta de campanha de retenção ──
+async function processarRespostaRetencao(
+  supabase: ReturnType<typeof createClient>,
+  telefone: string,
+  texto: string,
+  btnId: string
+) {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+  // Map por id (interactive original do template)
+  const idMap: Record<string, { resultado: string; tipo: string }> = {
+    "0": { resultado: "interessado", tipo: "interesse" },
+    "1": { resultado: "falar_com_consultor", tipo: "quente" },
+    "2": { resultado: "recusou", tipo: "recusa" },
+    "presente_sim": { resultado: "whatsapp_aceitou_presente_revista", tipo: "aceitar_presente" },
+    "presente_consultor": { resultado: "falar_com_consultor", tipo: "quente" },
+    "presente_depois": { resultado: "whatsapp_adiou_presente", tipo: "adiar_presente" },
+  };
+
+  const t = (texto || "").trim().toLowerCase().replace(/[🎁💬⏰]/g, "").trim();
+  const labelMap: Record<string, { resultado: string; tipo: string }> = {
+    "falar com consultor": { resultado: "falar_com_consultor", tipo: "quente" },
+    "tenho interesse": { resultado: "interessado", tipo: "interesse" },
+    "interessado": { resultado: "interessado", tipo: "interesse" },
+    "quero ver as novidades": { resultado: "interessado", tipo: "interesse" },
+    "ver novidades": { resultado: "interessado", tipo: "interesse" },
+    "quero novidades": { resultado: "interessado", tipo: "interesse" },
+    "não tenho interesse": { resultado: "recusou", tipo: "recusa" },
+    "nao tenho interesse": { resultado: "recusou", tipo: "recusa" },
+    "recusar": { resultado: "recusou", tipo: "recusa" },
+    "agora não, obrigado": { resultado: "recusou", tipo: "recusa" },
+    "agora nao, obrigado": { resultado: "recusou", tipo: "recusa" },
+    "agora não obrigado": { resultado: "recusou", tipo: "recusa" },
+    "agora nao obrigado": { resultado: "recusou", tipo: "recusa" },
+    "sim, libera!": { resultado: "whatsapp_aceitou_presente_revista", tipo: "aceitar_presente" },
+    "sim libera": { resultado: "whatsapp_aceitou_presente_revista", tipo: "aceitar_presente" },
+    "talvez depois": { resultado: "whatsapp_adiou_presente", tipo: "adiar_presente" },
+    "falar consultor": { resultado: "falar_com_consultor", tipo: "quente" },
+  };
+
+  const match = (btnId && idMap[btnId]) || labelMap[t];
+  if (!match) return;
+
+  const senderPhone = normalizePhone(telefone);
+  const sufs = [senderPhone, senderPhone.slice(-11), senderPhone.slice(-10)];
+  let cliente: { id: string; vendedor_id: string | null; nome_igreja: string; email_superintendente: string | null; telefone: string | null } | null = null;
+  for (const sf of sufs) {
+    const { data } = await supabase
+      .from("ebd_clientes")
+      .select("id, vendedor_id, nome_igreja, email_superintendente, telefone")
+      .or(`telefone.ilike.%${sf}`)
+      .limit(1)
+      .maybeSingle();
+    if (data) { cliente = data as any; break; }
+  }
+  if (!cliente) {
+    console.log(`[Retencao] cliente não encontrado p/ ${senderPhone}`);
+    return;
+  }
+
+  // Inserir histórico
+  await supabase.from("ebd_retencao_contatos").insert({
+    cliente_id: cliente.id,
+    vendedor_id: cliente.vendedor_id,
+    tipo_contato: "whatsapp",
+    resultado: match.resultado,
+    observacao: `Resposta automática (botão: ${texto || btnId})`,
+  });
+
+  // Inserir em retencao_respostas
+  await supabase.from("retencao_respostas").insert({
+    cliente_id: cliente.id,
+    telefone: senderPhone,
+    tipo: match.tipo,
+    mensagem_recebida: texto || btnId,
+  });
+
+  // Buscar nome do vendedor
+  let vendedorNome = "seu consultor";
+  if (cliente.vendedor_id) {
+    const { data: v } = await supabase.from("vendedores").select("nome").eq("id", cliente.vendedor_id).maybeSingle();
+    if (v?.nome) vendedorNome = v.nome;
+  }
+
+  // Disparar fluxos
+  if (match.tipo === "interesse") {
+    // @ts-ignore EdgeRuntime is global on Deno deploy
+    const wait = (globalThis as any).EdgeRuntime?.waitUntil ?? ((p: Promise<unknown>) => p);
+    wait(fetch(`${supabaseUrl}/functions/v1/responder-interesse-novidades`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${serviceKey}` },
+      body: JSON.stringify({ cliente_id: cliente.id, telefone: senderPhone, nome: cliente.nome_igreja, vendedor_nome: vendedorNome }),
+    }).catch((e) => console.error("[fire-and-forget interesse]", e)));
+  }
+
+  if (match.tipo === "aceitar_presente") {
+    // @ts-ignore
+    const wait = (globalThis as any).EdgeRuntime?.waitUntil ?? ((p: Promise<unknown>) => p);
+    wait(fetch(`${supabaseUrl}/functions/v1/liberar-presente-cartas-prisao`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${serviceKey}` },
+      body: JSON.stringify({
+        cliente_id: cliente.id,
+        telefone: senderPhone,
+        nome: cliente.nome_igreja,
+        email: cliente.email_superintendente,
+        vendedor_nome: vendedorNome,
+      }),
+    }).catch((e) => console.error("[fire-and-forget presente]", e)));
+  }
+
+  if (match.tipo === "adiar_presente") {
+    // Mensagem livre de despedida
+    try {
+      const { data: settings } = await supabase
+        .from("system_settings")
+        .select("key, value")
+        .in("key", ["whatsapp_phone_number_id", "whatsapp_access_token"]);
+      const sm: Record<string, string> = {};
+      (settings || []).forEach((s: any) => { sm[s.key] = s.value; });
+      const to = senderPhone.startsWith("55") ? senderPhone : "55" + senderPhone;
+      await fetch(`https://graph.facebook.com/v23.0/${sm["whatsapp_phone_number_id"]}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${sm["whatsapp_access_token"]}` },
+        body: JSON.stringify({
+          messaging_product: "whatsapp",
+          to,
+          type: "text",
+          text: { body: `Tudo bem, ${cliente.nome_igreja}! Sem pressa nenhuma 🙌\n\nVou guardar isso aqui e te procuro daqui um tempinho com novidades. Se mudar de ideia antes, é só me chamar que eu libero na hora — o presente fica reservado pra você.\n\nQue Deus continue abençoando sua igreja 🙏` },
+        }),
+      });
+    } catch (e) { console.error("[adiar_presente]", e); }
+  }
+}
+
 // ── Process Meta webhook POST payload ──
 async function handleMetaPost(
   supabase: ReturnType<typeof createClient>,
