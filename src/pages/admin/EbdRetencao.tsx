@@ -223,6 +223,7 @@ export default function EbdRetencao() {
           filtroVendedor={filtroVendedor}
           filtroCanal={filtroCanal}
           disparosMap={disparosMap}
+          autoRepliedMap={autoRepliedMap}
         />
       )}
 
