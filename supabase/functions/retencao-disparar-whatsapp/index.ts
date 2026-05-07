@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 const corsHeaders = {
@@ -15,6 +16,150 @@ function normalizePhone(raw: string | null): string | null {
 }
 
 console.log("[retencao-disparar-whatsapp] função iniciada");
+
+async function enviarUm(
+  admin: any,
+  c: any,
+  phoneNumberId: string,
+  accessToken: string,
+  faixa: string,
+  userId: string,
+  isTeste: boolean,
+): Promise<"sucesso" | "falha"> {
+  const tel = normalizePhone(c.telefone);
+  if (!tel) {
+    if (!isTeste) {
+      await admin.from("retencao_disparos").insert({
+        cliente_id: c.cliente_id,
+        telefone: c.telefone || "",
+        template_nome: "retencao_ebd_reengajamento",
+        faixa,
+        status: "falha",
+        erro: "Telefone inválido",
+        enviado_por: userId,
+      });
+    }
+    return "falha";
+  }
+
+  const payload = {
+    messaging_product: "whatsapp",
+    to: tel,
+    type: "template",
+    template: {
+      name: "retencao_ebd_reengajamento",
+      language: { code: "pt_BR" },
+      components: [
+        {
+          type: "body",
+          parameters: [
+            { type: "text", text: c.nome_igreja || "amigo(a)" },
+            { type: "text", text: c.vendedor_nome || "nosso consultor" },
+          ],
+        },
+      ],
+    },
+  };
+
+  try {
+    const resp = await fetch(`https://graph.facebook.com/v23.0/${phoneNumberId}/messages`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+    const json = await resp.json();
+    if (resp.ok && json?.messages?.[0]?.id) {
+      if (!isTeste) {
+        await admin.from("retencao_disparos").insert({
+          cliente_id: c.cliente_id,
+          telefone: tel,
+          template_nome: "retencao_ebd_reengajamento",
+          faixa,
+          status: "sucesso",
+          meta_message_id: json.messages[0].id,
+          enviado_por: userId,
+        });
+      }
+      return "sucesso";
+    } else {
+      console.error("[retencao] Meta erro:", JSON.stringify(json));
+      if (!isTeste) {
+        await admin.from("retencao_disparos").insert({
+          cliente_id: c.cliente_id,
+          telefone: tel,
+          template_nome: "retencao_ebd_reengajamento",
+          faixa,
+          status: "falha",
+          erro: JSON.stringify(json).slice(0, 1000),
+          enviado_por: userId,
+        });
+      }
+      return "falha";
+    }
+  } catch (e) {
+    if (!isTeste) {
+      await admin.from("retencao_disparos").insert({
+        cliente_id: c.cliente_id,
+        telefone: tel,
+        template_nome: "retencao_ebd_reengajamento",
+        faixa,
+        status: "falha",
+        erro: String(e).slice(0, 1000),
+        enviado_por: userId,
+      });
+    }
+    return "falha";
+  }
+}
+
+async function processarEnvio(
+  admin: any,
+  alvo: any[],
+  phoneNumberId: string,
+  accessToken: string,
+  faixa: string,
+  userId: string,
+  isTeste: boolean,
+  campanhaId: string,
+) {
+  try {
+    let sucessoAcum = 0;
+    let falhaAcum = 0;
+    const CHUNK = 5;
+    for (let i = 0; i < alvo.length; i += CHUNK) {
+      const chunk = alvo.slice(i, i + CHUNK);
+      const results = await Promise.allSettled(
+        chunk.map((c) => enviarUm(admin, c, phoneNumberId, accessToken, faixa, userId, isTeste)),
+      );
+      for (const r of results) {
+        if (r.status === "fulfilled" && r.value === "sucesso") sucessoAcum++;
+        else falhaAcum++;
+      }
+      await admin
+        .from("retencao_campanhas")
+        .update({
+          enviadas: i + chunk.length,
+          sucessos: sucessoAcum,
+          falhas: falhaAcum,
+        })
+        .eq("id", campanhaId);
+      await new Promise((r) => setTimeout(r, 200));
+    }
+    await admin
+      .from("retencao_campanhas")
+      .update({ status: "concluida", concluida_em: new Date().toISOString() })
+      .eq("id", campanhaId);
+  } catch (e) {
+    console.error("[retencao] background erro:", e);
+    await admin
+      .from("retencao_campanhas")
+      .update({ status: "erro", erro: String(e).slice(0, 1000), concluida_em: new Date().toISOString() })
+      .eq("id", campanhaId);
+  }
+}
 
 Deno.serve(async (req) => {
   console.log("[retencao-disparar-whatsapp] request recebido", req.method);
@@ -54,6 +199,7 @@ Deno.serve(async (req) => {
     console.log("[retencao-disparar-whatsapp] body recebido:", JSON.stringify(body));
     const faixa: string = body.faixa;
     const excluirRecentes: boolean = body.excluir_recentes !== false;
+    const limite: number | null = typeof body.limite === "number" ? body.limite : null;
     const rawNumerosTeste: any[] = Array.isArray(body.numeros_teste) ? body.numeros_teste : [];
     const detalhes: any[] = Array.isArray(body.numeros_teste_detalhes) ? body.numeros_teste_detalhes : [];
     const numerosTeste: Array<{ nome: string; telefone: string }> = rawNumerosTeste.map((item, idx) => {
@@ -69,7 +215,6 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "Faixa inválida" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    // Settings WhatsApp
     const { data: settings } = await admin
       .from("system_settings")
       .select("key, value")
@@ -113,107 +258,33 @@ Deno.serve(async (req) => {
         const exclSet = new Set((recentes || []).map((r: any) => r.cliente_id));
         alvo = alvo.filter((c) => !exclSet.has(c.cliente_id));
       }
+      alvo.sort((a, b) => (b.valor_total_compras || 0) - (a.valor_total_compras || 0));
+      if (limite && limite > 0) alvo = alvo.slice(0, limite);
     }
 
-    let sucesso = 0;
-    let falha = 0;
-    const total = alvo.length;
+    const { data: campanha, error: campErr } = await admin
+      .from("retencao_campanhas")
+      .insert({
+        iniciada_por: userId,
+        faixa: isTeste ? "teste" : faixa,
+        limite,
+        excluir_recentes: excluirRecentes,
+        total_alvo: alvo.length,
+        status: "processando",
+      })
+      .select("id")
+      .single();
+    if (campErr) throw campErr;
+    const campanhaId = campanha.id as string;
 
-    for (const c of alvo) {
-      const tel = normalizePhone(c.telefone);
-      if (!tel) {
-        falha++;
-        if (!isTeste) {
-          await admin.from("retencao_disparos").insert({
-            cliente_id: c.cliente_id,
-            telefone: c.telefone || "",
-            template_nome: "retencao_ebd_reengajamento",
-            faixa,
-            status: "falha",
-            erro: "Telefone inválido",
-            enviado_por: userId,
-          });
-        }
-        continue;
-      }
+    // @ts-ignore EdgeRuntime is provided by Supabase Edge runtime
+    EdgeRuntime.waitUntil(
+      processarEnvio(admin, alvo, phoneNumberId, accessToken, isTeste ? "teste" : faixa, userId, isTeste, campanhaId),
+    );
 
-      const payload = {
-        messaging_product: "whatsapp",
-        to: tel,
-        type: "template",
-        template: {
-          name: "retencao_ebd_reengajamento",
-          language: { code: "pt_BR" },
-          components: [
-            {
-              type: "body",
-              parameters: [
-                { type: "text", text: c.nome_igreja || "amigo(a)" },
-                { type: "text", text: c.vendedor_nome || "nosso consultor" },
-              ],
-            },
-          ],
-        },
-      };
-
-      try {
-        const resp = await fetch(`https://graph.facebook.com/v23.0/${phoneNumberId}/messages`, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(payload),
-        });
-        const json = await resp.json();
-        if (resp.ok && json?.messages?.[0]?.id) {
-          sucesso++;
-          if (!isTeste) {
-            await admin.from("retencao_disparos").insert({
-              cliente_id: c.cliente_id,
-              telefone: tel,
-              template_nome: "retencao_ebd_reengajamento",
-              faixa,
-              status: "sucesso",
-              meta_message_id: json.messages[0].id,
-              enviado_por: userId,
-            });
-          }
-        } else {
-          falha++;
-          console.error("[retencao] Meta erro:", JSON.stringify(json));
-          if (!isTeste) {
-            await admin.from("retencao_disparos").insert({
-              cliente_id: c.cliente_id,
-              telefone: tel,
-              template_nome: "retencao_ebd_reengajamento",
-              faixa,
-              status: "falha",
-              erro: JSON.stringify(json).slice(0, 1000),
-              enviado_por: userId,
-            });
-          }
-        }
-      } catch (e) {
-        falha++;
-        if (!isTeste) {
-          await admin.from("retencao_disparos").insert({
-            cliente_id: c.cliente_id,
-            telefone: tel,
-            template_nome: "retencao_ebd_reengajamento",
-            faixa,
-            status: "falha",
-            erro: String(e).slice(0, 1000),
-            enviado_por: userId,
-          });
-        }
-      }
-
-      await new Promise((r) => setTimeout(r, 100));
-    }
-
-    return new Response(JSON.stringify({ total, sucesso, falha }), {
+    return new Response(JSON.stringify({ campanha_id: campanhaId, total_alvo: alvo.length }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 200,
     });
   } catch (e) {
     console.error("retencao-disparar-whatsapp error", e);
