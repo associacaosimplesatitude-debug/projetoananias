@@ -29,7 +29,7 @@ export function RegistrarContatoModal({ open, onOpenChange, clienteId, vendedorI
       toast.error("Preencha tipo de contato e resultado");
       return;
     }
-    if (resultado === "nao_quer_mais" && !motivoPerda.trim()) {
+    if (resultado === "recusou" && !motivoPerda.trim()) {
       toast.error("Informe o motivo da perda");
       return;
     }
