@@ -29,7 +29,7 @@ export function RegistrarContatoModal({ open, onOpenChange, clienteId, vendedorI
       toast.error("Preencha tipo de contato e resultado");
       return;
     }
-    if (resultado === "nao_quer_mais" && !motivoPerda.trim()) {
+    if (resultado === "recusou" && !motivoPerda.trim()) {
       toast.error("Informe o motivo da perda");
       return;
     }
@@ -40,7 +40,7 @@ export function RegistrarContatoModal({ open, onOpenChange, clienteId, vendedorI
       vendedor_id: vendedorId,
       tipo_contato: tipoContato,
       resultado,
-      motivo_perda: resultado === "nao_quer_mais" ? motivoPerda : null,
+      motivo_perda: resultado === "recusou" ? motivoPerda : null,
       observacao: observacao || null,
     });
 
@@ -84,15 +84,13 @@ export function RegistrarContatoModal({ open, onOpenChange, clienteId, vendedorI
             <Select value={resultado} onValueChange={setResultado}>
               <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="sem_resposta">Sem resposta</SelectItem>
-                <SelectItem value="retorno_agendado">Retorno agendado</SelectItem>
-                <SelectItem value="comprou">Comprou</SelectItem>
-                <SelectItem value="nao_quer_mais">Não quer mais</SelectItem>
+                <SelectItem value="recusou">Recusou</SelectItem>
+                <SelectItem value="comprou">Fechado</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
-          {resultado === "nao_quer_mais" && (
+          {resultado === "recusou" && (
             <div className="space-y-2">
               <Label>Motivo da Perda</Label>
               <Textarea
