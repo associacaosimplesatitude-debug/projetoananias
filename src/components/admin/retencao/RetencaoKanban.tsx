@@ -64,7 +64,7 @@ const canalBadgeColor = (canal: string) => {
   }
 };
 
-export function RetencaoKanban({ clientes, filtroVendedor, filtroCanal, disparosMap }: Props) {
+export function RetencaoKanban({ clientes, filtroVendedor, filtroCanal, disparosMap, autoRepliedMap }: Props) {
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedCliente, setSelectedCliente] = useState<KanbanCliente | null>(null);
 
