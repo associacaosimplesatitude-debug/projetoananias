@@ -84,15 +84,13 @@ export function RegistrarContatoModal({ open, onOpenChange, clienteId, vendedorI
             <Select value={resultado} onValueChange={setResultado}>
               <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="sem_resposta">Sem resposta</SelectItem>
-                <SelectItem value="retorno_agendado">Retorno agendado</SelectItem>
-                <SelectItem value="comprou">Comprou</SelectItem>
-                <SelectItem value="nao_quer_mais">Não quer mais</SelectItem>
+                <SelectItem value="recusou">Recusou</SelectItem>
+                <SelectItem value="comprou">Fechado</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
-          {resultado === "nao_quer_mais" && (
+          {resultado === "recusou" && (
             <div className="space-y-2">
               <Label>Motivo da Perda</Label>
               <Textarea
