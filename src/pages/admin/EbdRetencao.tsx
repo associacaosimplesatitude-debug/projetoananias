@@ -257,6 +257,7 @@ export default function EbdRetencao() {
           filtroCanal={filtroCanal}
           disparosMap={disparosMap}
           autoRepliedMap={autoRepliedMap}
+          licencaConcedidaMap={licencaConcedidaMap}
         />
       )}
 
