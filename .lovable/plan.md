@@ -1,55 +1,37 @@
-## Causa raiz
+# Plano
 
-Quando o cliente clica "Quero ver as novidades", o webhook recebe o evento (logs confirmam: `[Meta] Received from 5511947141878: Quero ver as novidades`), mas a função `processarRespostaRetencao` não consegue **encontrar o cliente** no banco. Isso impede a gravação em `ebd_retencao_contatos` e `retencao_respostas`, então o card nunca aparece em "Interessado".
+Vou corrigir o botão **Reenviar interesse pendentes** porque a chamada para `backfill-interesse-presente` está falhando antes mesmo da função começar a executar.
 
-**Por quê?** Em `supabase/functions/whatsapp-webhook/index.ts` (linhas ~263-271), o lookup usa `.maybeSingle()`:
+## O que encontrei
+- O backend está saudável.
+- A tela chama `backfill-interesse-presente` ao clicar no botão.
+- A requisição do navegador falha com **Failed to fetch**.
+- Não há logs de execução dessa função, o que indica que o problema está no deploy/entrypoint da função, não na lógica interna do processamento.
+- Já a função `backfill-cliques-novidades-perdidos` tem logs de boot, então ela está ativa.
 
-```ts
-.from("ebd_clientes")
-.select(...)
-.or(`telefone.ilike.%${sf}`)
-.limit(1)
-.maybeSingle()
-```
+## O que vou fazer
+1. **Validar a função `backfill-interesse-presente`**
+   - Conferir o arquivo da função e o padrão usado nas outras funções que estão funcionando.
+   - Identificar incompatibilidade de runtime, import, resposta HTTP ou configuração que impeça a função de subir.
 
-PostgREST/`maybeSingle` **retorna erro quando há mais de uma linha** com o mesmo número (mesmo com `.limit(1)`, o erro acontece antes do limit em alguns casos, e quando o telefone repete em vários clientes — o que é a regra aqui, ex.: `5511947141878` aparece em 10+ registros — `data` volta `null` e o cliente é tratado como inexistente).
+2. **Corrigir a estratégia do botão**
+   - Se a função estiver quebrada, ajustar para um fluxo estável:
+     - ou consertar `backfill-interesse-presente`;
+     - ou trocar o botão para chamar uma função já operacional, caso a responsabilidade real esteja duplicada.
 
-Confirmação no banco: `retencao_respostas` está **vazia** e nenhum registro novo de `ebd_retencao_contatos` foi criado para esses cliques recentes — apesar de várias mensagens "Quero ver as novidades" terem chegado nos webhooks.
+3. **Melhorar a tolerância a falhas na tela**
+   - Ajustar o tratamento do erro para mostrar uma mensagem útil quando a função estiver indisponível.
+   - Garantir refresh do kanban após sucesso real.
 
-## Correção
+4. **Validar ponta a ponta**
+   - Confirmar que a função passa a responder sem erro de rede.
+   - Verificar que o botão executa e retorna contadores válidos.
+   - Confirmar que a coluna **Interessado** volta a refletir os registros recuperados/enviados.
 
-Em `supabase/functions/whatsapp-webhook/index.ts`, dentro de `processarRespostaRetencao`, trocar o lookup para usar `.limit(1)` + array (sem `maybeSingle`), pegando a primeira linha:
-
-```ts
-for (const sf of sufs) {
-  const { data } = await supabase
-    .from("ebd_clientes")
-    .select("id, vendedor_id, nome_igreja, email_superintendente, telefone")
-    .or(`telefone.ilike.%${sf}`)
-    .order("updated_at", { ascending: false })
-    .limit(1);
-  if (data && data.length > 0) { cliente = data[0] as any; break; }
-}
-```
-
-Aplicar a mesma correção no lookup de `clienteId` em `handleMetaPost` (linhas ~452-463), que também usa `.single()` e falha silenciosamente em telefones duplicados.
-
-## Backfill dos cliques perdidos
-
-Após o fix, rodar um backfill que:
-
-1. Lê `whatsapp_webhooks` dos últimos 14 dias com `payload::text ILIKE '%Quero ver as novidades%'` (ou outras labels do `labelMap`).
-2. Para cada telefone único, busca cliente em `ebd_clientes` (ordenado por `updated_at desc`, primeiro match).
-3. Se ainda não tem registro em `ebd_retencao_contatos` com `resultado='interessado'` posterior à data do webhook, insere os registros em `ebd_retencao_contatos` e `retencao_respostas`.
-4. Dispara `responder-interesse-novidades` para enviar a oferta de presente.
-
-Pode reaproveitar o pattern de `backfill-interesse-presente` (lotes de 5, pausa de 30s) numa nova função `backfill-cliques-novidades-perdidos` ou estender a existente para também reprocessar cliques sem registro.
-
-## Validação
-
-- Após deploy, repetir clique de teste e verificar:
-  - Log do webhook não deve dizer "cliente não encontrado".
-  - Linha em `ebd_retencao_contatos` com `resultado='interessado'`.
-  - Linha em `retencao_respostas` com `tipo='interesse'`.
-  - Cliente aparece na coluna "Interessado" do Kanban.
-- Conferir contagem antes/depois: hoje 23 → deve subir conforme backfill processa os cliques perdidos.
+## Detalhes técnicos
+- Arquivos mais prováveis:
+  - `src/pages/admin/EbdRetencao.tsx`
+  - `supabase/functions/backfill-interesse-presente/index.ts`
+  - possivelmente `supabase/config.toml` se houver configuração específica necessária
+- Sinal principal de sucesso:
+  - a chamada `functions.invoke("backfill-interesse-presente")` deixa de falhar com **Failed to fetch** e passa a retornar JSON.
