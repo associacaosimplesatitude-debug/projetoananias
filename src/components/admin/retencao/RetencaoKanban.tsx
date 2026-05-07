@@ -112,10 +112,7 @@ export function RetencaoKanban({ clientes, filtroVendedor, filtroCanal, disparos
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
         {COLUNAS.map(col => {
           const items = filtered.filter(c => c.coluna_kanban === col.key);
-          const showTotal = col.key === "a_contatar" || col.key === "fechados";
-          const totalCol = showTotal
-            ? items.reduce((acc, c) => acc + (c.valor_total_compras ?? 0), 0)
-            : 0;
+          const totalCol = items.reduce((acc, c) => acc + (c.valor_total_compras ?? 0), 0);
           return (
             <div
               key={col.key}
