@@ -5568,6 +5568,57 @@ export type Database = {
           },
         ]
       }
+      retencao_campanhas: {
+        Row: {
+          concluida_em: string | null
+          created_at: string
+          enviadas: number
+          erro: string | null
+          excluir_recentes: boolean | null
+          faixa: string
+          falhas: number
+          id: string
+          iniciada_em: string
+          iniciada_por: string | null
+          limite: number | null
+          status: string
+          sucessos: number
+          total_alvo: number
+        }
+        Insert: {
+          concluida_em?: string | null
+          created_at?: string
+          enviadas?: number
+          erro?: string | null
+          excluir_recentes?: boolean | null
+          faixa: string
+          falhas?: number
+          id?: string
+          iniciada_em?: string
+          iniciada_por?: string | null
+          limite?: number | null
+          status?: string
+          sucessos?: number
+          total_alvo?: number
+        }
+        Update: {
+          concluida_em?: string | null
+          created_at?: string
+          enviadas?: number
+          erro?: string | null
+          excluir_recentes?: boolean | null
+          faixa?: string
+          falhas?: number
+          id?: string
+          iniciada_em?: string
+          iniciada_por?: string | null
+          limite?: number | null
+          status?: string
+          sucessos?: number
+          total_alvo?: number
+        }
+        Relationships: []
+      }
       retencao_disparos: {
         Row: {
           cliente_id: string
