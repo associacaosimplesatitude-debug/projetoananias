@@ -165,17 +165,31 @@ Deno.serve(async (req) => {
       } catch (e: any) { errosEC.push(`email: ${e.message}`); }
     }
 
-    // WhatsApp acesso (via send-whatsapp-message)
+    // WhatsApp acesso (via Meta direto — não usar send-whatsapp-message)
+    let waAcessoOk = false;
     try {
-      await fetch(`${supabaseUrl}/functions/v1/send-whatsapp-message`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${serviceKey}` },
-        body: JSON.stringify({
-          telefone: wLocal,
-          mensagem: `Ola, ${nomeOk}! Seu acesso a Cartas da Prisao (Professor + Infografico) esta liberado.\n\nAcesse:\n${URL_ACESSO}\n\nDigite seu WhatsApp para receber o codigo.`,
-        }),
-      });
-    } catch (e: any) { errosEC.push(`wa-acesso: ${e.message}`); }
+      const { data: settings0 } = await supabase
+        .from("system_settings")
+        .select("key, value")
+        .in("key", ["whatsapp_phone_number_id", "whatsapp_access_token"]);
+      const sm0: Record<string, string> = {};
+      (settings0 || []).forEach((s: any) => { sm0[s.key] = s.value; });
+      const txt = `Ola, ${nomeOk}! Seu acesso a Cartas da Prisao (Professor + Infografico) esta liberado.\n\nAcesse:\n${URL_ACESSO}\n\nDigite seu WhatsApp para receber o codigo.`;
+      await sendText(sm0["whatsapp_phone_number_id"], sm0["whatsapp_access_token"], wMeta, txt);
+      waAcessoOk = true;
+      if (ultRespId) {
+        await supabase.from("retencao_respostas")
+          .update({ wa_acesso_enviado_em: new Date().toISOString() })
+          .eq("id", ultRespId);
+      }
+    } catch (e: any) {
+      const msg = String(e.message || e);
+      if (msg.includes("re-engagement") || msg.includes("131047")) {
+        errosEC.push("wa_acesso_janela_fechada");
+      } else {
+        errosEC.push(`wa_acesso_falhou: ${msg}`);
+      }
+    }
 
     // Aguardar 5s pra confirmação não chegar antes
     await new Promise((r) => setTimeout(r, 5000));
