@@ -36,6 +36,7 @@ interface Props {
   filtroVendedor?: string;
   filtroCanal?: string;
   disparosMap?: Record<string, string>; // cliente_id -> ISO date do último envio
+  autoRepliedMap?: Record<string, string>; // cliente_id -> ISO date da auto-resposta de interesse
 }
 
 const COLUNAS = [
