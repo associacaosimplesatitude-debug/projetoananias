@@ -174,7 +174,7 @@ export default function EbdRetencao() {
               <Megaphone className="h-4 w-4 mr-2" />
               Disparar campanha WhatsApp
             </Button>
-          </>
+          </div>
         )}
       </div>
 
