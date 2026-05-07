@@ -5661,6 +5661,56 @@ export type Database = {
         }
         Relationships: []
       }
+      retencao_respostas: {
+        Row: {
+          auto_replied_em: string | null
+          cliente_id: string | null
+          created_at: string
+          id: string
+          licenca_concedida_em: string | null
+          licenca_erro: string | null
+          licenca_infografico_id: string | null
+          licenca_revista_id: string | null
+          mensagem_recebida: string | null
+          telefone: string
+          tipo: string
+        }
+        Insert: {
+          auto_replied_em?: string | null
+          cliente_id?: string | null
+          created_at?: string
+          id?: string
+          licenca_concedida_em?: string | null
+          licenca_erro?: string | null
+          licenca_infografico_id?: string | null
+          licenca_revista_id?: string | null
+          mensagem_recebida?: string | null
+          telefone: string
+          tipo: string
+        }
+        Update: {
+          auto_replied_em?: string | null
+          cliente_id?: string | null
+          created_at?: string
+          id?: string
+          licenca_concedida_em?: string | null
+          licenca_erro?: string | null
+          licenca_infografico_id?: string | null
+          licenca_revista_id?: string | null
+          mensagem_recebida?: string | null
+          telefone?: string
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "retencao_respostas_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "ebd_clientes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       revista_acessos: {
         Row: {
           cliente_id: string
@@ -6189,6 +6239,7 @@ export type Database = {
           expira_em: string | null
           id: string
           nome_comprador: string | null
+          origem: string | null
           primeiro_acesso_em: string | null
           revista_id: string | null
           shopify_order_id: string | null
@@ -6205,6 +6256,7 @@ export type Database = {
           expira_em?: string | null
           id?: string
           nome_comprador?: string | null
+          origem?: string | null
           primeiro_acesso_em?: string | null
           revista_id?: string | null
           shopify_order_id?: string | null
@@ -6221,6 +6273,7 @@ export type Database = {
           expira_em?: string | null
           id?: string
           nome_comprador?: string | null
+          origem?: string | null
           primeiro_acesso_em?: string | null
           revista_id?: string | null
           shopify_order_id?: string | null
