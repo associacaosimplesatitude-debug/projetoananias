@@ -112,10 +112,7 @@ export function RetencaoKanban({ clientes, filtroVendedor, filtroCanal, disparos
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
         {COLUNAS.map(col => {
           const items = filtered.filter(c => c.coluna_kanban === col.key);
-          const showTotal = col.key === "a_contatar" || col.key === "fechados";
-          const totalCol = showTotal
-            ? items.reduce((acc, c) => acc + (c.valor_total_compras ?? 0), 0)
-            : 0;
+          const totalCol = items.reduce((acc, c) => acc + (c.valor_total_compras ?? 0), 0);
           return (
             <div
               key={col.key}
@@ -130,9 +127,7 @@ export function RetencaoKanban({ clientes, filtroVendedor, filtroCanal, disparos
             >
               <div className={`rounded-lg border-t-4 ${col.color} bg-muted/30 p-3 ${overCol === col.key ? "ring-2 ring-primary" : ""}`}>
                 <h3 className="font-semibold text-sm">{col.label} ({items.length})</h3>
-                {showTotal && (
-                  <p className="text-[11px] text-muted-foreground mt-0.5">Total: {formatBRL(totalCol)}</p>
-                )}
+                <p className="text-[11px] text-muted-foreground mt-0.5">Total: {formatBRL(totalCol)}</p>
               </div>
               <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
                 {items.length === 0 && (
