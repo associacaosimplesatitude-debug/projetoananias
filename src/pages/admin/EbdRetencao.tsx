@@ -157,10 +157,24 @@ export default function EbdRetencao() {
         </Select>
 
         {podeDisparar && (
-          <Button onClick={() => setCampanhaOpen(true)} className="ml-auto">
-            <Megaphone className="h-4 w-4 mr-2" />
-            Disparar campanha WhatsApp
-          </Button>
+          <>
+            <Button
+              variant="outline"
+              onClick={async () => {
+                const { toast } = await import("sonner");
+                toast.info("Disparando backfill (pode demorar)...");
+                const { data, error } = await supabase.functions.invoke("backfill-interesse-presente");
+                if (error) toast.error("Erro: " + error.message);
+                else toast.success(`Backfill: ${data?.sucesso ?? 0} ok, ${data?.falha ?? 0} falha (total ${data?.total ?? 0})`);
+              }}
+            >
+              Reenviar interesse pendentes
+            </Button>
+            <Button onClick={() => setCampanhaOpen(true)}>
+              <Megaphone className="h-4 w-4 mr-2" />
+              Disparar campanha WhatsApp
+            </Button>
+          </>
         )}
       </div>
 
