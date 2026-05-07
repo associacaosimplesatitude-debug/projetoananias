@@ -175,10 +175,10 @@ export default function EbdRetencao() {
               variant="outline"
               onClick={async () => {
                 const { toast } = await import("sonner");
-                toast.info("Disparando backfill (pode demorar)...");
+                toast.info("Disparando backfill em background...");
                 const { data, error } = await supabase.functions.invoke("backfill-interesse-presente");
                 if (error) toast.error("Erro: " + error.message);
-                else toast.success(`Backfill: ${data?.sucesso ?? 0} ok, ${data?.falha ?? 0} falha (total ${data?.total ?? 0})`);
+                else toast.success(`Enfileirados ${data?.total ?? 0} envios (lotes de 5 a cada 30s).`);
               }}
             >
               Reenviar interesse pendentes

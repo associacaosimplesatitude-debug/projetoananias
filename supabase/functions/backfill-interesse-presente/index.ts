@@ -49,36 +49,42 @@ Deno.serve(async (req) => {
     const jaSet = new Set((jaResp || []).map((r: any) => r.cliente_id));
     const pendentes = interessados.filter((c) => !jaSet.has(c.cliente_id));
 
-    // Lotes de 5, pausa 30s
-    const batchSize = 5;
-    let sucesso = 0, falha = 0;
-    for (let i = 0; i < pendentes.length; i += batchSize) {
-      const batch = pendentes.slice(i, i + batchSize);
-      const results = await Promise.allSettled(
-        batch.map((c) =>
-          fetch(`${supabaseUrl}/functions/v1/responder-interesse-novidades`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json", Authorization: `Bearer ${serviceKey}` },
-            body: JSON.stringify({
-              cliente_id: c.cliente_id,
-              telefone: c.telefone,
-              nome: c.nome_igreja,
-              vendedor_nome: c.vendedor_nome,
-              skip_delay: true,
-            }),
-          }).then(async (r) => {
-            if (!r.ok) throw new Error(await r.text());
-            return r.json();
-          })
-        )
-      );
-      results.forEach((r) => { if (r.status === "fulfilled") sucesso++; else falha++; });
-      if (i + batchSize < pendentes.length) {
-        await new Promise((res) => setTimeout(res, 30000));
+    // Processa em background para não estourar timeout de 150s
+    const processar = async () => {
+      const batchSize = 5;
+      let sucesso = 0, falha = 0;
+      for (let i = 0; i < pendentes.length; i += batchSize) {
+        const batch = pendentes.slice(i, i + batchSize);
+        const results = await Promise.allSettled(
+          batch.map((c) =>
+            fetch(`${supabaseUrl}/functions/v1/responder-interesse-novidades`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${serviceKey}` },
+              body: JSON.stringify({
+                cliente_id: c.cliente_id,
+                telefone: c.telefone,
+                nome: c.nome_igreja,
+                vendedor_nome: c.vendedor_nome,
+                skip_delay: true,
+              }),
+            }).then(async (r) => {
+              if (!r.ok) throw new Error(await r.text());
+              return r.json();
+            })
+          )
+        );
+        results.forEach((r) => { if (r.status === "fulfilled") sucesso++; else falha++; });
+        if (i + batchSize < pendentes.length) {
+          await new Promise((res) => setTimeout(res, 30000));
+        }
       }
-    }
+      console.log(`[backfill-interesse] done total=${pendentes.length} ok=${sucesso} falha=${falha}`);
+    };
 
-    return new Response(JSON.stringify({ total: pendentes.length, sucesso, falha }), {
+    // @ts-ignore EdgeRuntime is available in Supabase Edge Functions
+    EdgeRuntime.waitUntil(processar());
+
+    return new Response(JSON.stringify({ enqueued: true, total: pendentes.length }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err: any) {
