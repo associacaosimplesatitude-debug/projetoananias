@@ -7,6 +7,7 @@ const corsHeaders = {
 
 const REVISTA_PROFESSOR_ID = "3a9fbd84-cad5-4c41-b0cb-a271109df565";
 const INFOGRAFICO_ID = "30274872-b3c0-46eb-ae21-b6a52962b453";
+const URL_ACESSO = "https://gestaoebd.com.br/revista/acesso";
 
 function normalizeForMeta(t: string): string {
   const d = (t || "").replace(/\D/g, "");
@@ -14,7 +15,6 @@ function normalizeForMeta(t: string): string {
   if (d.startsWith("55")) return d;
   return "55" + d;
 }
-
 function whatsappLocal(t: string): string {
   const d = (t || "").replace(/\D/g, "");
   return d.startsWith("55") && d.length >= 12 ? d.slice(2) : d;
@@ -32,7 +32,7 @@ async function sendText(phoneId: string, token: string, to: string, text: string
     }),
   });
   const j = await res.json();
-  if (!res.ok) throw new Error(`Meta error: ${JSON.stringify(j)}`);
+  if (!res.ok) throw new Error(`Meta: ${JSON.stringify(j)}`);
   return j;
 }
 
@@ -43,8 +43,21 @@ Deno.serve(async (req) => {
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
   );
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
   let cliente_id: string | null = null;
+  let ultRespId: string | null = null;
+
+  async function gravarErro(msg: string) {
+    console.error("[liberar-presente] ERRO:", msg);
+    if (!ultRespId) return;
+    try {
+      await supabase.from("retencao_respostas")
+        .update({ licenca_erro: msg.slice(0, 500) })
+        .eq("id", ultRespId);
+    } catch (e) { console.error("falha gravar licenca_erro", e); }
+  }
 
   try {
     const body = await req.json();
@@ -55,17 +68,20 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "missing fields" }), { status: 400, headers: corsHeaders });
     }
 
-    // Validar idempotência
-    const { data: jaConcedido } = await supabase
+    // Buscar último registro 'aceitar_presente' p/ rastrear erro
+    const { data: ultResp } = await supabase
       .from("retencao_respostas")
-      .select("id")
+      .select("id, licenca_concedida_em")
       .eq("cliente_id", cliente_id)
-      .not("licenca_concedida_em", "is", null)
+      .eq("tipo", "aceitar_presente")
+      .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
+    if (ultResp) ultRespId = ultResp.id;
 
-    if (jaConcedido) {
-      return new Response(JSON.stringify({ skipped: true, reason: "presente já liberado" }), { headers: corsHeaders });
+    // Idempotência
+    if (ultResp?.licenca_concedida_em) {
+      return new Response(JSON.stringify({ skipped: true, reason: "ja liberado" }), { headers: corsHeaders });
     }
 
     const wLocal = whatsappLocal(telefone);
@@ -73,75 +89,108 @@ Deno.serve(async (req) => {
     const emailFinal = email && email.includes("@") ? email : `${wLocal}@gestaoebd.com.br`;
     const nomeOk = nome || "Cliente";
 
-    // Liberar as 2 licenças via revista-licencas-shopify-admin (action=insert)
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    // ====== INSERT DIRETO (service role) — sem chamar admin function ======
+    async function criarLicencaDireto(revistaId: string) {
+      // Verificar se já existe
+      const { data: exist } = await supabase
+        .from("revista_licencas_shopify")
+        .select("id")
+        .eq("whatsapp", wLocal)
+        .eq("revista_id", revistaId)
+        .eq("ativo", true)
+        .limit(1)
+        .maybeSingle();
+      if (exist) return exist.id;
 
-    async function criarLicenca(revistaId: string) {
-      const res = await fetch(`${supabaseUrl}/functions/v1/revista-licencas-shopify-admin`, {
+      const { data: ins, error } = await supabase
+        .from("revista_licencas_shopify")
+        .insert({
+          whatsapp: wLocal,
+          nome_comprador: nomeOk,
+          email: emailFinal,
+          revista_id: revistaId,
+          expira_em: null,
+          ativo: true,
+          origem: "presente_campanha_retencao",
+        })
+        .select("id")
+        .single();
+      if (error) throw new Error(`insert revista_id=${revistaId}: ${error.message}`);
+      return ins.id;
+    }
+
+    const licProfessorId = await criarLicencaDireto(REVISTA_PROFESSOR_ID);
+    await criarLicencaDireto(INFOGRAFICO_ID);
+
+    // Marcar concedida (antes dos efeitos colaterais — idempotência forte)
+    if (ultRespId) {
+      await supabase.from("retencao_respostas").update({
+        licenca_concedida_em: new Date().toISOString(),
+        licenca_revista_id: licProfessorId,
+        licenca_erro: null,
+      }).eq("id", ultRespId);
+    }
+
+    // ====== Efeitos colaterais (replicando ação 'resend' do admin) ======
+    const errosEC: string[] = [];
+
+    // Email via Resend
+    if (emailFinal && emailFinal.includes("@")) {
+      try {
+        const resendApiKey = Deno.env.get("RESEND_API_KEY");
+        if (resendApiKey) {
+          const r = await fetch("https://api.resend.com/emails", {
+            method: "POST",
+            headers: { Authorization: `Bearer ${resendApiKey}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              from: "Central Gospel <relatorios@painel.editoracentralgospel.com.br>",
+              to: [emailFinal],
+              subject: `Seu presente: Cartas da Prisão (Professor + Infográfico)`,
+              html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px">
+                <h2>Olá, ${nomeOk}!</h2>
+                <p>Liberamos seu acesso vitalício a:</p>
+                <ul>
+                  <li><strong>Revista Digital "Cartas da Prisão" — Professor</strong></li>
+                  <li><strong>Infográfico premium "Cartas da Prisão"</strong></li>
+                </ul>
+                <div style="text-align:center;margin:30px 0">
+                  <a href="${URL_ACESSO}" style="background:#2563eb;color:#fff;padding:14px 28px;text-decoration:none;border-radius:8px;font-weight:bold">Acessar agora</a>
+                </div>
+                <p style="color:#666;font-size:14px">Use seu WhatsApp (${wLocal}) para receber o código de acesso.</p>
+              </div>`,
+            }),
+          });
+          if (!r.ok) errosEC.push(`resend ${r.status}: ${await r.text()}`);
+        }
+      } catch (e: any) { errosEC.push(`email: ${e.message}`); }
+    }
+
+    // WhatsApp acesso (via send-whatsapp-message)
+    try {
+      await fetch(`${supabaseUrl}/functions/v1/send-whatsapp-message`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${serviceKey}` },
         body: JSON.stringify({
-          action: "insert",
-          record: {
-            whatsapp: wLocal,
-            nome_comprador: nomeOk,
-            email: emailFinal,
-            revista_id: revistaId,
-            expira_em: null,
-            ativo: true,
-            origem: "presente_campanha_retencao",
-          },
+          telefone: wLocal,
+          mensagem: `Ola, ${nomeOk}! Seu acesso a Cartas da Prisao (Professor + Infografico) esta liberado.\n\nAcesse:\n${URL_ACESSO}\n\nDigite seu WhatsApp para receber o codigo.`,
         }),
       });
-      const j = await res.json();
-      if (!res.ok || j?.error) throw new Error(j?.error || "Erro ao criar licença");
-      return j;
-    }
+    } catch (e: any) { errosEC.push(`wa-acesso: ${e.message}`); }
 
-    await criarLicenca(REVISTA_PROFESSOR_ID);
-    await criarLicenca(INFOGRAFICO_ID);
-
-    // Buscar id da licença da revista para gravar
-    const { data: lic } = await supabase
-      .from("revista_licencas_shopify")
-      .select("id")
-      .eq("whatsapp", wLocal)
-      .eq("revista_id", REVISTA_PROFESSOR_ID)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    // Atualizar registro retencao_respostas (último 'aceitar_presente')
-    const { data: ultResp } = await supabase
-      .from("retencao_respostas")
-      .select("id")
-      .eq("cliente_id", cliente_id)
-      .eq("tipo", "aceitar_presente")
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (ultResp) {
-      await supabase.from("retencao_respostas").update({
-        licenca_concedida_em: new Date().toISOString(),
-        licenca_revista_id: lic?.id || null,
-      }).eq("id", ultResp.id);
-    }
-
-    // Aguardar 5s para que email/whatsapp do sistema saiam primeiro
+    // Aguardar 5s pra confirmação não chegar antes
     await new Promise((r) => setTimeout(r, 5000));
 
-    // Mensagem de confirmação
-    const { data: settings } = await supabase
-      .from("system_settings")
-      .select("key, value")
-      .in("key", ["whatsapp_phone_number_id", "whatsapp_access_token"]);
-    const sm: Record<string, string> = {};
-    (settings || []).forEach((s: any) => { sm[s.key] = s.value; });
-
-    const vendedorOk = vendedor_nome || "seu consultor";
-    const conf = `Pronto, ${nomeOk}! 🎉
+    // Mensagem de confirmação direto via Meta
+    let confirmacaoEnviada = false;
+    try {
+      const { data: settings } = await supabase
+        .from("system_settings")
+        .select("key, value")
+        .in("key", ["whatsapp_phone_number_id", "whatsapp_access_token"]);
+      const sm: Record<string, string> = {};
+      (settings || []).forEach((s: any) => { sm[s.key] = s.value; });
+      const vendedorOk = vendedor_nome || "seu consultor";
+      const conf = `Pronto, ${nomeOk}! 🎉
 
 Acabei de liberar pra você:
 
@@ -157,27 +206,28 @@ Amanhã te mando o que mais preparamos pra esse trimestre (spoiler: tem como lic
 Qualquer dúvida, é só me chamar ou falar com ${vendedorOk}, seu consultor dedicado.
 
 Que Deus abençoe sua EBD essa semana 🙏`;
-
-    await sendText(sm["whatsapp_phone_number_id"], sm["whatsapp_access_token"], wMeta, conf);
-
-    return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
-  } catch (err: any) {
-    console.error("[liberar-presente] error", err);
-    if (cliente_id) {
-      try {
-        const { data: ultResp } = await supabase
-          .from("retencao_respostas")
-          .select("id")
-          .eq("cliente_id", cliente_id)
-          .eq("tipo", "aceitar_presente")
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        if (ultResp) {
-          await supabase.from("retencao_respostas").update({ licenca_erro: String(err.message || err) }).eq("id", ultResp.id);
-        }
-      } catch { /* ignore */ }
+      await sendText(sm["whatsapp_phone_number_id"], sm["whatsapp_access_token"], wMeta, conf);
+      confirmacaoEnviada = true;
+    } catch (e: any) {
+      const msg = String(e.message || e);
+      if (msg.includes("re-engagement") || msg.includes("131047") || msg.includes("24")) {
+        errosEC.push("janela_meta_fechada");
+      } else {
+        errosEC.push(`confirmacao: ${msg}`);
+      }
     }
+
+    if (errosEC.length && ultRespId) {
+      await supabase.from("retencao_respostas")
+        .update({ licenca_erro: errosEC.join(" | ").slice(0, 500) })
+        .eq("id", ultRespId);
+    }
+
+    return new Response(JSON.stringify({ success: true, confirmacaoEnviada, avisos: errosEC }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  } catch (err: any) {
+    await gravarErro(String(err.message || err));
     return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   }
 });
