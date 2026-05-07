@@ -173,6 +173,11 @@ export function RetencaoKanban({ clientes, filtroVendedor, filtroCanal, disparos
                             📩 Enviada em {format(new Date(disparosMap[c.cliente_id]), "dd/MM", { locale: ptBR })}
                           </Badge>
                         )}
+                        {autoRepliedMap?.[c.cliente_id] && (
+                          <Badge className="text-[10px] bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200">
+                            ✅ Interesse respondido em {format(new Date(autoRepliedMap[c.cliente_id]), "dd/MM HH:mm", { locale: ptBR })}
+                          </Badge>
+                        )}
                       </div>
 
                       <div className="text-xs text-muted-foreground space-y-0.5">
