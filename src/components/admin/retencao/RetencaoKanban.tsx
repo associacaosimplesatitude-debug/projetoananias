@@ -36,6 +36,7 @@ interface Props {
   filtroVendedor?: string;
   filtroCanal?: string;
   disparosMap?: Record<string, string>; // cliente_id -> ISO date do último envio
+  autoRepliedMap?: Record<string, string>; // cliente_id -> ISO date da auto-resposta de interesse
 }
 
 const COLUNAS = [
@@ -63,7 +64,7 @@ const canalBadgeColor = (canal: string) => {
   }
 };
 
-export function RetencaoKanban({ clientes, filtroVendedor, filtroCanal, disparosMap }: Props) {
+export function RetencaoKanban({ clientes, filtroVendedor, filtroCanal, disparosMap, autoRepliedMap }: Props) {
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedCliente, setSelectedCliente] = useState<KanbanCliente | null>(null);
 
@@ -170,6 +171,11 @@ export function RetencaoKanban({ clientes, filtroVendedor, filtroCanal, disparos
                         {disparosMap?.[c.cliente_id] && (
                           <Badge variant="secondary" className="text-[10px]">
                             📩 Enviada em {format(new Date(disparosMap[c.cliente_id]), "dd/MM", { locale: ptBR })}
+                          </Badge>
+                        )}
+                        {autoRepliedMap?.[c.cliente_id] && (
+                          <Badge className="text-[10px] bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200">
+                            ✅ Interesse respondido em {format(new Date(autoRepliedMap[c.cliente_id]), "dd/MM HH:mm", { locale: ptBR })}
                           </Badge>
                         )}
                       </div>
