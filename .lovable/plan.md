@@ -1,11 +1,11 @@
-## Mostrar somatório no topo de todas as colunas do Kanban
+## Corrigir somatório da coluna "Fechados (mês)"
 
-No `RetencaoKanban.tsx`, hoje a linha "Total: R$ X" aparece apenas em **A Contatar** e **Fechados (mês)** (controlada pela flag `showTotal`).
+Hoje todas as colunas somam `valor_total_compras` (histórico completo do cliente). Para a coluna **Fechados (mês)**, isso infla o número porque inclui compras antigas — o que importa é o valor da venda que efetivamente fechou no mês.
 
 ### Mudança
-- Remover a flag `showTotal` e exibir o total em **todas as 5 colunas**: A Contatar, Interessado, Falar com Consultor, Recusou e Fechados (mês).
-- Manter o mesmo formato visual (`Total: R$ X`, fonte pequena, abaixo do título da coluna).
-- Cálculo continua somando `valor_total_compras` de cada card visível (respeitando filtros de vendedor/canal).
+- Em `RetencaoKanban.tsx`, no cálculo de `totalCol`:
+  - Se `col.key === "fechados"` → somar `valor_ultima_compra` de cada card.
+  - Demais colunas → continuam somando `valor_total_compras` (sem mudança).
 
 ### Arquivo afetado
 - `src/components/admin/retencao/RetencaoKanban.tsx`
