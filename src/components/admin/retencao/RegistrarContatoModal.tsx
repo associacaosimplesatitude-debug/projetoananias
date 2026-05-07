@@ -40,7 +40,7 @@ export function RegistrarContatoModal({ open, onOpenChange, clienteId, vendedorI
       vendedor_id: vendedorId,
       tipo_contato: tipoContato,
       resultado,
-      motivo_perda: resultado === "nao_quer_mais" ? motivoPerda : null,
+      motivo_perda: resultado === "recusou" ? motivoPerda : null,
       observacao: observacao || null,
     });
 
