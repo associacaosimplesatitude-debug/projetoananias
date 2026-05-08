@@ -1,3 +1,7 @@
+// CANONICAL: vincula auth.user a um ebd_clientes EBD existente (superintendente).
+// Escopo único: cria/atualiza credenciais para um cliente já cadastrado, payload {email, password, fullName, clienteId}.
+// Outras entradas válidas: create-client (admin manual), ebd-instant-signup (cadastro público).
+// Não duplicar lógica — se precisar criar cliente em outro fluxo, use uma destas 3.
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 

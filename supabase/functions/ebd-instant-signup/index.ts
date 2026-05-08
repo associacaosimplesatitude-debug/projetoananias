@@ -1,3 +1,7 @@
+// CANONICAL: auto-cadastro público da landing EBD (sem auth prévia).
+// Escopo único: visitante anônimo cria conta+igreja+lead, ativa módulo REOBOTE EBD.
+// Outras entradas válidas: create-client (admin manual), create-ebd-user (vincular auth a cliente EBD existente).
+// Não duplicar lógica — se precisar criar cliente em outro fluxo, use uma destas 3.
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
