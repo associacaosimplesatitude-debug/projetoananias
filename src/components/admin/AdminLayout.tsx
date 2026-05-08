@@ -83,8 +83,12 @@ import {
 } from "@/components/ui/collapsible";
 import { useState } from "react";
 
+import { useIsSuperadmin } from "@/hooks/useIsSuperadmin";
+import { Bot } from "lucide-react";
+
 function AdminSidebar() {
   const location = useLocation();
+  const { isSuperadmin } = useIsSuperadmin();
 
   const [clientesOpen, setClientesOpen] = useState(
     location.pathname.includes('/admin/clients') || 
@@ -162,6 +166,16 @@ function AdminSidebar() {
                   </RouterNavLink>
                 </SidebarMenuButton>
               </SidebarMenuItem>
+              {isSuperadmin && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={isActive('/admin/agente-ia')}>
+                    <RouterNavLink to="/admin/agente-ia">
+                      <Bot className="h-4 w-4" />
+                      <span>Agente IA</span>
+                    </RouterNavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

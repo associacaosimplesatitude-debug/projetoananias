@@ -87,6 +87,15 @@ import PoliticaPrivacidade from "./pages/PoliticaPrivacidade";
 import NotFound from "./pages/NotFound";
 import DashboardRedirect from "./components/DashboardRedirect";
 
+// Agente IA Supervision
+import { AgenteIALayout } from "@/components/admin/agente-ia/AgenteIALayout";
+import AgenteIAIndex from "./pages/admin/agente-ia/Index";
+import AgenteIAAprovacoes from "./pages/admin/agente-ia/Aprovacoes";
+import AgenteIAConversas from "./pages/admin/agente-ia/Conversas";
+import AgenteIAConversaDetalhe from "./pages/admin/agente-ia/ConversaDetalhe";
+import AgenteIAEscalations from "./pages/admin/agente-ia/Escalations";
+import AgenteIAMetricas from "./pages/admin/agente-ia/Metricas";
+
 // Royalties Pages
 import RoyaltiesDashboard from "./pages/royalties/Dashboard";
 import RoyaltiesAutores from "./pages/royalties/Autores";
@@ -548,6 +557,14 @@ const App = () => (
                       <Route path="whatsapp" element={<WhatsAppPanel />} />
                       <Route path="whatsapp/campanhas/:campanha_id/rastreamento" element={<CampaignTracking />} />
                       <Route path="stripe-teste" element={<StripeTeste />} />
+                      <Route path="agente-ia" element={<AgenteIALayout />}>
+                        <Route index element={<AgenteIAIndex />} />
+                        <Route path="aprovacoes" element={<AgenteIAAprovacoes />} />
+                        <Route path="conversas" element={<AgenteIAConversas />} />
+                        <Route path="conversas/:id" element={<AgenteIAConversaDetalhe />} />
+                        <Route path="escalations" element={<AgenteIAEscalations />} />
+                        <Route path="metricas" element={<AgenteIAMetricas />} />
+                      </Route>
                     </Route>
                     <Route
                       path="/admin/ebd"
