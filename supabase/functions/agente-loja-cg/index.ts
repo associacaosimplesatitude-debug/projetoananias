@@ -206,7 +206,7 @@ CONTEXTO DO ATENDIMENTO (continuação):
         body: JSON.stringify({
           model: MODEL,
           max_tokens: 2048,
-          system: SYSTEM_PROMPT,
+          system: systemFinal,
           tools: TOOL_SCHEMAS,
           messages,
         }),
