@@ -87,6 +87,15 @@ import PoliticaPrivacidade from "./pages/PoliticaPrivacidade";
 import NotFound from "./pages/NotFound";
 import DashboardRedirect from "./components/DashboardRedirect";
 
+// Agente IA Supervision
+import { AgenteIALayout } from "@/components/admin/agente-ia/AgenteIALayout";
+import AgenteIAIndex from "./pages/admin/agente-ia/Index";
+import AgenteIAAprovacoes from "./pages/admin/agente-ia/Aprovacoes";
+import AgenteIAConversas from "./pages/admin/agente-ia/Conversas";
+import AgenteIAConversaDetalhe from "./pages/admin/agente-ia/ConversaDetalhe";
+import AgenteIAEscalations from "./pages/admin/agente-ia/Escalations";
+import AgenteIAMetricas from "./pages/admin/agente-ia/Metricas";
+
 // Royalties Pages
 import RoyaltiesDashboard from "./pages/royalties/Dashboard";
 import RoyaltiesAutores from "./pages/royalties/Autores";
