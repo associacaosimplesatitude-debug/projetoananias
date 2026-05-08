@@ -1,37 +1,46 @@
-# Plano
+# Detalhes do Cliente nos Cards do Kanban de Retenção
 
-Vou corrigir o botão **Reenviar interesse pendentes** porque a chamada para `backfill-interesse-presente` está falhando antes mesmo da função começar a executar.
+## Objetivo
+Em `/admin/ebd/retencao`, permitir visualizar os dados completos do cliente diretamente a partir de cada card do Kanban, com destaque para o **telefone** (hoje só existe o ícone do WhatsApp, sem mostrar o número).
 
-## O que encontrei
-- O backend está saudável.
-- A tela chama `backfill-interesse-presente` ao clicar no botão.
-- A requisição do navegador falha com **Failed to fetch**.
-- Não há logs de execução dessa função, o que indica que o problema está no deploy/entrypoint da função, não na lógica interna do processamento.
-- Já a função `backfill-cliques-novidades-perdidos` tem logs de boot, então ela está ativa.
+## O que será feito
 
-## O que vou fazer
-1. **Validar a função `backfill-interesse-presente`**
-   - Conferir o arquivo da função e o padrão usado nas outras funções que estão funcionando.
-   - Identificar incompatibilidade de runtime, import, resposta HTTP ou configuração que impeça a função de subir.
+### 1. Novo botão "Detalhes" em cada card
+Em `src/components/admin/retencao/RetencaoKanban.tsx`, adicionar um botão com ícone de informação (`Info` do lucide-react) ao lado dos botões de WhatsApp/Email/Registrar. Ao clicar, abre um Dialog com os dados completos.
 
-2. **Corrigir a estratégia do botão**
-   - Se a função estiver quebrada, ajustar para um fluxo estável:
-     - ou consertar `backfill-interesse-presente`;
-     - ou trocar o botão para chamar uma função já operacional, caso a responsabilidade real esteja duplicada.
+### 2. Novo componente `ClienteDetalhesDialog`
+Arquivo: `src/components/admin/retencao/ClienteDetalhesDialog.tsx`
 
-3. **Melhorar a tolerância a falhas na tela**
-   - Ajustar o tratamento do erro para mostrar uma mensagem útil quando a função estiver indisponível.
-   - Garantir refresh do kanban após sucesso real.
+Conteúdo do dialog:
+- **Cabeçalho**: nome da igreja
+- **Contato** (com botão de copiar ao lado de cada item):
+  - Telefone (formatado: `(XX) XXXXX-XXXX`) + link WhatsApp
+  - E-mail + link mailto
+- **Comercial**:
+  - Canal da última compra
+  - Vendedor responsável
+  - Valor total de compras
+  - Valor da última compra
+  - Dias sem comprar
+- **Endereço/Igreja** (carregado sob demanda da tabela `ebd_clientes`):
+  - Cidade, UF, CEP, endereço, CNPJ, responsável
+- **Histórico de retenção**:
+  - Último resultado e data do último contato
+  - Status do presente (interesse respondido / acesso liberado), reaproveitando os mesmos dados já consultados em `EbdRetencao.tsx`
 
-4. **Validar ponta a ponta**
-   - Confirmar que a função passa a responder sem erro de rede.
-   - Verificar que o botão executa e retorna contadores válidos.
-   - Confirmar que a coluna **Interessado** volta a refletir os registros recuperados/enviados.
+### 3. Busca dos dados extras
+Quando o dialog abrir, fazer um `useQuery` pontual no `ebd_clientes` por `cliente_id` para trazer os campos que não vêm no RPC do dashboard (endereço, CNPJ, etc.). Sem alterações no RPC `get_retencao_dashboard`.
 
-## Detalhes técnicos
-- Arquivos mais prováveis:
-  - `src/pages/admin/EbdRetencao.tsx`
-  - `supabase/functions/backfill-interesse-presente/index.ts`
-  - possivelmente `supabase/config.toml` se houver configuração específica necessária
-- Sinal principal de sucesso:
-  - a chamada `functions.invoke("backfill-interesse-presente")` deixa de falhar com **Failed to fetch** e passa a retornar JSON.
+### 4. Acessibilidade e UX
+- Telefone exibido em texto grande e selecionável (resolve o pedido principal)
+- Botão "Copiar" usando `navigator.clipboard` + `toast.success("Copiado")`
+- Dialog responsivo, com `max-w-lg`
+
+## Arquivos afetados
+- `src/components/admin/retencao/RetencaoKanban.tsx` — adicionar botão "Detalhes" e estado para abrir o dialog
+- `src/components/admin/retencao/ClienteDetalhesDialog.tsx` — **novo arquivo**
+
+## Fora de escopo
+- Não altera RPC, schema, ou regras de negócio
+- Não altera o layout das colunas do Kanban
+- Não altera permissões (segue as do `/admin/ebd/retencao`)
