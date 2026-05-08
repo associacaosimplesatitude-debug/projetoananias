@@ -1,10 +1,84 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { gerarVariantes } from "../agente-loja-cg/phone-utils.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type",
 };
+
+// ── Decide se a mensagem deve ser roteada pro agente-loja-cg ──
+async function deveRotearParaAgente(
+  supabase: ReturnType<typeof createClient>,
+  telefone: string,
+): Promise<{ chamar: boolean; motivo?: string }> {
+  const variantes = gerarVariantes(telefone);
+  if (variantes.length === 0) return { chamar: false, motivo: "telefone_invalido" };
+
+  // Exceção 1: agente já pausado/escalado
+  const { data: convAgente } = await supabase
+    .from("agente_ia_conversas")
+    .select("id, status")
+    .in("telefone", variantes)
+    .in("status", ["pausada_humano", "escalada"])
+    .order("ultima_mensagem_em", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (convAgente) return { chamar: false, motivo: `agente_${(convAgente as any).status}` };
+
+  // Exceção 2: cliente em fluxo de retenção/presente ativo
+  // retencao_disparos só tem status='sucesso'. Tratamos como "aguardando" se houve
+  // disparo nas últimas 72h e ainda NÃO existe retencao_respostas correspondente.
+  const limite = new Date(Date.now() - 72 * 3600 * 1000).toISOString();
+  const { data: disparoRecente } = await supabase
+    .from("retencao_disparos")
+    .select("id, telefone, created_at")
+    .in("telefone", variantes)
+    .eq("status", "sucesso")
+    .gte("created_at", limite)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (disparoRecente) {
+    const { data: respostaJa } = await supabase
+      .from("retencao_respostas")
+      .select("id")
+      .in("telefone", variantes)
+      .gte("created_at", (disparoRecente as any).created_at)
+      .limit(1)
+      .maybeSingle();
+    if (!respostaJa) return { chamar: false, motivo: "fluxo_retencao_aguardando" };
+  }
+
+  return { chamar: true };
+}
+
+// ── Fire-and-forget: chama o agente sem bloquear o webhook ──
+function dispararAgente(telefone: string, mensagem: string, metaMessageId: string | null) {
+  const url = `${Deno.env.get("SUPABASE_URL")}/functions/v1/agente-loja-cg`;
+  const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const p = fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${key}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ telefone, mensagem_user: mensagem, meta_message_id: metaMessageId }),
+  })
+    .then(async (r) => {
+      if (!r.ok) {
+        const err = await r.text();
+        console.error(`[webhook→agente] agente retornou ${r.status}:`, err.slice(0, 500));
+      } else {
+        console.log(`[webhook→agente] sucesso pra ${telefone}`);
+      }
+    })
+    .catch((err) => console.error("[webhook→agente] falha:", err?.message || err));
+  // @ts-ignore EdgeRuntime global no Deno deploy
+  const wait = (globalThis as any).EdgeRuntime?.waitUntil ?? ((q: Promise<unknown>) => q);
+  wait(p);
+}
+
 
 const SYSTEM_PROMPT = `Você é o assistente virtual da Central Gospel para o sistema Gestão EBD.
 Seu papel é ajudar clientes que compraram revistas EBD pela primeira vez.
