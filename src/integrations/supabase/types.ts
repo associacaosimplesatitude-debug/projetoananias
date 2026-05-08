@@ -142,6 +142,233 @@ export type Database = {
         }
         Relationships: []
       }
+      agente_ia_conversas: {
+        Row: {
+          cliente_id: string | null
+          created_at: string
+          custo_estimado: number | null
+          fechada_em: string | null
+          gerou_venda: boolean | null
+          id: string
+          iniciada_em: string
+          motivo_pausa: string | null
+          proposta_id: string | null
+          resolveu_sozinho: boolean | null
+          status: string
+          telefone: string
+          total_tokens_in: number | null
+          total_tokens_out: number | null
+          total_turnos: number | null
+          ultima_mensagem_em: string
+          valor_venda: number | null
+          whatsapp_conversa_id: string | null
+        }
+        Insert: {
+          cliente_id?: string | null
+          created_at?: string
+          custo_estimado?: number | null
+          fechada_em?: string | null
+          gerou_venda?: boolean | null
+          id?: string
+          iniciada_em?: string
+          motivo_pausa?: string | null
+          proposta_id?: string | null
+          resolveu_sozinho?: boolean | null
+          status?: string
+          telefone: string
+          total_tokens_in?: number | null
+          total_tokens_out?: number | null
+          total_turnos?: number | null
+          ultima_mensagem_em?: string
+          valor_venda?: number | null
+          whatsapp_conversa_id?: string | null
+        }
+        Update: {
+          cliente_id?: string | null
+          created_at?: string
+          custo_estimado?: number | null
+          fechada_em?: string | null
+          gerou_venda?: boolean | null
+          id?: string
+          iniciada_em?: string
+          motivo_pausa?: string | null
+          proposta_id?: string | null
+          resolveu_sozinho?: boolean | null
+          status?: string
+          telefone?: string
+          total_tokens_in?: number | null
+          total_tokens_out?: number | null
+          total_turnos?: number | null
+          ultima_mensagem_em?: string
+          valor_venda?: number | null
+          whatsapp_conversa_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agente_ia_conversas_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "ebd_clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agente_ia_conversas_proposta_id_fkey"
+            columns: ["proposta_id"]
+            isOneToOne: false
+            referencedRelation: "vendedor_propostas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agente_ia_conversas_whatsapp_conversa_id_fkey"
+            columns: ["whatsapp_conversa_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_conversas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agente_ia_escalations: {
+        Row: {
+          cliente_id: string | null
+          conversa_id: string
+          created_at: string
+          detalhes: string | null
+          id: string
+          motivo: string
+          prioridade: string
+          resolucao: string | null
+          resolvida_em: string | null
+          resolvida_por: string | null
+          status: string
+          vendedor_alvo_id: string | null
+        }
+        Insert: {
+          cliente_id?: string | null
+          conversa_id: string
+          created_at?: string
+          detalhes?: string | null
+          id?: string
+          motivo: string
+          prioridade?: string
+          resolucao?: string | null
+          resolvida_em?: string | null
+          resolvida_por?: string | null
+          status?: string
+          vendedor_alvo_id?: string | null
+        }
+        Update: {
+          cliente_id?: string | null
+          conversa_id?: string
+          created_at?: string
+          detalhes?: string | null
+          id?: string
+          motivo?: string
+          prioridade?: string
+          resolucao?: string | null
+          resolvida_em?: string | null
+          resolvida_por?: string | null
+          status?: string
+          vendedor_alvo_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agente_ia_escalations_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "ebd_clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agente_ia_escalations_conversa_id_fkey"
+            columns: ["conversa_id"]
+            isOneToOne: false
+            referencedRelation: "agente_ia_conversas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agente_ia_escalations_resolvida_por_fkey"
+            columns: ["resolvida_por"]
+            isOneToOne: false
+            referencedRelation: "vendedores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agente_ia_escalations_vendedor_alvo_id_fkey"
+            columns: ["vendedor_alvo_id"]
+            isOneToOne: false
+            referencedRelation: "vendedores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agente_ia_mensagens: {
+        Row: {
+          aprovada_em: string | null
+          aprovada_por: string | null
+          conteudo: string | null
+          conteudo_editado: string | null
+          conversa_id: string
+          created_at: string
+          enviada_ao_cliente_em: string | null
+          id: string
+          meta_message_id: string | null
+          motivo_recusa: string | null
+          role: string
+          status_aprovacao: string | null
+          tokens_in: number | null
+          tokens_out: number | null
+          tool_input: Json | null
+          tool_name: string | null
+          tool_output: Json | null
+        }
+        Insert: {
+          aprovada_em?: string | null
+          aprovada_por?: string | null
+          conteudo?: string | null
+          conteudo_editado?: string | null
+          conversa_id: string
+          created_at?: string
+          enviada_ao_cliente_em?: string | null
+          id?: string
+          meta_message_id?: string | null
+          motivo_recusa?: string | null
+          role: string
+          status_aprovacao?: string | null
+          tokens_in?: number | null
+          tokens_out?: number | null
+          tool_input?: Json | null
+          tool_name?: string | null
+          tool_output?: Json | null
+        }
+        Update: {
+          aprovada_em?: string | null
+          aprovada_por?: string | null
+          conteudo?: string | null
+          conteudo_editado?: string | null
+          conversa_id?: string
+          created_at?: string
+          enviada_ao_cliente_em?: string | null
+          id?: string
+          meta_message_id?: string | null
+          motivo_recusa?: string | null
+          role?: string
+          status_aprovacao?: string | null
+          tokens_in?: number | null
+          tokens_out?: number | null
+          tool_input?: Json | null
+          tool_name?: string | null
+          tool_output?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agente_ia_mensagens_conversa_id_fkey"
+            columns: ["conversa_id"]
+            isOneToOne: false
+            referencedRelation: "agente_ia_conversas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       apresentacao_screenshots: {
         Row: {
           created_at: string
@@ -8122,6 +8349,7 @@ export type Database = {
           itens: Json
           link_danfe: string | null
           metodo_frete: string | null
+          origem_venda: string | null
           payment_link: string | null
           pode_faturar: boolean | null
           prazo_faturamento_selecionado: string | null
@@ -8161,6 +8389,7 @@ export type Database = {
           itens?: Json
           link_danfe?: string | null
           metodo_frete?: string | null
+          origem_venda?: string | null
           payment_link?: string | null
           pode_faturar?: boolean | null
           prazo_faturamento_selecionado?: string | null
@@ -8200,6 +8429,7 @@ export type Database = {
           itens?: Json
           link_danfe?: string | null
           metodo_frete?: string | null
+          origem_venda?: string | null
           payment_link?: string | null
           pode_faturar?: boolean | null
           prazo_faturamento_selecionado?: string | null
@@ -8834,6 +9064,10 @@ export type Database = {
       adicionar_pontos_aluno: {
         Args: { p_aluno_id: string; p_motivo?: string; p_pontos: number }
         Returns: number
+      }
+      calcular_preco_para_cliente: {
+        Args: { p_cliente_id: string; p_items: Json }
+        Returns: Json
       }
       calculate_next_purchase_date: {
         Args: { start_date: string }
