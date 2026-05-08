@@ -547,7 +547,19 @@ async function handleMetaPost(
           audio_url: audioUrl,
         });
 
-        // Check if AI agent is active
+        // ── Roteamento pro agente-loja-cg (apenas tipos textuais e fluxos não-bloqueados) ──
+        const tiposParaAgente = ["text", "button", "interactive"];
+        if (tiposParaAgente.includes(msgType) && contentToSave && !contentToSave.startsWith("[")) {
+          const decisao = await deveRotearParaAgente(supabase, senderPhone);
+          console.log(`[webhook→agente] roteamento ${senderPhone}:`, decisao);
+          if (decisao.chamar) {
+            dispararAgente(senderPhone, contentToSave, messageId);
+          }
+        } else {
+          console.log(`[webhook→agente] ignorado tipo=${msgType} content="${contentToSave?.slice(0, 40)}"`);
+        }
+
+        // Check if AI agent (legado EBD) is active
         const { data: agenteIaSetting } = await supabase
           .from("system_settings")
           .select("value")
@@ -557,8 +569,9 @@ async function handleMetaPost(
         if (agenteIaSetting?.value === "true" && contentToSave && contentToSave !== "[Imagem]" && contentToSave !== "[Áudio]" && !contentToSave.startsWith("[")) {
           await processIncomingMessage(supabase, senderPhone, contentToSave);
         } else {
-          console.log("[Meta] Agente de IA desativado ou tipo não-texto - mensagem salva sem processamento IA");
+          console.log("[Meta] Agente EBD desativado ou tipo não-texto - sem processamento IA legado");
         }
+
       }
 
       // If no messages and no statuses, still audit the raw event
