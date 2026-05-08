@@ -1,5 +1,22 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { gerarVariantes } from "../agente-loja-cg/phone-utils.ts";
+
+// Inline cópia de gerarVariantes (cross-function imports não funcionam no bundler)
+function gerarVariantes(input: string): string[] {
+  const d = (input || "").replace(/\D/g, "");
+  if (!d) return [];
+  const set = new Set<string>();
+  set.add(d);
+  let core = d;
+  if (core.startsWith("55") && (core.length === 12 || core.length === 13)) core = core.slice(2);
+  if (core.length === 11) {
+    const semNove = core.slice(0, 2) + core.slice(3);
+    set.add(core); set.add(semNove); set.add("55" + core); set.add("55" + semNove);
+  } else if (core.length === 10) {
+    const comNove = core.slice(0, 2) + "9" + core.slice(2);
+    set.add(core); set.add(comNove); set.add("55" + core); set.add("55" + comNove);
+  }
+  return Array.from(set);
+}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
