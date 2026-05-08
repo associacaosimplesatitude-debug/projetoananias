@@ -2,8 +2,9 @@ import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Mail, MessageSquare } from "lucide-react";
+import { Mail, MessageSquare, Info } from "lucide-react";
 import { RegistrarContatoModal } from "./RegistrarContatoModal";
+import { ClienteDetalhesDialog } from "./ClienteDetalhesDialog";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
@@ -69,7 +70,8 @@ const canalBadgeColor = (canal: string) => {
 export function RetencaoKanban({ clientes, filtroVendedor, filtroCanal, disparosMap, autoRepliedMap, licencaConcedidaMap }: Props) {
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedCliente, setSelectedCliente] = useState<KanbanCliente | null>(null);
-
+  const [detalhesOpen, setDetalhesOpen] = useState(false);
+  const [detalhesCliente, setDetalhesCliente] = useState<KanbanCliente | null>(null);
   const filtered = clientes.filter(c => {
     if (filtroVendedor && c.vendedor_id !== filtroVendedor) return false;
     if (filtroCanal && c.canal_ultima_compra !== filtroCanal) return false;
@@ -214,6 +216,15 @@ export function RetencaoKanban({ clientes, filtroVendedor, filtroCanal, disparos
                             </a>
                           </Button>
                         )}
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 w-7 p-0"
+                          title="Ver detalhes"
+                          onClick={() => { setDetalhesCliente(c); setDetalhesOpen(true); }}
+                        >
+                          <Info className="h-3.5 w-3.5" />
+                        </Button>
                         <Button size="sm" variant="outline" className="h-7 text-xs ml-auto" onClick={() => openModal(c)}>
                           Registrar
                         </Button>
@@ -236,6 +247,15 @@ export function RetencaoKanban({ clientes, filtroVendedor, filtroCanal, disparos
           nomeCliente={selectedCliente.nome_igreja}
         />
       )}
+
+      <ClienteDetalhesDialog
+        open={detalhesOpen}
+        onOpenChange={setDetalhesOpen}
+        cliente={detalhesCliente}
+        autoRepliedAt={detalhesCliente ? autoRepliedMap?.[detalhesCliente.cliente_id] : undefined}
+        licencaConcedidaAt={detalhesCliente ? licencaConcedidaMap?.[detalhesCliente.cliente_id] : undefined}
+        disparoAt={detalhesCliente ? disparosMap?.[detalhesCliente.cliente_id] : undefined}
+      />
     </>
   );
 }
