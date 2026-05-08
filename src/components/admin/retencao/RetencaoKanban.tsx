@@ -70,7 +70,8 @@ const canalBadgeColor = (canal: string) => {
 export function RetencaoKanban({ clientes, filtroVendedor, filtroCanal, disparosMap, autoRepliedMap, licencaConcedidaMap }: Props) {
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedCliente, setSelectedCliente] = useState<KanbanCliente | null>(null);
-
+  const [detalhesOpen, setDetalhesOpen] = useState(false);
+  const [detalhesCliente, setDetalhesCliente] = useState<KanbanCliente | null>(null);
   const filtered = clientes.filter(c => {
     if (filtroVendedor && c.vendedor_id !== filtroVendedor) return false;
     if (filtroCanal && c.canal_ultima_compra !== filtroCanal) return false;
