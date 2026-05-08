@@ -155,10 +155,16 @@ const identificar_cliente: ToolHandler = async (input, supabase, ctx) => {
     .select("*", { count: "exact", head: true })
     .eq("cliente_id", cliente.id);
 
+  const nomeContato = cliente.nome_superintendente || cliente.nome_responsavel || null;
+  const primeiroNome = extrairPrimeiroNome(nomeContato);
+
   return {
     found: true,
     cliente_id: cliente.id,
     nome_igreja: cliente.nome_igreja,
+    nome_superintendente: cliente.nome_superintendente,
+    nome_responsavel: cliente.nome_responsavel,
+    primeiro_nome: primeiroNome,
     tipo_cliente: cliente.tipo_cliente,
     pode_faturar: cliente.pode_faturar,
     vendedor_id: cliente.vendedor_id,
@@ -169,6 +175,12 @@ const identificar_cliente: ToolHandler = async (input, supabase, ctx) => {
     total_pedidos: totalPedidos || 0,
   };
 };
+
+function extrairPrimeiroNome(nomeCompleto: string | null): string | null {
+  if (!nomeCompleto) return null;
+  const limpo = nomeCompleto.trim().split(/\s+/)[0];
+  return limpo || null;
+}
 
 const buscar_catalogo: ToolHandler = async (input, supabase) => {
   const termo = String(input.termo || "").trim();
