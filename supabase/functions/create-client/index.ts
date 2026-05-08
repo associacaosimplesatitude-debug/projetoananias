@@ -1,3 +1,8 @@
+// CANONICAL: criação genérica de cliente via UI admin (form manual).
+// Escopo único: admin autenticado cria ebd_clientes + auth.user.
+// Outras entradas válidas: create-ebd-user (vincular auth a cliente EBD existente),
+// ebd-instant-signup (auto-cadastro público landing EBD).
+// Não duplicar lógica — se precisar criar cliente em outro fluxo, use uma destas 3.
 // v2 - deploy fix 2026-02-05
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
