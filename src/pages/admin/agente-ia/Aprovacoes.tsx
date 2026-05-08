@@ -215,10 +215,30 @@ export default function AgenteIAAprovacoes() {
       if (error) throw error;
 
       if (tipo === "aprovada" || tipo === "editada") {
-        toast.success(
-          tipo === "aprovada" ? "Mensagem aprovada" : "Mensagem editada e aprovada",
-          { description: "Envio será ativado quando o agente entrar em produção." },
-        );
+        const textoFinal = tipo === "editada" ? editValue : (selected.conteudo || "");
+        const telefoneDestino = conversasMap[selected.conversa_id]?.telefone;
+
+        if (telefoneDestino && textoFinal) {
+          const { error: envioErr } = await supabase.functions.invoke(
+            "agente-enviar-mensagem-whatsapp",
+            {
+              body: {
+                mensagem_id: selected.id,
+                telefone_destino: telefoneDestino,
+                texto: textoFinal,
+              },
+            },
+          );
+          if (envioErr) {
+            toast.error("Aprovada mas envio falhou", { description: envioErr.message });
+          } else {
+            toast.success(
+              tipo === "aprovada" ? "Aprovada e enviada" : "Editada e enviada",
+            );
+          }
+        } else {
+          toast.warning("Aprovada mas sem telefone/texto pra enviar");
+        }
       } else {
         toast.success("Mensagem recusada", {
           description: "Não será enviada ao cliente.",

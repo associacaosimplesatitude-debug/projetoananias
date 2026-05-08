@@ -61,7 +61,12 @@ serve(async (req) => {
       .eq("key", "agente_modo_loja_cg")
       .maybeSingle();
     const modoCalculado = (typeof modoSetting?.value === "string" ? modoSetting.value : modoSetting?.value) || "supervisionado";
-    const statusAprovacaoAssistant = "pendente"; // Forçado nesta versão. Trocar para modoCalculado === "autonomo" ? "enviada_auto" : "pendente"
+    if (modoCalculado === "desligado") {
+      log("agente desligado via system_settings — saindo sem chamar Anthropic");
+      return jsonResponse({ success: false, motivo: "agente_desligado" });
+    }
+    const ehAutonomo = modoCalculado === "autonomo";
+    const statusAprovacaoAssistant = ehAutonomo ? "enviada_auto" : "pendente";
     log("modo calculado", { modoCalculado, statusAprovacaoAssistant });
 
     // ── Buscar conversa ativa
@@ -253,6 +258,29 @@ CONTEXTO DO ATENDIMENTO (continuação):
           .single();
         if (assistErr) log("erro insert assistant", assistErr);
         mensagemPendenteId = assistMsg?.id || null;
+
+        // Modo autônomo: dispara envio Meta fire-and-forget
+        if (ehAutonomo && mensagemPendenteId && respostaTextoFinal) {
+          log("modo autônomo — disparando envio Meta", { mensagem_id: mensagemPendenteId });
+          const envioPromise = fetch(`${SUPABASE_URL}/functions/v1/agente-enviar-mensagem-whatsapp`, {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${SERVICE_KEY}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              mensagem_id: mensagemPendenteId,
+              telefone_destino: telefoneNorm,
+              texto: respostaTextoFinal,
+            }),
+          }).then(async (r) => {
+            if (!r.ok) console.error(`[agente-loja-cg] envio Meta falhou:`, await r.text());
+            else log("envio Meta disparado com sucesso");
+          }).catch(err => console.error(`[agente-loja-cg] envio Meta erro:`, err));
+          // @ts-ignore EdgeRuntime no Deno deploy
+          const wait = (globalThis as any).EdgeRuntime?.waitUntil ?? ((q: Promise<any>) => q);
+          wait(envioPromise);
+        }
         break;
       }
 
