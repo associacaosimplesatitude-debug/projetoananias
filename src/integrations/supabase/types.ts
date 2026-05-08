@@ -2954,6 +2954,7 @@ export type Database = {
           loja_order_number: number
           mp_payment_id: string | null
           order_date: string | null
+          origem_venda: string | null
           paid_at: string | null
           payment_method: string | null
           provisionamento_erro: string | null
@@ -2992,6 +2993,7 @@ export type Database = {
           loja_order_number: number
           mp_payment_id?: string | null
           order_date?: string | null
+          origem_venda?: string | null
           paid_at?: string | null
           payment_method?: string | null
           provisionamento_erro?: string | null
@@ -3030,6 +3032,7 @@ export type Database = {
           loja_order_number?: number
           mp_payment_id?: string | null
           order_date?: string | null
+          origem_venda?: string | null
           paid_at?: string | null
           payment_method?: string | null
           provisionamento_erro?: string | null
@@ -4021,6 +4024,7 @@ export type Database = {
       }
       ebd_shopify_pedidos: {
         Row: {
+          arquivada: boolean
           bling_order_id: number | null
           bling_status: string | null
           bling_status_id: number | null
@@ -4059,6 +4063,7 @@ export type Database = {
           vendedor_id: string | null
         }
         Insert: {
+          arquivada?: boolean
           bling_order_id?: number | null
           bling_status?: string | null
           bling_status_id?: number | null
@@ -4097,6 +4102,7 @@ export type Database = {
           vendedor_id?: string | null
         }
         Update: {
+          arquivada?: boolean
           bling_order_id?: number | null
           bling_status?: string | null
           bling_status_id?: number | null
@@ -4153,6 +4159,7 @@ export type Database = {
       }
       ebd_shopify_pedidos_cg: {
         Row: {
+          arquivada: boolean
           cliente_id: string | null
           codigo_rastreio: string | null
           comissao_aprovada: boolean | null
@@ -4181,6 +4188,7 @@ export type Database = {
           vendedor_id: string | null
         }
         Insert: {
+          arquivada?: boolean
           cliente_id?: string | null
           codigo_rastreio?: string | null
           comissao_aprovada?: boolean | null
@@ -4209,6 +4217,7 @@ export type Database = {
           vendedor_id?: string | null
         }
         Update: {
+          arquivada?: boolean
           cliente_id?: string | null
           codigo_rastreio?: string | null
           comissao_aprovada?: boolean | null
@@ -4255,6 +4264,7 @@ export type Database = {
       }
       ebd_shopify_pedidos_cg_itens: {
         Row: {
+          arquivada: boolean
           created_at: string
           id: string
           pedido_id: string
@@ -4267,6 +4277,7 @@ export type Database = {
           variant_title: string | null
         }
         Insert: {
+          arquivada?: boolean
           created_at?: string
           id?: string
           pedido_id: string
@@ -4279,6 +4290,7 @@ export type Database = {
           variant_title?: string | null
         }
         Update: {
+          arquivada?: boolean
           created_at?: string
           id?: string
           pedido_id?: string
@@ -4302,6 +4314,7 @@ export type Database = {
       }
       ebd_shopify_pedidos_itens: {
         Row: {
+          arquivada: boolean
           created_at: string
           id: string
           pedido_id: string
@@ -4314,6 +4327,7 @@ export type Database = {
           variant_title: string | null
         }
         Insert: {
+          arquivada?: boolean
           created_at?: string
           id?: string
           pedido_id: string
@@ -4326,6 +4340,7 @@ export type Database = {
           variant_title?: string | null
         }
         Update: {
+          arquivada?: boolean
           created_at?: string
           id?: string
           pedido_id?: string
@@ -4350,6 +4365,7 @@ export type Database = {
       ebd_shopify_pedidos_mercadopago: {
         Row: {
           application_fee: number | null
+          arquivada: boolean
           bling_created_at: string | null
           bling_order_id: number | null
           cliente_cpf_cnpj: string | null
@@ -4390,6 +4406,7 @@ export type Database = {
         }
         Insert: {
           application_fee?: number | null
+          arquivada?: boolean
           bling_created_at?: string | null
           bling_order_id?: number | null
           cliente_cpf_cnpj?: string | null
@@ -4430,6 +4447,7 @@ export type Database = {
         }
         Update: {
           application_fee?: number | null
+          arquivada?: boolean
           bling_created_at?: string | null
           bling_order_id?: number | null
           cliente_cpf_cnpj?: string | null
@@ -8777,6 +8795,20 @@ export type Database = {
       }
     }
     Views: {
+      pedidos_cliente_360: {
+        Row: {
+          arquivado: boolean | null
+          cliente_id: string | null
+          data_pedido: string | null
+          email: string | null
+          origem: string | null
+          pedido_id: string | null
+          status_pagamento: string | null
+          telefone: string | null
+          valor_total: number | null
+        }
+        Relationships: []
+      }
       v_implementacoes_for_user: {
         Row: {
           ativo: boolean | null
