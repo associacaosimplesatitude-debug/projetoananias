@@ -247,6 +247,15 @@ export function RetencaoKanban({ clientes, filtroVendedor, filtroCanal, disparos
           nomeCliente={selectedCliente.nome_igreja}
         />
       )}
+
+      <ClienteDetalhesDialog
+        open={detalhesOpen}
+        onOpenChange={setDetalhesOpen}
+        cliente={detalhesCliente}
+        autoRepliedAt={detalhesCliente ? autoRepliedMap?.[detalhesCliente.cliente_id] : undefined}
+        licencaConcedidaAt={detalhesCliente ? licencaConcedidaMap?.[detalhesCliente.cliente_id] : undefined}
+        disparoAt={detalhesCliente ? disparosMap?.[detalhesCliente.cliente_id] : undefined}
+      />
     </>
   );
 }
