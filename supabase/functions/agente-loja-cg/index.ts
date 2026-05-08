@@ -240,7 +240,15 @@ serve(async (req) => {
     }
 
     // ── Atualizar contadores da conversa
-    const custoUsd = calcularCustoUsd(MODEL, totalTokensIn, totalTokensOut);
+    const custoTurnoUsd = calcularCustoUsd(MODEL, totalTokensIn, totalTokensOut);
+    const { data: convAtual } = await supabase
+      .from("agente_ia_conversas")
+      .select("custo_estimado")
+      .eq("id", conversa.id)
+      .maybeSingle();
+    const custoAcumuladoUsd =
+      Math.round(((Number(convAtual?.custo_estimado) || 0) + custoTurnoUsd) * 10000) / 10000;
+
     await supabase
       .from("agente_ia_conversas")
       .update({
@@ -248,15 +256,8 @@ serve(async (req) => {
         total_turnos: (conversa.total_turnos || 0) + 1,
         total_tokens_in: (conversa.total_tokens_in || 0) + totalTokensIn,
         total_tokens_out: (conversa.total_tokens_out || 0) + totalTokensOut,
-        custo_estimado: undefined, // soma feita via expressão abaixo seria ideal — mantendo simples por ora
+        custo_estimado: custoAcumuladoUsd,
       })
-      .eq("id", conversa.id);
-
-    // soma incremental do custo (separada para evitar ler-modificar-escrever no mesmo update acima)
-    await supabase.rpc("noop_ignore_if_missing").catch(() => {});
-    await supabase
-      .from("agente_ia_conversas")
-      .update({ custo_estimado: custoUsd })
       .eq("id", conversa.id);
 
     return jsonResponse({
