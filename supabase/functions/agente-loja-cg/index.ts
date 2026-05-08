@@ -61,7 +61,12 @@ serve(async (req) => {
       .eq("key", "agente_modo_loja_cg")
       .maybeSingle();
     const modoCalculado = (typeof modoSetting?.value === "string" ? modoSetting.value : modoSetting?.value) || "supervisionado";
-    const statusAprovacaoAssistant = "pendente"; // Forçado nesta versão. Trocar para modoCalculado === "autonomo" ? "enviada_auto" : "pendente"
+    if (modoCalculado === "desligado") {
+      log("agente desligado via system_settings — saindo sem chamar Anthropic");
+      return jsonResponse({ success: false, motivo: "agente_desligado" });
+    }
+    const ehAutonomo = modoCalculado === "autonomo";
+    const statusAprovacaoAssistant = ehAutonomo ? "enviada_auto" : "pendente";
     log("modo calculado", { modoCalculado, statusAprovacaoAssistant });
 
     // ── Buscar conversa ativa
