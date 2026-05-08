@@ -265,7 +265,7 @@ serve(async (req) => {
       conversa_id: conversa.id,
       mensagem_pendente_id: mensagemPendenteId,
       resposta_preview: respostaTextoFinal,
-      tokens: { in: totalTokensIn, out: totalTokensOut, custo_usd: custoUsd },
+      tokens: { in: totalTokensIn, out: totalTokensOut, custo_usd: custoTurnoUsd, custo_acumulado_usd: custoAcumuladoUsd },
       modo: modoCalculado,
     });
   } catch (err: any) {
