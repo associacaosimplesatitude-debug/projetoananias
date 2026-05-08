@@ -20,7 +20,7 @@ const createUserSchema = z.object({
   role: z.enum(['admin', 'client', 'tesoureiro', 'secretario', 'gerente_ebd', 'financeiro', 'representante', 'autor', 'gerente_royalties', 'gerente_sorteio'], { message: 'Role inválida' }),
 });
 
-type UserRole = 'admin' | 'client' | 'tesoureiro' | 'secretario' | 'gerente_ebd' | 'financeiro' | 'representante' | 'autor' | 'gerente_royalties' | 'gerente_sorteio';
+type UserRole = 'admin' | 'client' | 'tesoureiro' | 'secretario' | 'gerente_ebd' | 'financeiro' | 'representante' | 'autor' | 'gerente_royalties' | 'gerente_sorteio' | 'superadmin';
 
 interface User {
   id: string;
