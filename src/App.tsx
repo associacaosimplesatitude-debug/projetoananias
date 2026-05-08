@@ -557,6 +557,14 @@ const App = () => (
                       <Route path="whatsapp" element={<WhatsAppPanel />} />
                       <Route path="whatsapp/campanhas/:campanha_id/rastreamento" element={<CampaignTracking />} />
                       <Route path="stripe-teste" element={<StripeTeste />} />
+                      <Route path="agente-ia" element={<AgenteIALayout />}>
+                        <Route index element={<AgenteIAIndex />} />
+                        <Route path="aprovacoes" element={<AgenteIAAprovacoes />} />
+                        <Route path="conversas" element={<AgenteIAConversas />} />
+                        <Route path="conversas/:id" element={<AgenteIAConversaDetalhe />} />
+                        <Route path="escalations" element={<AgenteIAEscalations />} />
+                        <Route path="metricas" element={<AgenteIAMetricas />} />
+                      </Route>
                     </Route>
                     <Route
                       path="/admin/ebd"
