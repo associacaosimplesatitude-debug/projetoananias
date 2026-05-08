@@ -101,6 +101,67 @@ serve(async (req) => {
       telefone: telefoneNorm,
     };
 
+    // ── Identificação automática do cliente (antes de persistir o user message)
+    let contextoCliente = "";
+    if (!conversa.cliente_id) {
+      const identifyResult: any = await TOOL_HANDLERS.identificar_cliente(
+        { telefone: telefoneRaw },
+        supabase,
+        ctx,
+      );
+      if (identifyResult?.found) {
+        log("cliente identificado automaticamente", {
+          cliente_id: identifyResult.cliente_id,
+          nome: identifyResult.primeiro_nome,
+        });
+        await supabase.from("agente_ia_mensagens").insert({
+          conversa_id: conversa.id,
+          role: "system",
+          conteudo: `[CONTEXTO AUTOMÁTICO] Cliente identificado pelo telefone: ${JSON.stringify(identifyResult)}`,
+          status_aprovacao: "nao_aplicavel",
+        });
+        contextoCliente = `
+CONTEXTO DO ATENDIMENTO ATUAL:
+- Cliente já cadastrado no sistema
+- Nome do contato: ${identifyResult.primeiro_nome || "—"} (completo: ${identifyResult.nome_superintendente || identifyResult.nome_responsavel || identifyResult.nome_igreja})
+- Igreja/Razão Social: ${identifyResult.nome_igreja}
+- Tipo de cliente: ${identifyResult.tipo_cliente}
+- Pode faturar (B2B): ${identifyResult.pode_faturar}
+- Cidade/UF: ${identifyResult.cidade || "—"}/${identifyResult.estado || "—"}
+- cliente_id (use em tools): ${identifyResult.cliente_id}
+- Total de pedidos anteriores: ${identifyResult.total_pedidos || 0}
+- Último pedido em: ${identifyResult.ultimo_pedido_em || "nunca"}
+
+INSTRUÇÃO: Cumprimente pelo primeiro nome com tratamento adequado ao tipo de cliente. Para Igreja/ADVEC, use "Pastor"/"Pastora"/"Irmão"/"Irmã" + primeiro nome quando fizer sentido. Para PESSOA FÍSICA, use só o primeiro nome. Não pergunte coisas que já sabe daqui.`;
+      } else {
+        log("cliente NÃO identificado pelo telefone", { telefone: telefoneNorm });
+        contextoCliente = `
+CONTEXTO DO ATENDIMENTO ATUAL:
+- Telefone: ${telefoneNorm}
+- Cliente NÃO encontrado no sistema (lead novo ou número diferente do cadastrado)
+- Você ainda não sabe o nome dele
+
+INSTRUÇÃO: Cumprimente neutro e durante a conversa colete naturalmente: nome, igreja (se for da igreja), cidade. Quando tiver mínimo (nome + igreja + email/cidade), use a tool cadastrar_cliente. Sem isso, não consegue gerar proposta.`;
+      }
+    } else {
+      const { data: c } = await supabase
+        .from("ebd_clientes")
+        .select("id, nome_igreja, nome_superintendente, nome_responsavel, tipo_cliente, pode_faturar, endereco_cidade, endereco_estado")
+        .eq("id", conversa.cliente_id)
+        .maybeSingle();
+      if (c) {
+        const nomeBase = (c.nome_superintendente || c.nome_responsavel || c.nome_igreja || "").trim();
+        const primeiro = nomeBase.split(/\s+/)[0];
+        contextoCliente = `
+CONTEXTO DO ATENDIMENTO (continuação):
+- Cliente: ${primeiro} (${c.nome_igreja})
+- Tipo: ${c.tipo_cliente}, pode_faturar: ${c.pode_faturar}
+- Localização: ${c.endereco_cidade}/${c.endereco_estado}
+- cliente_id: ${c.id}`;
+      }
+    }
+    const systemFinal = contextoCliente ? SYSTEM_PROMPT + "\n\n---\n\n" + contextoCliente : SYSTEM_PROMPT;
+
     // ── Persistir mensagem do user
     await supabase.from("agente_ia_mensagens").insert({
       conversa_id: conversa.id,
