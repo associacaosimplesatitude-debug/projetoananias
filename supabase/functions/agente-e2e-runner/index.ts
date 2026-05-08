@@ -8,8 +8,8 @@ serve(async () => {
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      telefone: "5511987654321",
-      mensagem_user: "Olá, vocês têm a revista de adulto desse trimestre?",
+      telefone: "11949910738",
+      mensagem_user: "Oi",
     }),
   });
   const elapsed = Date.now() - t0;
