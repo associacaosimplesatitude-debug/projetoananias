@@ -83,8 +83,12 @@ import {
 } from "@/components/ui/collapsible";
 import { useState } from "react";
 
+import { useIsSuperadmin } from "@/hooks/useIsSuperadmin";
+import { Bot } from "lucide-react";
+
 function AdminSidebar() {
   const location = useLocation();
+  const { isSuperadmin } = useIsSuperadmin();
 
   const [clientesOpen, setClientesOpen] = useState(
     location.pathname.includes('/admin/clients') || 
