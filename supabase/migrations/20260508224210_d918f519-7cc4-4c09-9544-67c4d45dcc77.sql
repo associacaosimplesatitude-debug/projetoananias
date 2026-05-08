@@ -1,0 +1,1 @@
+UPDATE public.agente_ia_conversas SET status = 'fechada' WHERE id = '14d530d4-8ec3-4b72-b9bb-d5c637d8d332';
