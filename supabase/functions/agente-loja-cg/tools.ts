@@ -131,7 +131,7 @@ const identificar_cliente: ToolHandler = async (input, supabase, ctx) => {
   const { data: cliente } = await supabase
     .from("ebd_clientes")
     .select(
-      "id, nome_igreja, tipo_cliente, pode_faturar, vendedor_id, cnpj, cpf, email_superintendente, endereco_cidade, endereco_estado",
+      "id, nome_igreja, nome_superintendente, nome_responsavel, tipo_cliente, pode_faturar, vendedor_id, cnpj, cpf, email_superintendente, endereco_cidade, endereco_estado",
     )
     .in("telefone", variantes)
     .limit(1)
