@@ -216,6 +216,15 @@ export function RetencaoKanban({ clientes, filtroVendedor, filtroCanal, disparos
                             </a>
                           </Button>
                         )}
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 w-7 p-0"
+                          title="Ver detalhes"
+                          onClick={() => { setDetalhesCliente(c); setDetalhesOpen(true); }}
+                        >
+                          <Info className="h-3.5 w-3.5" />
+                        </Button>
                         <Button size="sm" variant="outline" className="h-7 text-xs ml-auto" onClick={() => openModal(c)}>
                           Registrar
                         </Button>
