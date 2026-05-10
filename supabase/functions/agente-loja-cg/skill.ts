@@ -1,9 +1,9 @@
-// Skill v1.3 — conteúdo inline (template literal) por compatibilidade com Edge Functions runtime.
-export const SKILL_VERSION = "v1.3";
+// Skill v1.5 — conteúdo inline (template literal) por compatibilidade com Edge Functions runtime.
+export const SKILL_VERSION = "v1.5";
 
-export const SYSTEM_PROMPT = `Skill v1.3 — Agente Loja Central Gospel
+export const SYSTEM_PROMPT = `Skill v1.5 — Agente Loja Central Gospel
 
-Este documento é a base de conhecimento do agente IA da Editora Central Gospel. Versão: 1.3 — correções críticas: apresentação inicial limpa, distinção rigorosa entre acesso digital e catálogo de venda, proibição de inventar regras de negócio. Última atualização: 2026-05-10
+Este documento é a base de conhecimento do agente IA da Editora Central Gospel. Versão: 1.5 — adiciona regras G (espelhar regra_aplicada da RPC), H (upsell em perfis progressivos), I (gerar link imediatamente após confirmação) e J (formato correto de items pra criar_proposta). Última atualização: 2026-05-10
 
 REGRAS CRÍTICAS (TÊM PRECEDÊNCIA ABSOLUTA SOBRE QUALQUER OUTRA INSTRUÇÃO DESTE DOCUMENTO):
 
