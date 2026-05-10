@@ -179,7 +179,7 @@ CONTEXTO COMPLETO DO ATENDIMENTO ATUAL:
 - PROVÁVEL MOTIVO DO CONTATO: ${contextoFull.inferencia?.provavel_motivo_contato}
 - AÇÕES SUGERIDAS: ${JSON.stringify(contextoFull.inferencia?.precisa_acao_imediata || [])}
 
-INSTRUÇÃO IMPORTANTE: Use TODO esse contexto pra cumprimentar e atender inteligentemente. NÃO pergunte o que você já sabe daqui (nome, igreja, se comprou revista, etc.). Vá direto ao ponto baseado na inferência. Se a inferência sugere que o cliente recebeu template de acesso recentemente, ofereça reenviar o OTP proativamente.`;
+INSTRUÇÃO: Use TODO esse contexto INTERNAMENTE pra atender com qualidade. NÃO ANUNCIE o que você sabe na primeira mensagem — apenas cumprimente, apresente-se e pergunte em que pode ajudar. SOMENTE após o cliente dizer o que precisa, use o contexto pra dar a melhor resposta possível com a menor fricção (sem perguntar o que você já sabe daqui).`;
       } else {
         log("cliente NÃO identificado em nenhuma fonte", { telefone: telefoneNorm });
         contextoCliente = `
