@@ -9061,9 +9061,17 @@ export type Database = {
       }
     }
     Functions: {
+      acessos_revista_digital: {
+        Args: { p_cliente_id?: string; p_email?: string; p_telefone?: string }
+        Returns: Json
+      }
       adicionar_pontos_aluno: {
         Args: { p_aluno_id: string; p_motivo?: string; p_pontos: number }
         Returns: number
+      }
+      buscar_catalogo_unificado: {
+        Args: { p_max?: number; p_termo: string }
+        Returns: Json
       }
       calcular_preco_para_cliente: {
         Args: { p_cliente_id: string; p_items: Json }
@@ -9077,6 +9085,15 @@ export type Database = {
       can_view_implementacao: {
         Args: { _impl_id: string; _user_id: string }
         Returns: boolean
+      }
+      cliente_em_campanha_ativa: {
+        Args: { p_cliente_id?: string; p_telefone: string }
+        Returns: Json
+      }
+      contexto_inicial_cliente: { Args: { p_telefone: string }; Returns: Json }
+      disparos_recebidos: {
+        Args: { p_dias?: number; p_email?: string; p_telefone: string }
+        Returns: Json
       }
       execute_readonly_query: { Args: { sql_query: string }; Returns: Json }
       get_auth_email: { Args: never; Returns: string }
@@ -9154,6 +9171,19 @@ export type Database = {
         Returns: boolean
       }
       has_royalties_access: { Args: { _user_id: string }; Returns: boolean }
+      historico_compras_completo: {
+        Args: {
+          p_cliente_id?: string
+          p_email?: string
+          p_limite?: number
+          p_telefone?: string
+        }
+        Returns: Json
+      }
+      identificar_pessoa_unificada: {
+        Args: { p_documento?: string; p_email?: string; p_telefone?: string }
+        Returns: Json
+      }
       increment_comissao: {
         Args: { emb_id: string; valor: number }
         Returns: number
@@ -9171,6 +9201,7 @@ export type Database = {
       is_financeiro_or_admin: { Args: { _user_id: string }; Returns: boolean }
       is_royalties_autor: { Args: { _user_id: string }; Returns: boolean }
       is_vendedor: { Args: { _user_email: string }; Returns: boolean }
+      normalizar_termo_busca: { Args: { termo: string }; Returns: string }
       recalcular_royalties_pendentes: {
         Args: never
         Returns: {
@@ -9183,6 +9214,7 @@ export type Database = {
         Args: { _cliente_id: string; _source: string; _vendedor_id: string }
         Returns: undefined
       }
+      variantes_telefone: { Args: { p_telefone: string }; Returns: string[] }
     }
     Enums: {
       app_role:
