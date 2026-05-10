@@ -15,29 +15,67 @@ export type ToolHandler = (
 // ───────────────────────── TOOL SCHEMAS ─────────────────────────
 export const TOOL_SCHEMAS = [
   {
-    name: "identificar_cliente",
+    name: "identificar_pessoa",
     description:
-      "Busca cliente no banco pelo telefone. Retorna dados básicos + tipo_cliente + se pode_faturar. Se não encontrar, retorna { found: false }.",
+      "Busca uma pessoa em TODAS as fontes do sistema (clientes, licenças digitais, embaixadoras, sorteios, auth.users) por telefone, email ou documento. Use quando precisar identificar OUTRO cliente além do que está atendendo (o cliente atual já vem identificado no system prompt).",
     input_schema: {
       type: "object",
       properties: {
-        telefone: { type: "string", description: "Telefone em qualquer formato" },
+        telefone: { type: "string" },
+        email: { type: "string" },
+        documento: { type: "string", description: "CPF ou CNPJ" },
+      },
+    },
+  },
+  {
+    name: "consultar_historico_compras",
+    description:
+      "Retorna histórico COMPLETO de compras do cliente — Loja CG atual, MP standalone, históricos arquivados Shopify, propostas B2B, marketplace Bling (ML/Shopee/Amazon), e PDV. Use quando cliente perguntar sobre pedidos passados.",
+    input_schema: {
+      type: "object",
+      properties: {
+        cliente_id: { type: "string", description: "UUID do cliente (preferencial)" },
+        telefone: { type: "string" },
+        email: { type: "string" },
+        limite: { type: "integer", default: 10, maximum: 50 },
+      },
+    },
+  },
+  {
+    name: "consultar_acessos_digital",
+    description:
+      "Retorna licenças digitais do cliente (Shopify + multi-licença) com revista, status, primeiro/último acesso, e OTPs recentes. Use quando cliente perguntar sobre revista digital, acesso, ou se já comprou produto digital.",
+    input_schema: {
+      type: "object",
+      properties: {
+        cliente_id: { type: "string" },
+        telefone: { type: "string" },
+        email: { type: "string" },
+      },
+    },
+  },
+  {
+    name: "consultar_disparos_recentes",
+    description:
+      "Retorna mensagens WhatsApp e emails enviados pelo sistema pra esse contato nos últimos N dias. Use pra ENTENDER o que o cliente recebeu antes de mandar mensagem (ex: cliente recebeu OTP, recebeu template, recebeu campanha de retenção).",
+    input_schema: {
+      type: "object",
+      properties: {
+        telefone: { type: "string" },
+        email: { type: "string" },
+        dias: { type: "integer", default: 7, maximum: 30 },
       },
       required: ["telefone"],
     },
   },
   {
     name: "buscar_catalogo",
-    description: "Busca produtos por termo. Filtrável por tipo. Retorna lista com sku, título, preço, imagem e fonte.",
+    description:
+      "Busca produtos por palavras-chave. Encontra revistas físicas + digitais. Busca normalizada (ignora acentos, números com Nº, espaços extras). Aceita termos parciais ('Cartas Prisão' acha 'Revista EBD Cartas da Prisão').",
     input_schema: {
       type: "object",
       properties: {
         termo: { type: "string" },
-        tipo: {
-          type: "string",
-          enum: ["revista_ebd", "produto_digital", "fisico_bling", "todos"],
-          default: "todos",
-        },
         max_resultados: { type: "integer", default: 5, minimum: 1, maximum: 10 },
       },
       required: ["termo"],
@@ -45,7 +83,8 @@ export const TOOL_SCHEMAS = [
   },
   {
     name: "calcular_preco",
-    description: "Aplica descontos do cliente. SEMPRE usar antes de informar preço a cliente identificado.",
+    description:
+      "Aplica desconto correto pra esse cliente baseado em perfil/categoria. SEMPRE use antes de informar preço a cliente identificado.",
     input_schema: {
       type: "object",
       properties: {
@@ -70,7 +109,7 @@ export const TOOL_SCHEMAS = [
   {
     name: "criar_proposta",
     description:
-      "Gera proposta no sistema, retorna link público para o cliente aprovar e pagar. SÓ usar após cliente confirmar items + estar identificado.",
+      "Gera proposta de compra com link público de pagamento. SÓ usar após cliente confirmar items + estar identificado.",
     input_schema: {
       type: "object",
       properties: {
@@ -83,21 +122,23 @@ export const TOOL_SCHEMAS = [
     },
   },
   {
-    name: "consultar_pedidos_cliente",
-    description: "Histórico de pedidos do cliente em pedidos_cliente_360.",
+    name: "reenviar_otp_revista",
+    description:
+      "Reenvia OTP de acesso a revista digital pro cliente via WhatsApp. Use quando cliente pedir reenvio de acesso a revista digital que ele já comprou (verificou em consultar_acessos_digital).",
     input_schema: {
       type: "object",
       properties: {
-        cliente_id: { type: "string" },
-        limite: { type: "integer", default: 5, minimum: 1, maximum: 20 },
+        telefone: { type: "string" },
+        email: { type: "string" },
+        revista_id: { type: "string", description: "Opcional. Se omitido, sistema escolhe a licença mais recente." },
       },
-      required: ["cliente_id"],
+      required: ["telefone"],
     },
   },
   {
     name: "escalar_para_humano",
     description:
-      "Escala para vendedor humano. Use para reembolso, devolução, problema sério ou quando o cliente pediu humano.",
+      "Escala conversa para vendedor humano. Use APENAS para reembolso, devolução, troca, cancelamento de pedido pago, alteração de NF-e, produto defeituoso, cliente em crise, ou quando cliente pediu humano explicitamente.",
     input_schema: {
       type: "object",
       properties: {
@@ -122,136 +163,56 @@ export const TOOL_SCHEMAS = [
   },
 ];
 
-// ───────────────────────── IMPLEMENTAÇÕES ─────────────────────────
+// ───────────────────────── HANDLERS ─────────────────────────
 
-const identificar_cliente: ToolHandler = async (input, supabase, ctx) => {
-  const variantes = gerarVariantes(input.telefone);
-  if (variantes.length === 0) return { found: false };
-
-  const { data: cliente } = await supabase
-    .from("ebd_clientes")
-    .select(
-      "id, nome_igreja, nome_superintendente, nome_responsavel, tipo_cliente, pode_faturar, vendedor_id, cnpj, cpf, email_superintendente, endereco_cidade, endereco_estado",
-    )
-    .in("telefone", variantes)
-    .limit(1)
-    .maybeSingle();
-
-  if (!cliente) return { found: false };
-
-  await supabase.from("agente_ia_conversas").update({ cliente_id: cliente.id }).eq("id", ctx.conversa_id);
-  ctx.cliente_id = cliente.id;
-
-  const { data: ultimo } = await supabase
-    .from("pedidos_cliente_360")
-    .select("data_pedido, valor_total")
-    .eq("cliente_id", cliente.id)
-    .order("data_pedido", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  const { count: totalPedidos } = await supabase
-    .from("pedidos_cliente_360")
-    .select("*", { count: "exact", head: true })
-    .eq("cliente_id", cliente.id);
-
-  const nomeContato = cliente.nome_superintendente || cliente.nome_responsavel || null;
-  const primeiroNome = extrairPrimeiroNome(nomeContato);
-
-  return {
-    found: true,
-    cliente_id: cliente.id,
-    nome_igreja: cliente.nome_igreja,
-    nome_superintendente: cliente.nome_superintendente,
-    nome_responsavel: cliente.nome_responsavel,
-    primeiro_nome: primeiroNome,
-    tipo_cliente: cliente.tipo_cliente,
-    pode_faturar: cliente.pode_faturar,
-    vendedor_id: cliente.vendedor_id,
-    cidade: cliente.endereco_cidade,
-    estado: cliente.endereco_estado,
-    ultimo_pedido_em: ultimo?.data_pedido || null,
-    ultimo_valor: ultimo?.valor_total || null,
-    total_pedidos: totalPedidos || 0,
-  };
+const identificar_pessoa: ToolHandler = async (input, supabase) => {
+  const { data, error } = await supabase.rpc("identificar_pessoa_unificada", {
+    p_telefone: input.telefone || null,
+    p_email: input.email || null,
+    p_documento: input.documento || null,
+  });
+  if (error) throw new Error(error.message);
+  return data;
 };
 
-function extrairPrimeiroNome(nomeCompleto: string | null): string | null {
-  if (!nomeCompleto) return null;
-  const limpo = nomeCompleto.trim().split(/\s+/)[0];
-  return limpo || null;
-}
+const consultar_historico_compras: ToolHandler = async (input, supabase) => {
+  const { data, error } = await supabase.rpc("historico_compras_completo", {
+    p_cliente_id: input.cliente_id || null,
+    p_telefone: input.telefone || null,
+    p_email: input.email || null,
+    p_limite: Math.min(Number(input.limite || 10), 50),
+  });
+  if (error) throw new Error(error.message);
+  return data;
+};
+
+const consultar_acessos_digital: ToolHandler = async (input, supabase) => {
+  const { data, error } = await supabase.rpc("acessos_revista_digital", {
+    p_cliente_id: input.cliente_id || null,
+    p_telefone: input.telefone || null,
+    p_email: input.email || null,
+  });
+  if (error) throw new Error(error.message);
+  return data;
+};
+
+const consultar_disparos_recentes: ToolHandler = async (input, supabase) => {
+  const { data, error } = await supabase.rpc("disparos_recebidos", {
+    p_telefone: input.telefone,
+    p_email: input.email || null,
+    p_dias: Math.min(Number(input.dias || 7), 30),
+  });
+  if (error) throw new Error(error.message);
+  return data;
+};
 
 const buscar_catalogo: ToolHandler = async (input, supabase) => {
-  const termo = String(input.termo || "").trim();
-  const tipo = input.tipo || "todos";
-  const max = Math.min(Number(input.max_resultados || 5), 10);
-  const items: any[] = [];
-
-  if (tipo === "revista_ebd" || tipo === "todos") {
-    const { data } = await supabase
-      .from("ebd_revistas")
-      .select("id, titulo, preco_cheio, imagem_url, sku_bling, estoque, categoria")
-      .or(`titulo.ilike.%${termo}%,descricao.ilike.%${termo}%`)
-      .limit(max);
-    (data || []).forEach((r: any) =>
-      items.push({
-        variantId: r.id,
-        title: r.titulo,
-        price: Number(r.preco_cheio || 0),
-        imageUrl: r.imagem_url,
-        sku: r.sku_bling,
-        fonte: "revista_ebd",
-        estoque: r.estoque,
-        categoria: r.categoria,
-      }),
-    );
-  }
-
-  if (tipo === "produto_digital" || tipo === "todos") {
-    const { data } = await supabase
-      .from("revistas_digitais")
-      .select("id, titulo, preco, capa_url, tipo_conteudo")
-      .ilike("titulo", `%${termo}%`)
-      .limit(max);
-    (data || []).forEach((r: any) =>
-      items.push({
-        variantId: r.id,
-        title: r.titulo,
-        price: Number(r.preco || 0),
-        imageUrl: r.capa_url,
-        sku: null,
-        fonte: "digital",
-        estoque: null,
-        categoria: r.tipo_conteudo,
-      }),
-    );
-  }
-
-  if (tipo === "fisico_bling" || tipo === "todos") {
-    try {
-      const { data } = await supabase.functions.invoke("bling-search-product", {
-        body: { query: termo },
-      });
-      const arr = Array.isArray(data?.items) ? data.items : Array.isArray(data) ? data : [];
-      arr.slice(0, max).forEach((r: any) =>
-        items.push({
-          variantId: String(r.id || r.variantId),
-          title: r.nome || r.title,
-          price: Number(r.preco || r.price || 0),
-          imageUrl: r.imagem || r.imageUrl || null,
-          sku: r.codigo || r.sku || null,
-          fonte: "bling",
-          estoque: r.estoque ?? null,
-        }),
-      );
-    } catch (e) {
-      console.error("[agente-loja-cg] bling-search-product falhou", e);
-    }
-  }
-
-  const limited = items.slice(0, max);
-  return { items: limited, total_encontrados: items.length };
+  const { data, error } = await supabase.rpc("buscar_catalogo_unificado", {
+    p_termo: input.termo,
+    p_max: Math.min(Number(input.max_resultados || 5), 10),
+  });
+  if (error) throw new Error(error.message);
+  return data;
 };
 
 const calcular_preco: ToolHandler = async (input, supabase) => {
@@ -299,16 +260,35 @@ const criar_proposta: ToolHandler = async (input, supabase, ctx) => {
   };
 };
 
-const consultar_pedidos_cliente: ToolHandler = async (input, supabase) => {
-  const limite = Math.min(Number(input.limite || 5), 20);
-  const { data, error } = await supabase
-    .from("pedidos_cliente_360")
-    .select("numero_pedido, status, valor_total, data_pedido, codigo_rastreio, origem, arquivado")
-    .eq("cliente_id", input.cliente_id)
-    .order("data_pedido", { ascending: false })
-    .limit(limite);
-  if (error) throw new Error(error.message);
-  return { pedidos: data || [], total_encontrados: (data || []).length };
+const reenviar_otp_revista: ToolHandler = async (input, supabase) => {
+  const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+  const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+  const resp = await fetch(`${SUPABASE_URL}/functions/v1/revista-solicitar-otp`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${SERVICE_KEY}`,
+      apikey: SERVICE_KEY,
+    },
+    body: JSON.stringify({
+      whatsapp: input.telefone,
+      email: input.email,
+      revista_id: input.revista_id,
+    }),
+  });
+
+  const json = await resp.json().catch(() => ({}));
+  if (!resp.ok) {
+    throw new Error(json?.erro || json?.error || `revista-solicitar-otp retornou ${resp.status}`);
+  }
+  return {
+    enviado: true,
+    canal: "whatsapp",
+    detalhes: json,
+    mensagem_para_agente:
+      "OTP enviado pro WhatsApp do cliente. Diga ao cliente pra verificar e usar o código pra acessar.",
+  };
 };
 
 const escalar_para_humano: ToolHandler = async (input, supabase, ctx) => {
@@ -361,10 +341,16 @@ const escalar_para_humano: ToolHandler = async (input, supabase, ctx) => {
 };
 
 export const TOOL_HANDLERS: Record<string, ToolHandler> = {
-  identificar_cliente,
+  identificar_pessoa,
+  consultar_historico_compras,
+  consultar_acessos_digital,
+  consultar_disparos_recentes,
   buscar_catalogo,
   calcular_preco,
   criar_proposta,
-  consultar_pedidos_cliente,
+  reenviar_otp_revista,
   escalar_para_humano,
 };
+
+// Export utilitário (não usado pelo loop, mas mantido para outros callers internos)
+export { gerarVariantes };
