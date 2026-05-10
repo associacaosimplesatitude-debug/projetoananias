@@ -1,5 +1,5 @@
-// Skill v1.1 — conteúdo inline (template literal) por compatibilidade com Edge Functions runtime.
-export const SKILL_VERSION = "v1.2";
+// Skill v1.3 — conteúdo inline (template literal) por compatibilidade com Edge Functions runtime.
+export const SKILL_VERSION = "v1.3";
 
 export const SYSTEM_PROMPT = `Skill v1.1 — Agente Loja Central Gospel
 
