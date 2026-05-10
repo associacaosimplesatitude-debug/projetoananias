@@ -207,12 +207,61 @@ const consultar_disparos_recentes: ToolHandler = async (input, supabase) => {
 };
 
 const buscar_catalogo: ToolHandler = async (input, supabase) => {
-  const { data, error } = await supabase.rpc("buscar_catalogo_unificado", {
-    p_termo: input.termo,
-    p_max: Math.min(Number(input.max_resultados || 5), 10),
+  const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+  const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const max = Math.min(Number(input.max_resultados || 5), 10);
+
+  const [rpcResult, blingResult] = await Promise.allSettled([
+    supabase.rpc("buscar_catalogo_unificado", { p_termo: input.termo, p_max: max }),
+    fetch(`${SUPABASE_URL}/functions/v1/bling-search-product`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${SERVICE_KEY}`,
+        apikey: SERVICE_KEY,
+      },
+      body: JSON.stringify({ query: input.termo }),
+    }).then((r) => r.json()).catch((e) => ({ products: [], error: e?.message })),
+  ]);
+
+  const itensRpc: any[] = rpcResult.status === "fulfilled" ? (rpcResult.value.data?.items || []) : [];
+  const blingRaw = blingResult.status === "fulfilled" ? blingResult.value : null;
+  const blingProducts: any[] = Array.isArray(blingRaw?.products)
+    ? blingRaw.products
+    : Array.isArray(blingRaw?.items)
+    ? blingRaw.items
+    : [];
+
+  const blingMapeado = blingProducts.slice(0, max).map((b: any) => {
+    const estoque = Number(b.estoque ?? b.saldoVirtualTotal ?? b.saldo ?? 0);
+    return {
+      fonte: "bling",
+      id: String(b.id || b.codigo || ""),
+      titulo: b.nome || b.descricao || b.title || "",
+      preco: Number(b.preco || b.valor || 0),
+      imagem_url: b.imagemURL || b.imagem || b.imageUrl || null,
+      sku: b.codigo || b.sku || null,
+      categoria: b.categoria || b.tipo || null,
+      estoque,
+      disponivel: estoque > 0,
+    };
   });
-  if (error) throw new Error(error.message);
-  return data;
+
+  const skus = new Set(itensRpc.map((i: any) => i.sku).filter(Boolean));
+  const blingUnico = blingMapeado.filter((b) => !b.sku || !skus.has(b.sku));
+  const total = itensRpc.concat(blingUnico).slice(0, max);
+
+  const erros: string[] = [];
+  if (rpcResult.status === "rejected") erros.push(`rpc: ${rpcResult.reason}`);
+  if (blingResult.status === "fulfilled" && blingRaw?.error) erros.push(`bling: ${blingRaw.error}`);
+  if (blingResult.status === "rejected") erros.push(`bling: ${blingResult.reason}`);
+
+  return {
+    items: total,
+    total_encontrados: total.length,
+    fontes_consultadas: ["catalogo_local", "bling"],
+    erros,
+  };
 };
 
 const calcular_preco: ToolHandler = async (input, supabase) => {
