@@ -106,47 +106,89 @@ serve(async (req) => {
       telefone: telefoneNorm,
     };
 
-    // ── Identificação automática do cliente (antes de persistir o user message)
+    // ── Contexto inicial completo (RPC unificada)
     let contextoCliente = "";
     if (!conversa.cliente_id) {
-      const identifyResult: any = await TOOL_HANDLERS.identificar_cliente(
-        { telefone: telefoneRaw },
-        supabase,
-        ctx,
-      );
-      if (identifyResult?.found) {
-        log("cliente identificado automaticamente", {
-          cliente_id: identifyResult.cliente_id,
-          nome: identifyResult.primeiro_nome,
+      const { data: contextoFull, error: ctxErr } = await supabase
+        .rpc("contexto_inicial_cliente", { p_telefone: telefoneRaw });
+
+      if (ctxErr) {
+        log("erro contexto_inicial_cliente", ctxErr);
+      } else if (contextoFull && contextoFull.pessoa?.found) {
+        const clienteId = contextoFull.pessoa.ebd_clientes?.cliente_id || null;
+        log("contexto inicial obtido", {
+          cliente_id: clienteId,
+          total_pedidos: contextoFull.historico?.total,
+          tem_licenca: contextoFull.acessos?.tem_acesso_atual,
+          motivo: contextoFull.inferencia?.provavel_motivo_contato,
         });
+
         await supabase.from("agente_ia_mensagens").insert({
           conversa_id: conversa.id,
           role: "system",
-          conteudo: `[CONTEXTO AUTOMÁTICO] Cliente identificado pelo telefone: ${JSON.stringify(identifyResult)}`,
+          conteudo: `[CONTEXTO COMPLETO] ${JSON.stringify(contextoFull)}`,
           status_aprovacao: "nao_aplicavel",
         });
-        contextoCliente = `
-CONTEXTO DO ATENDIMENTO ATUAL:
-- Cliente já cadastrado no sistema
-- Nome do contato: ${identifyResult.primeiro_nome || "—"} (completo: ${identifyResult.nome_superintendente || identifyResult.nome_responsavel || identifyResult.nome_igreja})
-- Igreja/Razão Social: ${identifyResult.nome_igreja}
-- Tipo de cliente: ${identifyResult.tipo_cliente}
-- Pode faturar (B2B): ${identifyResult.pode_faturar}
-- Cidade/UF: ${identifyResult.cidade || "—"}/${identifyResult.estado || "—"}
-- cliente_id (use em tools): ${identifyResult.cliente_id}
-- Total de pedidos anteriores: ${identifyResult.total_pedidos || 0}
-- Último pedido em: ${identifyResult.ultimo_pedido_em || "nunca"}
 
-INSTRUÇÃO: Cumprimente pelo primeiro nome com tratamento adequado ao tipo de cliente. Para Igreja/ADVEC, use "Pastor"/"Pastora"/"Irmão"/"Irmã" + primeiro nome quando fizer sentido. Para PESSOA FÍSICA, use só o primeiro nome. Não pergunte coisas que já sabe daqui.`;
+        if (clienteId) {
+          await supabase.from("agente_ia_conversas")
+            .update({ cliente_id: clienteId })
+            .eq("id", conversa.id);
+          ctx.cliente_id = clienteId;
+        }
+
+        const p = contextoFull.pessoa.ebd_clientes;
+        const lic = contextoFull.pessoa.licencas_shopify?.[0];
+        const nomeFull = p?.nome_responsavel || p?.nome_superintendente || lic?.nome_comprador || "—";
+        const primeiroNome = String(nomeFull).trim().split(/\s+/)[0] || "—";
+
+        contextoCliente = `
+CONTEXTO COMPLETO DO ATENDIMENTO ATUAL:
+
+📋 PESSOA:
+- Nome: ${primeiroNome} (completo: ${nomeFull})
+- Igreja: ${p?.nome_igreja || lic?.nome_comprador || "—"}
+- Tipo cliente: ${p?.tipo_cliente || "(não classificado)"}
+- Pode faturar (B2B): ${p?.pode_faturar ?? false}
+- Cidade/UF: ${p?.cidade || "—"}/${p?.estado || "—"}
+- cliente_id (use em tools): ${clienteId || "(sem cliente_id em ebd_clientes — pode haver licença)"}
+
+📊 HISTÓRICO:
+- Total de pedidos: ${contextoFull.historico?.total || 0}
+- Cliente recorrente: ${contextoFull.inferencia?.cliente_recorrente}
+- Cliente inativo (>90d): ${contextoFull.inferencia?.cliente_inativo}
+
+📱 ACESSOS DIGITAIS:
+- Licenças ativas: ${contextoFull.acessos?.total_licencas_ativas || 0}
+- Tem acesso agora: ${contextoFull.acessos?.tem_acesso_atual}
+- Última atividade: ${contextoFull.acessos?.ultima_atividade || "nunca"}
+- OTPs recentes: ${contextoFull.acessos?.otps_recentes_count || 0}
+
+📨 ÚLTIMOS DISPAROS PRO CLIENTE (7 dias):
+- WhatsApp: ${contextoFull.disparos_recentes?.total_whatsapp || 0} mensagens
+- Email: ${contextoFull.disparos_recentes?.total_email || 0} emails
+- Último template WhatsApp: ${JSON.stringify(contextoFull.disparos_recentes?.ultimo_template_whatsapp || "nenhum")}
+- Você (agente) já respondeu nas últimas 24h? ${contextoFull.disparos_recentes?.agente_ja_respondeu}
+
+🎯 CAMPANHAS ATIVAS:
+- Em alguma campanha: ${contextoFull.campanhas_ativas?.em_alguma_campanha}
+- Retenção pendente: ${contextoFull.campanhas_ativas?.retencao_ativa?.length || 0}
+- Presente pendente: ${contextoFull.campanhas_ativas?.presente_pendente?.length || 0}
+
+🧠 INFERÊNCIA AUTOMÁTICA:
+- PROVÁVEL MOTIVO DO CONTATO: ${contextoFull.inferencia?.provavel_motivo_contato}
+- AÇÕES SUGERIDAS: ${JSON.stringify(contextoFull.inferencia?.precisa_acao_imediata || [])}
+
+INSTRUÇÃO IMPORTANTE: Use TODO esse contexto pra cumprimentar e atender inteligentemente. NÃO pergunte o que você já sabe daqui (nome, igreja, se comprou revista, etc.). Vá direto ao ponto baseado na inferência. Se a inferência sugere que o cliente recebeu template de acesso recentemente, ofereça reenviar o OTP proativamente.`;
       } else {
-        log("cliente NÃO identificado pelo telefone", { telefone: telefoneNorm });
+        log("cliente NÃO identificado em nenhuma fonte", { telefone: telefoneNorm });
         contextoCliente = `
 CONTEXTO DO ATENDIMENTO ATUAL:
 - Telefone: ${telefoneNorm}
-- Cliente NÃO encontrado no sistema (lead novo ou número diferente do cadastrado)
-- Você ainda não sabe o nome dele
+- Cliente NÃO encontrado em NENHUMA fonte do sistema (lead totalmente novo)
+- Você não sabe nome, igreja, nem histórico
 
-INSTRUÇÃO: Cumprimente neutro e durante a conversa colete naturalmente: nome, igreja (se for da igreja), cidade. Quando tiver mínimo (nome + igreja + email/cidade), use a tool cadastrar_cliente. Sem isso, não consegue gerar proposta.`;
+INSTRUÇÃO: Cumprimente neutro com apresentação do agente. Durante a conversa colete naturalmente nome + igreja (se aplicável) + email/cidade. Use a tool identificar_pessoa se receber algum dado novo durante a conversa pra ver se cliente aparece em outras fontes.`;
       }
     } else {
       const { data: c } = await supabase
@@ -155,13 +197,11 @@ INSTRUÇÃO: Cumprimente neutro e durante a conversa colete naturalmente: nome, 
         .eq("id", conversa.cliente_id)
         .maybeSingle();
       if (c) {
-        const nomeBase = (c.nome_superintendente || c.nome_responsavel || c.nome_igreja || "").trim();
-        const primeiro = nomeBase.split(/\s+/)[0];
+        const primeiro = (c.nome_responsavel || c.nome_superintendente || c.nome_igreja || "").trim().split(/\s+/)[0];
         contextoCliente = `
-CONTEXTO DO ATENDIMENTO (continuação):
+CONTEXTO (continuação):
 - Cliente: ${primeiro} (${c.nome_igreja})
 - Tipo: ${c.tipo_cliente}, pode_faturar: ${c.pode_faturar}
-- Localização: ${c.endereco_cidade}/${c.endereco_estado}
 - cliente_id: ${c.id}`;
       }
     }
