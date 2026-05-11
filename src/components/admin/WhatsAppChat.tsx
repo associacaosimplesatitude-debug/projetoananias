@@ -335,6 +335,43 @@ function ChatWindow({
     return ageMs > 24 * 60 * 60 * 1000;
   }, [messages]);
 
+  // Agente IA: pausado/ativo nessa conversa
+  const { data: agenteConv } = useQuery({
+    queryKey: ["agente-conversa-pausa", phone],
+    queryFn: async () => {
+      const variants = phoneVariants(phone);
+      const { data } = await (supabase as any)
+        .from("agente_ia_conversas")
+        .select("id, agente_pausado")
+        .in("telefone", variants)
+        .order("ultima_mensagem_em", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      return data as { id: string; agente_pausado: boolean } | null;
+    },
+  });
+  const agentePausado = !!agenteConv?.agente_pausado;
+
+  async function toggleAgentePausa() {
+    const variants = phoneVariants(phone);
+    if (agenteConv?.id) {
+      const { error } = await (supabase as any)
+        .from("agente_ia_conversas")
+        .update({ agente_pausado: !agentePausado })
+        .eq("id", agenteConv.id);
+      if (error) return toast.error(error.message);
+    } else {
+      // Cria conversa pausada se não existir (caso vendedor queira garantir bloqueio)
+      if (agentePausado) return;
+      const { error } = await (supabase as any)
+        .from("agente_ia_conversas")
+        .insert({ telefone: variants[0], status: "ativa", agente_pausado: true });
+      if (error) return toast.error(error.message);
+    }
+    toast.success(agentePausado ? "Agente IA retomado" : "Agente IA pausado");
+    queryClient.invalidateQueries({ queryKey: ["agente-conversa-pausa", phone] });
+  }
+
   return (
     <div className="flex flex-col h-full bg-background">
       {/* Header */}
