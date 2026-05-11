@@ -20,10 +20,13 @@ import {
   Loader2,
   MessageSquare,
   Eye,
+  Clock,
+  FileText,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import LeadDetailModal from "./whatsapp/LeadDetailModal";
+import TemplatePickerDialog from "./whatsapp/TemplatePickerDialog";
 
 // Normalize phone: strip non-digits, remove leading "55" country code if present
 function normalizePhone(phone: string): string {
@@ -197,6 +200,7 @@ function ChatWindow({
   const [inputMsg, setInputMsg] = useState("");
   const [sending, setSending] = useState(false);
   const [showLeadModal, setShowLeadModal] = useState(false);
+  const [showTemplateDialog, setShowTemplateDialog] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
 
@@ -321,6 +325,16 @@ function ChatWindow({
     return groups;
   }, [messages]);
 
+  // Detecta janela de 24h: última mensagem RECEBIDA do cliente.
+  const windowExpired = useMemo(() => {
+    const lastReceived = [...messages]
+      .reverse()
+      .find((m) => m.direction === "received");
+    if (!lastReceived) return true; // nunca houve entrada → precisa template
+    const ageMs = Date.now() - new Date(lastReceived.timestamp).getTime();
+    return ageMs > 24 * 60 * 60 * 1000;
+  }, [messages]);
+
   return (
     <div className="flex flex-col h-full bg-background">
       {/* Header */}
@@ -388,16 +402,46 @@ function ChatWindow({
         <div ref={messagesEndRef} />
       </ScrollArea>
 
+      {/* Banner janela 24h expirada */}
+      {windowExpired && (
+        <div className="px-4 py-2.5 border-t bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900 flex items-center gap-3">
+          <Clock className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
+          <p className="text-xs text-amber-900 dark:text-amber-200 flex-1">
+            Janela de 24h expirou. Para continuar a conversa, envie uma mensagem de template aprovada pela Meta.
+          </p>
+          <Button
+            size="sm"
+            variant="outline"
+            className="shrink-0 border-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900"
+            onClick={() => setShowTemplateDialog(true)}
+          >
+            <FileText className="h-3.5 w-3.5 mr-1.5" />
+            Selecionar Template
+          </Button>
+        </div>
+      )}
+
       {/* Input area */}
       <div className="flex items-center gap-2 px-4 py-3 border-t bg-card">
         <Input
-          placeholder="Digite uma mensagem..."
+          placeholder={windowExpired ? "Janela expirada — use um template" : "Digite uma mensagem..."}
           value={inputMsg}
           onChange={(e) => setInputMsg(e.target.value)}
           onKeyDown={handleKeyDown}
           disabled={sending}
           className="flex-1"
         />
+        {!windowExpired && (
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => setShowTemplateDialog(true)}
+            title="Enviar template"
+            className="shrink-0"
+          >
+            <FileText className="h-4 w-4" />
+          </Button>
+        )}
         <Button
           onClick={handleSend}
           disabled={!inputMsg.trim() || sending}
@@ -416,6 +460,17 @@ function ChatWindow({
         open={showLeadModal}
         onOpenChange={setShowLeadModal}
         phone={phone}
+      />
+
+      <TemplatePickerDialog
+        open={showTemplateDialog}
+        onOpenChange={setShowTemplateDialog}
+        telefone={phone}
+        contactName={contact?.nome || ""}
+        onSent={() => {
+          queryClient.invalidateQueries({ queryKey: ["whatsapp-chat-messages", phone] });
+          queryClient.invalidateQueries({ queryKey: ["whatsapp-chat-contacts"] });
+        }}
       />
     </div>
   );
