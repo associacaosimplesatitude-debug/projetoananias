@@ -293,6 +293,57 @@ const calcular_preco: ToolHandler = async (input, supabase) => {
   return data;
 };
 
+const cadastrar_revendedor: ToolHandler = async (input, supabase, ctx) => {
+  const cliente_id = input.cliente_id || ctx.cliente_id;
+  if (!cliente_id) {
+    throw new Error("cliente_id obrigatório — cliente precisa estar identificado antes de virar Revendedor.");
+  }
+
+  const docDigits = String(input.documento || "").replace(/\D/g, "");
+  let cpf: string | null = null;
+  let cnpj: string | null = null;
+  if (docDigits.length === 11) cpf = docDigits;
+  else if (docDigits.length === 14) cnpj = docDigits;
+  else if (docDigits.length > 0) {
+    throw new Error(`Documento inválido (${docDigits.length} dígitos). CPF=11, CNPJ=14.`);
+  }
+
+  // Buscar estado atual pra não sobrescrever campos preenchidos
+  const { data: atual, error: errGet } = await supabase
+    .from("ebd_clientes")
+    .select("id, tipo_cliente, cpf, cnpj, nome_responsavel")
+    .eq("id", cliente_id)
+    .maybeSingle();
+  if (errGet) throw new Error(`Erro ao buscar cliente: ${errGet.message}`);
+  if (!atual) throw new Error(`Cliente ${cliente_id} não encontrado em ebd_clientes.`);
+
+  const updates: Record<string, any> = {
+    tipo_cliente: "REVENDEDOR",
+    updated_at: new Date().toISOString(),
+  };
+  if (cpf && !atual.cpf) updates.cpf = cpf;
+  if (cnpj && !atual.cnpj) updates.cnpj = cnpj;
+  if (input.nome_completo && !atual.nome_responsavel) {
+    updates.nome_responsavel = String(input.nome_completo).trim();
+  }
+
+  const { error: updErr } = await supabase
+    .from("ebd_clientes")
+    .update(updates)
+    .eq("id", cliente_id);
+  if (updErr) throw new Error(`Erro ao atualizar cadastro: ${updErr.message}`);
+
+  return {
+    sucesso: true,
+    cliente_id,
+    tipo_cliente_anterior: atual.tipo_cliente || null,
+    tipo_cliente_atual: "REVENDEDOR",
+    documento_persistido: cpf ? { tipo: "CPF", valor: cpf } : cnpj ? { tipo: "CNPJ", valor: cnpj } : null,
+    mensagem_para_agente:
+      "Cliente promovido a Revendedor no banco. AGORA chame calcular_preco novamente com os mesmos items para obter o desconto Bronze/Prata/Ouro real, e SÓ ENTÃO chame criar_proposta.",
+  };
+};
+
 const criar_proposta: ToolHandler = async (input, supabase, ctx) => {
   const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
