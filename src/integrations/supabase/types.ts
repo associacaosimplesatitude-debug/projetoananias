@@ -304,6 +304,41 @@ export type Database = {
           },
         ]
       }
+      agente_ia_guardrail_alerts: {
+        Row: {
+          conversa_id: string | null
+          created_at: string
+          detalhes: Json | null
+          id: string
+          texto_bloqueado: string | null
+          tipo: string
+        }
+        Insert: {
+          conversa_id?: string | null
+          created_at?: string
+          detalhes?: Json | null
+          id?: string
+          texto_bloqueado?: string | null
+          tipo: string
+        }
+        Update: {
+          conversa_id?: string | null
+          created_at?: string
+          detalhes?: Json | null
+          id?: string
+          texto_bloqueado?: string | null
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agente_ia_guardrail_alerts_conversa_id_fkey"
+            columns: ["conversa_id"]
+            isOneToOne: false
+            referencedRelation: "agente_ia_conversas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       agente_ia_mensagens: {
         Row: {
           aprovada_em: string | null
