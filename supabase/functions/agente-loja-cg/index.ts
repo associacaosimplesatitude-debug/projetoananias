@@ -96,6 +96,83 @@ function formatarCep(input: string): string {
   return input || "—";
 }
 
+// ─── Interceptação determinística de confirmação de cotação ───
+// Detecta se a mensagem do user é uma confirmação curta ("sim", "pode", "gere o link" etc.)
+// E se houve uma cotação recente nas últimas mensagens do assistant.
+function detectarConfirmacaoCotacao(
+  mensagemUser: string,
+  ultimasMensagensAssistant: string[],
+): boolean {
+  const userNorm = (mensagemUser || "").toLowerCase().trim().replace(/[!.?,;:]+$/g, "");
+  if (!userNorm) return false;
+
+  const confirmacoes = [
+    "sim", "sim pode", "sim, pode", "sim quero", "sim, quero", "sim, gere o link", "sim gere o link",
+    "pode", "pode gerar", "pode mandar", "pode sim", "pode ser", "pode fechar",
+    "gere", "gera", "gere o link", "gera o link", "gerar link", "gera link",
+    "manda", "manda o link", "mande o link", "mande", "me manda o link", "me manda",
+    "fecha", "fechou", "fechado", "vamos", "vamos lá",
+    "ok", "okay", "ta bom", "tá bom", "beleza", "blz",
+    "isso", "perfeito", "isso mesmo", "exato",
+    "envia", "envia o link", "envie o link", "me envia o link", "me envia",
+    "quero o link", "quero o link de pagamento", "quero sim", "quero",
+    "confirmo", "confirmado",
+  ];
+
+  const isConfirm = confirmacoes.some(
+    (c) => userNorm === c || userNorm.startsWith(c + " ") || userNorm.endsWith(" " + c) || userNorm.includes(" " + c + " "),
+  );
+  if (!isConfirm) return false;
+
+  const palavrasChaveCotacao = [
+    "subtotal", "total dos produtos", "posso gerar o link", "posso gerar",
+    "vou gerar o link", "resumo do pedido", "cotação", "valor total",
+    "então fechando", "fechando:",
+  ];
+  return ultimasMensagensAssistant.some((msg) => {
+    const m = (msg || "").toLowerCase();
+    return palavrasChaveCotacao.some((p) => m.includes(p));
+  });
+}
+
+// Recupera os items da última cotação real (calcular_preco) DESDE QUE
+// tenha ocorrido APÓS a penúltima mensagem do user (i.e., no mesmo turno
+// que produziu a cotação que está sendo confirmada agora).
+async function recuperarItemsDaCotacao(
+  supabase: any,
+  conversaId: string,
+): Promise<{ items: any[]; cliente_id: string | null } | null> {
+  // Penúltima user msg (a atual já foi inserida; queremos a anterior).
+  const { data: users } = await supabase
+    .from("agente_ia_mensagens")
+    .select("created_at")
+    .eq("conversa_id", conversaId)
+    .eq("role", "user")
+    .order("created_at", { ascending: false })
+    .limit(2);
+  const previousUserAt =
+    users && users.length >= 2 ? new Date(users[1].created_at).getTime() : null;
+
+  const { data: ultimoCalc } = await supabase
+    .from("agente_ia_mensagens")
+    .select("tool_input, created_at")
+    .eq("conversa_id", conversaId)
+    .eq("tool_name", "calcular_preco")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!ultimoCalc) return null;
+
+  const calcAt = new Date(ultimoCalc.created_at).getTime();
+  if (Date.now() - calcAt > 20 * 60 * 1000) return null;
+  // Calc precisa ser do mesmo turno da cotação confirmada
+  if (previousUserAt && calcAt < previousUserAt) return null;
+
+  const input = ultimoCalc.tool_input || {};
+  const items = Array.isArray(input.items) ? input.items : [];
+  return { items, cliente_id: input.cliente_id || null };
+}
+
 function ehPedidoDadosCadastrais(input: string): boolean {
   const t = normalizarTextoBusca(input);
   return [
@@ -427,6 +504,125 @@ INSTRUÇÃO: Cumprimente neutro com apresentação do agente. Colete naturalment
         modo: modoCalculado,
       });
     }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // INTERCEPTAÇÃO DETERMINÍSTICA DE CONFIRMAÇÃO DE COTAÇÃO
+    // Se o cliente confirmou uma cotação recente, chama criar_proposta
+    // direto, sem passar pelo Claude (evita alucinação de UUID).
+    // ═══════════════════════════════════════════════════════════════════
+    try {
+      const { data: ultimasAssistant } = await supabase
+        .from("agente_ia_mensagens")
+        .select("conteudo")
+        .eq("conversa_id", conversa.id)
+        .eq("role", "assistant")
+        .order("created_at", { ascending: false })
+        .limit(3);
+      const textosAssistant = (ultimasAssistant || [])
+        .map((m: any) => m.conteudo || "")
+        .filter(Boolean);
+
+      if (detectarConfirmacaoCotacao(mensagemUser, textosAssistant)) {
+        log("⚡ Confirmação detectada — tentando fluxo determinístico");
+        const dados = await recuperarItemsDaCotacao(supabase, conversa.id);
+
+        if (dados && dados.items.length > 0 && dados.cliente_id) {
+          log("Items recuperados da última cotação", {
+            items_count: dados.items.length,
+            cliente_id: dados.cliente_id,
+          });
+
+          let resultadoProposta: any = null;
+          try {
+            resultadoProposta = await TOOL_HANDLERS.criar_proposta(
+              { cliente_id: dados.cliente_id, items: dados.items, frete_tipo: "automatico" },
+              supabase,
+              { conversa_id: conversa.id, cliente_id: dados.cliente_id, telefone: telefoneNorm },
+            );
+          } catch (err: any) {
+            log("ERRO no fluxo determinístico criar_proposta — fallback p/ Claude", err?.message || err);
+            resultadoProposta = null;
+          }
+
+          if (resultadoProposta?.link) {
+            // Persiste tool_call sintético pra rastreabilidade
+            await supabase.from("agente_ia_mensagens").insert({
+              conversa_id: conversa.id,
+              role: "tool",
+              tool_name: "criar_proposta",
+              tool_input: { cliente_id: dados.cliente_id, items: dados.items },
+              tool_output: resultadoProposta,
+              status_aprovacao: "nao_aplicavel",
+            });
+
+            const respostaFinal = `Pronto! Aqui está o link da sua proposta:\n\n${resultadoProposta.link}\n\nNo link você confere os itens, escolhe o frete (PAC ou SEDEX) conforme seu CEP e paga via Pix, cartão ou boleto. Qualquer dúvida, é só me chamar. 😊`;
+
+            const { data: assistMsg } = await supabase
+              .from("agente_ia_mensagens")
+              .insert({
+                conversa_id: conversa.id,
+                role: "assistant",
+                conteudo: respostaFinal,
+                tokens_in: 0,
+                tokens_out: 0,
+                status_aprovacao: statusAprovacaoAssistant,
+                metadata: { gerada_por_codigo: true, motivo: "confirmacao_deterministica" },
+              })
+              .select("id")
+              .single();
+
+            await supabase
+              .from("agente_ia_conversas")
+              .update({
+                ultima_mensagem_em: new Date().toISOString(),
+                total_turnos: (conversa.total_turnos || 0) + 1,
+              })
+              .eq("id", conversa.id);
+
+            if (ehAutonomo && assistMsg?.id) {
+              const envioPromise = fetch(`${SUPABASE_URL}/functions/v1/agente-enviar-mensagem-whatsapp`, {
+                method: "POST",
+                headers: {
+                  "Authorization": `Bearer ${SERVICE_KEY}`,
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  mensagem_id: assistMsg.id,
+                  telefone_destino: telefoneNorm,
+                  texto: respostaFinal,
+                }),
+              }).catch((e) => console.error("[envio determinístico]", e));
+              // @ts-ignore
+              const wait = (globalThis as any).EdgeRuntime?.waitUntil ?? ((q: Promise<any>) => q);
+              wait(envioPromise);
+            }
+
+            log("✅ Fluxo determinístico concluído", {
+              proposta_id: resultadoProposta.proposta_id,
+              link: resultadoProposta.link,
+            });
+
+            return jsonResponse({
+              success: true,
+              conversa_id: conversa.id,
+              mensagem_pendente_id: assistMsg?.id || null,
+              resposta_preview: respostaFinal,
+              modo: "deterministico_confirmacao",
+              tokens: { in: 0, out: 0, custo_usd: 0 },
+            });
+          }
+        } else {
+          log("Confirmação detectada mas sem cotação recente válida — fallback p/ Claude", {
+            tem_dados: !!dados,
+            items_count: dados?.items?.length || 0,
+            tem_cliente_id: !!dados?.cliente_id,
+          });
+        }
+      }
+    } catch (interceptErr: any) {
+      log("ERRO na interceptação determinística — segue fluxo Claude", interceptErr?.message || interceptErr);
+    }
+    // ═══════════════════════════════════════════════════════════════════
 
     // ── Reconstruir histórico para Claude (somente user/assistant/tool relevantes)
     const { data: historico } = await supabase
