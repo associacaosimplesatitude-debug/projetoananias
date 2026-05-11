@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Edit, Copy, Trash2, RefreshCw, Loader2 } from "lucide-react";
+import { Plus, Edit, Copy, Trash2, RefreshCw, Loader2, RefreshCcw } from "lucide-react";
 import { format } from "date-fns";
 import WhatsAppTemplateCreator from "./WhatsAppTemplateCreator";
 
