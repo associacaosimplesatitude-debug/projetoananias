@@ -106,8 +106,9 @@ serve(async (req) => {
       telefone: telefoneNorm,
     };
 
-    // ── Contexto inicial completo (RPC unificada)
-    let contextoCliente = "";
+    // ── Contexto inicial completo (RPC unificada) — usado APENAS se ainda não temos cliente_id
+    //    e também como descoberta inicial. Não persistimos mais snapshot no agente_ia_mensagens.
+    let contextoInfererencia = "";
     if (!conversa.cliente_id) {
       const { data: contextoFull, error: ctxErr } = await supabase
         .rpc("contexto_inicial_cliente", { p_telefone: telefoneRaw });
@@ -123,89 +124,93 @@ serve(async (req) => {
           motivo: contextoFull.inferencia?.provavel_motivo_contato,
         });
 
-        await supabase.from("agente_ia_mensagens").insert({
-          conversa_id: conversa.id,
-          role: "system",
-          conteudo: `[CONTEXTO COMPLETO] ${JSON.stringify(contextoFull)}`,
-          status_aprovacao: "nao_aplicavel",
-        });
-
         if (clienteId) {
           await supabase.from("agente_ia_conversas")
             .update({ cliente_id: clienteId })
             .eq("id", conversa.id);
           ctx.cliente_id = clienteId;
+          conversa.cliente_id = clienteId;
         }
 
-        const p = contextoFull.pessoa.ebd_clientes;
-        const lic = contextoFull.pessoa.licencas_shopify?.[0];
-        const nomeFull = p?.nome_responsavel || p?.nome_superintendente || lic?.nome_comprador || "—";
-        const primeiroNome = String(nomeFull).trim().split(/\s+/)[0] || "—";
-
-        contextoCliente = `
-CONTEXTO COMPLETO DO ATENDIMENTO ATUAL:
-
-📋 PESSOA:
-- Nome: ${primeiroNome} (completo: ${nomeFull})
-- Igreja: ${p?.nome_igreja || lic?.nome_comprador || "—"}
-- Tipo cliente: ${p?.tipo_cliente || "(não classificado)"}
-- Pode faturar (B2B): ${p?.pode_faturar ?? false}
-- Cidade/UF: ${p?.cidade || "—"}/${p?.estado || "—"}
-- cliente_id (use em tools): ${clienteId || "(sem cliente_id em ebd_clientes — pode haver licença)"}
-
-📊 HISTÓRICO:
+        // Manter inferência (recorrência, motivo provável, campanhas) — esses são contextuais
+        contextoInfererencia = `
+📊 HISTÓRICO E INFERÊNCIA (snapshot do início desta conversa):
 - Total de pedidos: ${contextoFull.historico?.total || 0}
 - Cliente recorrente: ${contextoFull.inferencia?.cliente_recorrente}
 - Cliente inativo (>90d): ${contextoFull.inferencia?.cliente_inativo}
-
-📱 ACESSOS DIGITAIS:
-- Licenças ativas: ${contextoFull.acessos?.total_licencas_ativas || 0}
-- Tem acesso agora: ${contextoFull.acessos?.tem_acesso_atual}
-- Última atividade: ${contextoFull.acessos?.ultima_atividade || "nunca"}
-- OTPs recentes: ${contextoFull.acessos?.otps_recentes_count || 0}
-
-📨 ÚLTIMOS DISPAROS PRO CLIENTE (7 dias):
-- WhatsApp: ${contextoFull.disparos_recentes?.total_whatsapp || 0} mensagens
-- Email: ${contextoFull.disparos_recentes?.total_email || 0} emails
-- Último template WhatsApp: ${JSON.stringify(contextoFull.disparos_recentes?.ultimo_template_whatsapp || "nenhum")}
-- Você (agente) já respondeu nas últimas 24h? ${contextoFull.disparos_recentes?.agente_ja_respondeu}
-
-🎯 CAMPANHAS ATIVAS:
-- Em alguma campanha: ${contextoFull.campanhas_ativas?.em_alguma_campanha}
-- Retenção pendente: ${contextoFull.campanhas_ativas?.retencao_ativa?.length || 0}
-- Presente pendente: ${contextoFull.campanhas_ativas?.presente_pendente?.length || 0}
-
-🧠 INFERÊNCIA AUTOMÁTICA:
-- PROVÁVEL MOTIVO DO CONTATO: ${contextoFull.inferencia?.provavel_motivo_contato}
-- AÇÕES SUGERIDAS: ${JSON.stringify(contextoFull.inferencia?.precisa_acao_imediata || [])}
-
-INSTRUÇÃO: Use TODO esse contexto INTERNAMENTE pra atender com qualidade. NÃO ANUNCIE o que você sabe na primeira mensagem — apenas cumprimente, apresente-se e pergunte em que pode ajudar. SOMENTE após o cliente dizer o que precisa, use o contexto pra dar a melhor resposta possível com a menor fricção (sem perguntar o que você já sabe daqui).`;
+- Licenças digitais ativas: ${contextoFull.acessos?.total_licencas_ativas || 0}
+- Em campanha ativa: ${contextoFull.campanhas_ativas?.em_alguma_campanha}
+- PROVÁVEL MOTIVO DO CONTATO: ${contextoFull.inferencia?.provavel_motivo_contato}`;
       } else {
         log("cliente NÃO identificado em nenhuma fonte", { telefone: telefoneNorm });
-        contextoCliente = `
-CONTEXTO DO ATENDIMENTO ATUAL:
-- Telefone: ${telefoneNorm}
-- Cliente NÃO encontrado em NENHUMA fonte do sistema (lead totalmente novo)
-- Você não sabe nome, igreja, nem histórico
-
-INSTRUÇÃO: Cumprimente neutro com apresentação do agente. Durante a conversa colete naturalmente nome + igreja (se aplicável) + email/cidade. Use a tool identificar_pessoa se receber algum dado novo durante a conversa pra ver se cliente aparece em outras fontes.`;
-      }
-    } else {
-      const { data: c } = await supabase
-        .from("ebd_clientes")
-        .select("id, nome_igreja, nome_superintendente, nome_responsavel, tipo_cliente, pode_faturar, endereco_cidade, endereco_estado")
-        .eq("id", conversa.cliente_id)
-        .maybeSingle();
-      if (c) {
-        const primeiro = (c.nome_responsavel || c.nome_superintendente || c.nome_igreja || "").trim().split(/\s+/)[0];
-        contextoCliente = `
-CONTEXTO (continuação):
-- Cliente: ${primeiro} (${c.nome_igreja})
-- Tipo: ${c.tipo_cliente}, pode_faturar: ${c.pode_faturar}
-- cliente_id: ${c.id}`;
       }
     }
-    const systemFinal = contextoCliente ? SYSTEM_PROMPT + "\n\n---\n\n" + contextoCliente : SYSTEM_PROMPT;
+
+    // ── DADOS ATUAIS DO CLIENTE — re-buscados FRESCOS a cada turno (fonte da verdade absoluta)
+    let dadosAtuais = "";
+    if (ctx.cliente_id) {
+      const { data: c } = await supabase
+        .from("ebd_clientes")
+        .select("id, nome_igreja, nome_superintendente, nome_responsavel, email_superintendente, telefone, tipo_cliente, pode_faturar, cnpj, cpf, endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_estado, endereco_cep")
+        .eq("id", ctx.cliente_id)
+        .maybeSingle();
+      if (c) {
+        const nomeFull = (c.nome_responsavel || c.nome_superintendente || c.nome_igreja || "").trim();
+        const primeiro = nomeFull.split(/\s+/)[0] || "—";
+        const enderecoCompleto = [c.endereco_rua, c.endereco_numero, c.endereco_complemento, c.endereco_bairro]
+          .filter(Boolean).join(", ");
+        dadosAtuais = `
+🔒 DADOS ATUAIS DO CADASTRO DO CLIENTE (FONTE DA VERDADE — relido do banco AGORA, sobrepõe QUALQUER informação anterior do histórico desta conversa):
+- cliente_id: ${c.id}
+- Primeiro nome: ${primeiro}
+- Nome completo: ${nomeFull || "—"}
+- Igreja: ${c.nome_igreja || "—"}
+- Email: ${c.email_superintendente || "—"}
+- Telefone: ${c.telefone || "—"}
+- Documento: ${c.cnpj || c.cpf || "—"}
+- Endereço: ${enderecoCompleto || "—"}
+- Cidade/UF: ${c.endereco_cidade || "—"}/${c.endereco_estado || "—"}
+- CEP: ${c.endereco_cep || "—"}
+- Tipo cliente: ${c.tipo_cliente || "(não classificado)"}
+- Pode faturar (B2B): ${c.pode_faturar ?? false}
+
+REGRA: Se o cliente perguntar quais dados estão no cadastro dele, responda EXCLUSIVAMENTE com base neste bloco. Se você (agente) afirmou nome/igreja/endereço/telefone diferentes em mensagens anteriores desta conversa, esses dados antigos estão ERRADOS — o cadastro foi atualizado. NUNCA repita dados que apareçam apenas em mensagens anteriores e contradigam este bloco.`;
+      }
+    } else {
+      // Lead totalmente novo — sem cliente_id em ebd_clientes. Tentar lead landing.
+      const { data: lead } = await supabase
+        .from("ebd_leads_reativacao")
+        .select("nome_igreja, nome_responsavel, email, telefone, endereco_rua, endereco_numero, endereco_bairro, endereco_cidade, endereco_estado, endereco_cep")
+        .in("telefone", variantes)
+        .maybeSingle();
+      if (lead) {
+        const enderecoCompleto = [lead.endereco_rua, lead.endereco_numero, lead.endereco_bairro]
+          .filter(Boolean).join(", ");
+        dadosAtuais = `
+🔒 DADOS ATUAIS DO LEAD (FONTE DA VERDADE — relido AGORA, sobrepõe histórico):
+- Nome: ${lead.nome_responsavel || "—"}
+- Igreja: ${lead.nome_igreja || "—"}
+- Email: ${lead.email || "—"}
+- Telefone: ${lead.telefone || "—"}
+- Endereço: ${enderecoCompleto || "—"}
+- Cidade/UF: ${lead.endereco_cidade || "—"}/${lead.endereco_estado || "—"}
+- CEP: ${lead.endereco_cep || "—"}
+- Tipo: lead landing page (sem cadastro de cliente ainda)`;
+      } else {
+        dadosAtuais = `
+🔒 DADOS ATUAIS DO CONTATO:
+- Telefone: ${telefoneNorm}
+- Cliente NÃO encontrado em ebd_clientes nem em ebd_leads_reativacao (lead totalmente novo)
+- Você não sabe nome, igreja, nem histórico
+
+INSTRUÇÃO: Cumprimente neutro com apresentação do agente. Colete naturalmente nome + igreja (se aplicável) + email/cidade.`;
+      }
+    }
+
+    const systemFinal = SYSTEM_PROMPT
+      + (contextoInfererencia ? "\n\n---\n" + contextoInfererencia : "")
+      + "\n\n---\n" + dadosAtuais
+      + "\n\n---\nINSTRUÇÃO GERAL: Use TODO esse contexto INTERNAMENTE. NÃO anuncie tudo que sabe na primeira mensagem — apenas cumprimente e pergunte em que pode ajudar. Quando o cliente pedir confirmação dos dados cadastrais, responda APENAS com o bloco DADOS ATUAIS DO CADASTRO acima.";
 
     // ── Persistir mensagem do user
     await supabase.from("agente_ia_mensagens").insert({
