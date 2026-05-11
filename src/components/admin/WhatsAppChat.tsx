@@ -325,6 +325,16 @@ function ChatWindow({
     return groups;
   }, [messages]);
 
+  // Detecta janela de 24h: última mensagem RECEBIDA do cliente.
+  const windowExpired = useMemo(() => {
+    const lastReceived = [...messages]
+      .reverse()
+      .find((m) => m.direction === "received");
+    if (!lastReceived) return true; // nunca houve entrada → precisa template
+    const ageMs = Date.now() - new Date(lastReceived.timestamp).getTime();
+    return ageMs > 24 * 60 * 60 * 1000;
+  }, [messages]);
+
   return (
     <div className="flex flex-col h-full bg-background">
       {/* Header */}
