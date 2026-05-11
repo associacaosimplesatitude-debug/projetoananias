@@ -206,60 +206,66 @@ const consultar_disparos_recentes: ToolHandler = async (input, supabase) => {
   return data;
 };
 
-const buscar_catalogo: ToolHandler = async (input, supabase) => {
-  const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-  const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const NOVA_LOJA_CATALOGO_URL =
+  "https://otynmnmazarsrddvxvmy.supabase.co/functions/v1/catalogo-publico";
+
+function normalizarBusca(s: string): string {
+  return (s || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+const buscar_catalogo: ToolHandler = async (input) => {
   const max = Math.min(Number(input.max_resultados || 5), 10);
+  const termo = String(input.termo || "");
+  const termoNorm = normalizarBusca(termo);
+  const tokens = termoNorm.split(" ").filter((t) => t.length >= 2);
 
-  const [rpcResult, blingResult] = await Promise.allSettled([
-    supabase.rpc("buscar_catalogo_unificado", { p_termo: input.termo, p_max: max }),
-    fetch(`${SUPABASE_URL}/functions/v1/bling-search-product`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${SERVICE_KEY}`,
-        apikey: SERVICE_KEY,
-      },
-      body: JSON.stringify({ query: input.termo }),
-    }).then((r) => r.json()).catch((e) => ({ products: [], error: e?.message })),
-  ]);
+  let products: any[] = [];
+  const erros: string[] = [];
+  try {
+    const res = await fetch(NOVA_LOJA_CATALOGO_URL);
+    if (res.ok) {
+      const raw = await res.json();
+      products = Array.isArray(raw) ? raw : (raw?.products || []);
+    } else {
+      erros.push(`catalogo HTTP ${res.status}`);
+    }
+  } catch (e: any) {
+    erros.push(`catalogo: ${e?.message || e}`);
+  }
 
-  const itensRpc: any[] = rpcResult.status === "fulfilled" ? (rpcResult.value.data?.items || []) : [];
-  const blingRaw = blingResult.status === "fulfilled" ? blingResult.value : null;
-  const blingProducts: any[] = Array.isArray(blingRaw?.products)
-    ? blingRaw.products
-    : Array.isArray(blingRaw?.items)
-    ? blingRaw.items
-    : [];
-
-  const blingMapeado = blingProducts.slice(0, max).map((b: any) => {
-    const estoque = Number(b.estoque ?? b.saldoVirtualTotal ?? b.saldo ?? 0);
-    return {
-      fonte: "bling",
-      id: String(b.id || b.codigo || ""),
-      titulo: b.nome || b.descricao || b.title || "",
-      preco: Number(b.preco || b.valor || 0),
-      imagem_url: b.imagemURL || b.imagem || b.imageUrl || null,
-      sku: b.codigo || b.sku || null,
-      categoria: b.categoria || b.tipo || null,
-      estoque,
-      disponivel: estoque > 0,
-    };
+  // Filtra por tokens (todos devem aparecer no título OU no SKU)
+  const filtrados = products.filter((p) => {
+    const haystack = normalizarBusca(`${p.title || ""} ${p.sku || ""}`);
+    return tokens.length === 0 || tokens.every((t) => haystack.includes(t));
   });
 
-  const skus = new Set(itensRpc.map((i: any) => i.sku).filter(Boolean));
-  const blingUnico = blingMapeado.filter((b) => !b.sku || !skus.has(b.sku));
-  const total = itensRpc.concat(blingUnico).slice(0, max);
-
-  const erros: string[] = [];
-  if (rpcResult.status === "rejected") erros.push(`rpc: ${rpcResult.reason}`);
-  if (blingResult.status === "fulfilled" && blingRaw?.error) erros.push(`bling: ${blingRaw.error}`);
-  if (blingResult.status === "rejected") erros.push(`bling: ${blingResult.reason}`);
+  // Itens prontos pra usar em criar_proposta (variantId no formato canônico)
+  const items = filtrados.slice(0, max).map((p) => ({
+    fonte: "nova_loja",
+    variantId: `nova-loja-variant-${p.id}`,
+    id: p.id,
+    title: p.title,
+    titulo: p.title,
+    sku: p.sku || null,
+    price: Number(p.price || 0),
+    preco: Number(p.price || 0),
+    imageUrl: p.image || null,
+    imagem_url: p.image || null,
+    estoque: typeof p.stock === "number" ? p.stock : null,
+    disponivel: p.available ?? null,
+    is_digital: !!p.is_digital,
+  }));
 
   return {
-    items: total,
-    total_encontrados: total.length,
-    fontes_consultadas: ["catalogo_local", "bling"],
+    items,
+    total_encontrados: items.length,
+    fontes_consultadas: ["nova_loja"],
     erros,
   };
 };
