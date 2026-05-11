@@ -468,6 +468,7 @@ export const TOOL_HANDLERS: Record<string, ToolHandler> = {
   consultar_disparos_recentes,
   buscar_catalogo,
   calcular_preco,
+  cadastrar_revendedor,
   criar_proposta,
   reenviar_otp_revista,
   escalar_para_humano,
