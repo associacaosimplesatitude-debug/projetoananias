@@ -200,6 +200,7 @@ function ChatWindow({
   const [inputMsg, setInputMsg] = useState("");
   const [sending, setSending] = useState(false);
   const [showLeadModal, setShowLeadModal] = useState(false);
+  const [showTemplateDialog, setShowTemplateDialog] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
 
