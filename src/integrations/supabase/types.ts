@@ -144,6 +144,7 @@ export type Database = {
       }
       agente_ia_conversas: {
         Row: {
+          agente_pausado: boolean
           cliente_id: string | null
           created_at: string
           custo_estimado: number | null
@@ -164,6 +165,7 @@ export type Database = {
           whatsapp_conversa_id: string | null
         }
         Insert: {
+          agente_pausado?: boolean
           cliente_id?: string | null
           created_at?: string
           custo_estimado?: number | null
@@ -184,6 +186,7 @@ export type Database = {
           whatsapp_conversa_id?: string | null
         }
         Update: {
+          agente_pausado?: boolean
           cliente_id?: string | null
           created_at?: string
           custo_estimado?: number | null
