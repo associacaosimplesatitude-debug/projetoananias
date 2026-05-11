@@ -107,6 +107,20 @@ export const TOOL_SCHEMAS = [
     },
   },
   {
+    name: "cadastrar_revendedor",
+    description:
+      "Promove o cliente atual ao perfil REVENDEDOR no cadastro (tipo_cliente='REVENDEDOR'), persistindo CPF/CNPJ se informado. Use SOMENTE quando o cliente AFIRMAR explicitamente que aceita virar Revendedor (ex: 'sim quero', 'gere com 30%', 'prefiro no cpf'). DEPOIS desta tool, IMEDIATAMENTE chame calcular_preco novamente — o desconto Revendedor (Bronze/Prata/Ouro) só aparece após esta atualização. Não promete nada ao cliente antes de chamar — chame e depois confirme com o desconto real.",
+    input_schema: {
+      type: "object",
+      properties: {
+        cliente_id: { type: "string", description: "UUID obrigatório do cliente em ebd_clientes." },
+        documento: { type: "string", description: "CPF (11 dígitos) ou CNPJ (14 dígitos), apenas números ou formatado — será normalizado." },
+        nome_completo: { type: "string", description: "Opcional. Atualiza nome_responsavel se ainda estiver vazio." },
+      },
+      required: ["cliente_id"],
+    },
+  },
+  {
     name: "criar_proposta",
     description:
       "Gera proposta de compra com link público de pagamento. SÓ usar após cliente confirmar items + estar identificado.",
