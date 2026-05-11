@@ -205,7 +205,10 @@ serve(async (req) => {
     };
 
     const token = crypto.randomUUID();
-    const podeFaturar = !!cliente.pode_faturar;
+    // Agente IA SEMPRE cria proposta pagável via Mercado Pago (não negocia faturamento na conversa).
+    // Se o cliente quiser faturar (B2B), o vendedor humano renegocia depois.
+    // pode_faturar=true rotearia para fluxo B2B em PropostaDigital.tsx, que NÃO redireciona pro MP.
+    const podeFaturar = false;
 
     // 7. INSERT proposta — campos espelhando o do vendedor
     //    valor_produtos = subtotal SEM desconto (igual o vendedor faz)
