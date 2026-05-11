@@ -72,16 +72,16 @@ serve(async (req) => {
     // ── Buscar conversa ativa
     let { data: conversa } = await supabase
       .from("agente_ia_conversas")
-      .select("id, cliente_id, status, total_turnos, total_tokens_in, total_tokens_out")
+      .select("id, cliente_id, status, agente_pausado, total_turnos, total_tokens_in, total_tokens_out")
       .in("telefone", variantes)
-      .in("status", ["ativa", "pausada_humano", "escalada"])
+      .eq("status", "ativa")
       .order("ultima_mensagem_em", { ascending: false })
       .limit(1)
       .maybeSingle();
 
-    if (conversa && (conversa.status === "pausada_humano" || conversa.status === "escalada")) {
-      log("conversa pausada/escalada — não chamar Anthropic", { id: conversa.id, status: conversa.status });
-      return jsonResponse({ success: false, motivo: "conversa_pausada", conversa_id: conversa.id, status: conversa.status });
+    if (conversa && conversa.agente_pausado === true) {
+      log("agente pausado manualmente — não chamar Anthropic", { id: conversa.id });
+      return jsonResponse({ success: false, motivo: "agente_pausado_manualmente", conversa_id: conversa.id });
     }
 
     if (!conversa) {

@@ -226,6 +226,15 @@ Deno.serve(async (req) => {
         role: "assistant",
         content: `📋 [Template: ${tpl.nome}]\n\n${textoExibido}`,
       });
+
+      // Reativa agente IA: envio de template avulso = vendedor quer agente respondendo
+      const phoneDigits = formattedPhone.replace(/^55/, "");
+      const variantesTel = [formattedPhone, phoneDigits];
+      await supabase
+        .from("agente_ia_conversas")
+        .update({ agente_pausado: false })
+        .in("telefone", variantesTel)
+        .eq("agente_pausado", true);
     }
 
     if (!isSuccess) {

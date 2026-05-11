@@ -73,6 +73,17 @@ export default function AgenteIAConversaDetalhe() {
     qc.invalidateQueries({ queryKey: ["agente-ia-conversa", id] });
   }
 
+  async function togglePausa(pausar: boolean) {
+    if (!conversa) return;
+    const { error } = await (supabase as any)
+      .from("agente_ia_conversas")
+      .update({ agente_pausado: pausar })
+      .eq("id", conversa.id);
+    if (error) return toast.error(error.message);
+    toast.success(pausar ? "Agente IA pausado" : "Agente IA retomado");
+    qc.invalidateQueries({ queryKey: ["agente-ia-conversa", id] });
+  }
+
   if (!conversa) return <div className="text-muted-foreground">Carregando...</div>;
 
   return (
@@ -85,11 +96,20 @@ export default function AgenteIAConversaDetalhe() {
         <div>
           <div className="font-semibold text-lg">{conversa.ebd_clientes?.nome_igreja ?? "Sem cliente"}</div>
           <div className="text-xs text-muted-foreground">{conversa.telefone} · iniciada {format(new Date(conversa.iniciada_em), "dd/MM/yy HH:mm", { locale: ptBR })}</div>
-          <div className="mt-1"><StatusBadge status={conversa.status} /></div>
+          <div className="mt-1 flex gap-2 items-center">
+            <StatusBadge status={conversa.status} />
+            {(conversa as any).agente_pausado && (
+              <Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-300">Agente pausado</Badge>
+            )}
+          </div>
         </div>
         <div className="flex gap-2">
-          {conversa.status === "ativa" && <Button size="sm" variant="outline" onClick={() => changeStatus("pausada_humano")}>Pausar</Button>}
-          {conversa.status === "pausada_humano" && <Button size="sm" variant="outline" onClick={() => changeStatus("ativa")}>Retomar</Button>}
+          {conversa.status !== "fechada" && !(conversa as any).agente_pausado && (
+            <Button size="sm" variant="outline" onClick={() => togglePausa(true)}>⏸️ Pausar Agente IA</Button>
+          )}
+          {conversa.status !== "fechada" && (conversa as any).agente_pausado && (
+            <Button size="sm" variant="outline" onClick={() => togglePausa(false)}>▶️ Retomar Agente IA</Button>
+          )}
           {conversa.status !== "fechada" && <Button size="sm" variant="destructive" onClick={() => changeStatus("fechada")}>Fechar</Button>}
         </div>
       </Card>

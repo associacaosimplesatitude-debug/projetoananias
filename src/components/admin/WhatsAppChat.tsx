@@ -335,6 +335,43 @@ function ChatWindow({
     return ageMs > 24 * 60 * 60 * 1000;
   }, [messages]);
 
+  // Agente IA: pausado/ativo nessa conversa
+  const { data: agenteConv } = useQuery({
+    queryKey: ["agente-conversa-pausa", phone],
+    queryFn: async () => {
+      const variants = phoneVariants(phone);
+      const { data } = await (supabase as any)
+        .from("agente_ia_conversas")
+        .select("id, agente_pausado")
+        .in("telefone", variants)
+        .order("ultima_mensagem_em", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      return data as { id: string; agente_pausado: boolean } | null;
+    },
+  });
+  const agentePausado = !!agenteConv?.agente_pausado;
+
+  async function toggleAgentePausa() {
+    const variants = phoneVariants(phone);
+    if (agenteConv?.id) {
+      const { error } = await (supabase as any)
+        .from("agente_ia_conversas")
+        .update({ agente_pausado: !agentePausado })
+        .eq("id", agenteConv.id);
+      if (error) return toast.error(error.message);
+    } else {
+      // Cria conversa pausada se não existir (caso vendedor queira garantir bloqueio)
+      if (agentePausado) return;
+      const { error } = await (supabase as any)
+        .from("agente_ia_conversas")
+        .insert({ telefone: variants[0], status: "ativa", agente_pausado: true });
+      if (error) return toast.error(error.message);
+    }
+    toast.success(agentePausado ? "Agente IA retomado" : "Agente IA pausado");
+    queryClient.invalidateQueries({ queryKey: ["agente-conversa-pausa", phone] });
+  }
+
   return (
     <div className="flex flex-col h-full bg-background">
       {/* Header */}
@@ -364,6 +401,15 @@ function ChatWindow({
           <p className="text-xs text-muted-foreground font-mono">{phone}</p>
         </div>
         <Button
+          variant={agentePausado ? "default" : "outline"}
+          size="sm"
+          onClick={toggleAgentePausa}
+          title={agentePausado ? "Retomar Agente IA" : "Pausar Agente IA"}
+          className="shrink-0"
+        >
+          {agentePausado ? "▶️ Retomar IA" : "⏸️ Pausar IA"}
+        </Button>
+        <Button
           variant="ghost"
           size="icon"
           onClick={() => setShowLeadModal(true)}
@@ -373,6 +419,12 @@ function ChatWindow({
           <Eye className="h-4 w-4" />
         </Button>
       </div>
+
+      {agentePausado && (
+        <div className="px-4 py-2 bg-amber-50 dark:bg-amber-950/30 border-b border-amber-200 dark:border-amber-900 text-xs text-amber-900 dark:text-amber-200">
+          Agente IA pausado nessa conversa. Você está atendendo manualmente.
+        </div>
+      )}
 
       {/* Messages area */}
       <ScrollArea className="flex-1 px-4 py-2" style={{ background: "hsl(var(--muted) / 0.2)" }}>
@@ -470,6 +522,7 @@ function ChatWindow({
         onSent={() => {
           queryClient.invalidateQueries({ queryKey: ["whatsapp-chat-messages", phone] });
           queryClient.invalidateQueries({ queryKey: ["whatsapp-chat-contacts"] });
+          queryClient.invalidateQueries({ queryKey: ["agente-conversa-pausa", phone] });
         }}
       />
     </div>

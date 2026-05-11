@@ -32,16 +32,16 @@ async function deveRotearParaAgente(
   const variantes = gerarVariantes(telefone);
   if (variantes.length === 0) return { chamar: false, motivo: "telefone_invalido" };
 
-  // Exceção 1: agente já pausado/escalado
+  // Exceção 1: vendedor pausou agente manualmente nessa conversa
   const { data: convAgente } = await supabase
     .from("agente_ia_conversas")
-    .select("id, status")
+    .select("id, agente_pausado")
     .in("telefone", variantes)
-    .in("status", ["pausada_humano", "escalada"])
+    .eq("agente_pausado", true)
     .order("ultima_mensagem_em", { ascending: false })
     .limit(1)
     .maybeSingle();
-  if (convAgente) return { chamar: false, motivo: `agente_${(convAgente as any).status}` };
+  if (convAgente) return { chamar: false, motivo: "agente_pausado_manualmente" };
 
   // Exceção 2: cliente em fluxo de retenção/presente ativo
   // retencao_disparos só tem status='sucesso'. Tratamos como "aguardando" se houve

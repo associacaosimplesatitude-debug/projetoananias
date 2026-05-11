@@ -384,7 +384,8 @@ const escalar_para_humano: ToolHandler = async (input, supabase, ctx) => {
     .single();
   if (error) throw new Error(error.message);
 
-  await supabase.from("agente_ia_conversas").update({ status: "escalada" }).eq("id", ctx.conversa_id);
+  // NÃO marca conversa como 'escalada' — escalação é só notificação ao vendedor.
+  // Agente continua respondendo até vendedor pausar manualmente via UI.
 
   const nome = vendedorAlvo?.nome || "um atendente";
   return {
