@@ -49,6 +49,40 @@ function normalizarTextoBusca(input: string): string {
     .trim();
 }
 
+/**
+ * Guardrail anti-alucinação de link de proposta.
+ * Bloqueia respostas que contenham UUID de proposta que não tenha vindo
+ * de uma chamada criar_proposta REAL feita neste mesmo turno.
+ */
+function validarLinksProposta(
+  texto: string,
+  toolCallsTurno: Array<{ name: string; output: any }>,
+): { ok: true } | { ok: false; uuids_invalidos: string[]; uuids_validos: string[] } {
+  const regex = /gestaoebd\.com\.br\/proposta\/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/gi;
+  const matches = [...(texto || "").matchAll(regex)];
+  if (matches.length === 0) return { ok: true };
+
+  const uuidsNoTexto = matches.map((m) => m[1].toLowerCase());
+
+  const uuidsValidos: string[] = [];
+  for (const tc of toolCallsTurno) {
+    if (tc.name !== "criar_proposta") continue;
+    const link = String(tc.output?.link || "");
+    const propId = String(tc.output?.proposta_id || "");
+    const tok = String(tc.output?.token || "");
+    const m = link.match(/proposta\/([a-f0-9-]{36})/i);
+    if (m) uuidsValidos.push(m[1].toLowerCase());
+    if (propId) uuidsValidos.push(propId.toLowerCase());
+    if (tok) uuidsValidos.push(tok.toLowerCase());
+  }
+
+  const invalidos = uuidsNoTexto.filter((u) => !uuidsValidos.includes(u));
+  if (invalidos.length > 0) {
+    return { ok: false, uuids_invalidos: invalidos, uuids_validos: uuidsValidos };
+  }
+  return { ok: true };
+}
+
 function formatarTelefoneWhatsapp(input: string): string {
   const d = normalizarTelefone(input || "");
   if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
@@ -416,6 +450,8 @@ INSTRUÇÃO: Cumprimente neutro com apresentação do agente. Colete naturalment
     let totalTokensOut = 0;
     let mensagemPendenteId: string | null = null;
     let respostaTextoFinal = "";
+    // Acumula TODAS as tool_uses do turno completo para o guardrail
+    const toolCallsTurno: Array<{ name: string; output: any }> = [];
 
     for (let loop = 0; loop < MAX_LOOPS; loop++) {
       log(`loop ${loop} → Anthropic`, { msgs: messages.length });
@@ -462,6 +498,88 @@ INSTRUÇÃO: Cumprimente neutro com apresentação do agente. Colete naturalment
       if (toolUses.length === 0) {
         respostaTextoFinal = textBlocks.map((t: any) => t.text).join("\n").trim();
         log("loop final — texto recebido", { len: respostaTextoFinal.length });
+
+        // ── GUARDRAIL: bloqueia link de proposta alucinado
+        const guard = validarLinksProposta(respostaTextoFinal, toolCallsTurno);
+        if (!guard.ok) {
+          log("⛔ GUARDRAIL bloqueou link alucinado", {
+            uuids_invalidos: guard.uuids_invalidos,
+            uuids_validos: guard.uuids_validos,
+          });
+
+          // 1. Registra incidente
+          await supabase.from("agente_ia_guardrail_alerts").insert({
+            conversa_id: conversa.id,
+            tipo: "link_proposta_alucinado",
+            detalhes: {
+              uuids_invalidos: guard.uuids_invalidos,
+              uuids_validos_no_turno: guard.uuids_validos,
+              tool_calls_turno: toolCallsTurno.map((t) => t.name),
+            },
+            texto_bloqueado: respostaTextoFinal,
+          });
+
+          // 2. Persiste a mensagem original como "bloqueada" (audit) — NÃO envia
+          await supabase.from("agente_ia_mensagens").insert({
+            conversa_id: conversa.id,
+            role: "assistant",
+            conteudo: `[BLOQUEADA PELO GUARDRAIL — link alucinado]\n${respostaTextoFinal}`,
+            tokens_in: data?.usage?.input_tokens || 0,
+            tokens_out: data?.usage?.output_tokens || 0,
+            status_aprovacao: "bloqueada",
+          });
+
+          // 3. Cria escalation automática
+          try {
+            await TOOL_HANDLERS.escalar_para_humano(
+              {
+                motivo: "outro",
+                detalhes: `Guardrail bloqueou link de proposta alucinado. UUIDs inválidos: ${guard.uuids_invalidos.join(", ")}`,
+                prioridade: "alta",
+              },
+              supabase,
+              ctx,
+            );
+          } catch (escErr) {
+            log("erro ao criar escalation automática do guardrail", escErr);
+          }
+
+          // 4. Envia mensagem genérica ao cliente
+          const mensagemFallback =
+            "Tive um problema técnico aqui pra finalizar agora. Um consultor já foi acionado e vai te chamar pra concluir. 🙏";
+
+          const { data: fallbackMsg } = await supabase
+            .from("agente_ia_mensagens")
+            .insert({
+              conversa_id: conversa.id,
+              role: "assistant",
+              conteudo: mensagemFallback,
+              tokens_in: 0,
+              tokens_out: 0,
+              status_aprovacao: statusAprovacaoAssistant,
+            })
+            .select("id")
+            .single();
+
+          mensagemPendenteId = fallbackMsg?.id || null;
+          respostaTextoFinal = mensagemFallback;
+
+          if (ehAutonomo && mensagemPendenteId) {
+            const envioPromise = fetch(`${SUPABASE_URL}/functions/v1/agente-enviar-mensagem-whatsapp`, {
+              method: "POST",
+              headers: { "Authorization": `Bearer ${SERVICE_KEY}`, "Content-Type": "application/json" },
+              body: JSON.stringify({
+                mensagem_id: mensagemPendenteId,
+                telefone_destino: telefoneNorm,
+                texto: mensagemFallback,
+              }),
+            }).catch((e) => console.error(`[agente-loja-cg] envio fallback erro:`, e));
+            // @ts-ignore EdgeRuntime no Deno deploy
+            const wait = (globalThis as any).EdgeRuntime?.waitUntil ?? ((q: Promise<any>) => q);
+            wait(envioPromise);
+          }
+          break;
+        }
 
         const { data: assistMsg, error: assistErr } = await supabase
           .from("agente_ia_mensagens")
@@ -522,6 +640,9 @@ INSTRUÇÃO: Cumprimente neutro com apresentação do agente. Colete naturalment
             log(`tool ${tu.name} falhou`, outputObj);
           }
         }
+
+        // Acumula no rastreamento do turno (pra guardrail)
+        toolCallsTurno.push({ name: tu.name, output: outputObj });
 
         await supabase.from("agente_ia_mensagens").insert({
           conversa_id: conversa.id,
