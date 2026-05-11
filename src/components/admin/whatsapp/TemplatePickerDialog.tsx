@@ -81,8 +81,9 @@ export default function TemplatePickerDialog({
     const init: Record<string, string> = {};
     (selected.variaveis_usadas || []).forEach((v) => {
       const key = String(v).replace(/\{\{|\}\}/g, "").trim();
+      const lower = key.toLowerCase();
       if (
-        ["primeiro_nome", "nome_comprador", "nome_completo", "1"].includes(key)
+        ["primeiro_nome", "nome_comprador", "nome_completo", "lead_nome", "nome", "1"].includes(lower)
       ) {
         init[key] = firstName;
       } else {
