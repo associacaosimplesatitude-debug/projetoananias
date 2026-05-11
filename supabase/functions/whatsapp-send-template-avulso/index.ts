@@ -85,48 +85,91 @@ Deno.serve(async (req) => {
     }
 
     const formattedPhone = formatPhone(telefone);
+    const header_image_url: string | undefined = body?.header_image_url;
 
     // Monta components
     const variables: string[] = (tpl.variaveis_usadas as string[]) || [];
     const components: any[] = [];
 
-    // Header IMAGE
-    if (tpl.cabecalho_tipo === "IMAGE" && tpl.cabecalho_midia_url) {
+    // ---- Validação de campos obrigatórios ANTES de enviar ----
+    const camposFaltando: string[] = [];
+    for (const v of variables) {
+      const key = String(v).replace(/\{\{|\}\}/g, "").trim();
+      const val = variable_values[key];
+      if (val === undefined || val === null || String(val).trim() === "") {
+        camposFaltando.push(`variável "${key}"`);
+      }
+    }
+    const headerImageUrl = header_image_url || tpl.cabecalho_midia_url;
+    if (tpl.cabecalho_tipo === "IMAGE" && !headerImageUrl) {
+      camposFaltando.push("imagem do cabeçalho (header_image_url)");
+    }
+    if (camposFaltando.length > 0) {
+      return jsonResponse({
+        error: "Campos obrigatórios faltando",
+        detalhe: `Template "${tpl.nome}" requer: ${camposFaltando.join(", ")}`,
+        campos_faltando: camposFaltando,
+      }, 400);
+    }
+
+    // ---- Header ----
+    if (tpl.cabecalho_tipo === "IMAGE" && headerImageUrl) {
       components.push({
         type: "header",
-        parameters: [{ type: "image", image: { link: tpl.cabecalho_midia_url } }],
+        parameters: [{ type: "image", image: { link: headerImageUrl } }],
       });
-    }
-
-    // Body params
-    if (variables.length > 0) {
-      const varValues = variables.map((v) => {
-        const key = String(v).replace(/\{\{|\}\}/g, "").trim();
-        return String(variable_values[key] ?? "-");
-      });
+    } else if (tpl.cabecalho_tipo === "VIDEO" && headerImageUrl) {
       components.push({
-        type: "body",
-        parameters: varValues.map((t) => ({ type: "text", text: t })),
+        type: "header",
+        parameters: [{ type: "video", video: { link: headerImageUrl } }],
+      });
+    } else if (tpl.cabecalho_tipo === "DOCUMENT" && headerImageUrl) {
+      components.push({
+        type: "header",
+        parameters: [{ type: "document", document: { link: headerImageUrl, filename: "documento.pdf" } }],
       });
     }
+    // HEADER do tipo TEXT estático não precisa de parameters (apenas se tivesse {{1}} no texto)
 
-    // Botão URL dinâmica
+    // ---- Body params (suporta NOMEADOS e NUMERADOS) ----
+    if (variables.length > 0) {
+      // Detecta se é nomeado: pelo menos uma variável NÃO é puramente numérica
+      const isNamed = variables.some((v) => {
+        const key = String(v).replace(/\{\{|\}\}/g, "").trim();
+        return !/^\d+$/.test(key);
+      });
+
+      const params = variables.map((v) => {
+        const key = String(v).replace(/\{\{|\}\}/g, "").trim();
+        const text = String(variable_values[key]).trim();
+        if (isNamed) {
+          return { type: "text", parameter_name: key, text };
+        }
+        return { type: "text", text };
+      });
+
+      components.push({ type: "body", parameters: params });
+    }
+
+    // ---- Botões ----
     const botoes = (() => {
       const raw = tpl.botoes;
       if (!raw) return [] as any[];
       try { return typeof raw === "string" ? JSON.parse(raw) : raw; } catch { return []; }
     })();
-    const hasUrlDinamica = botoes.some((b: any) => b.tipo === "URL" && b.url_dinamica === true);
-    if (hasUrlDinamica) {
-      const suffix = (button_dynamic_suffix && String(button_dynamic_suffix).trim()) ||
-        formattedPhone.replace(/^55/, "");
-      components.push({
-        type: "button",
-        sub_type: "url",
-        index: 0,
-        parameters: [{ type: "text", text: suffix }],
-      });
-    }
+    botoes.forEach((btn: any, index: number) => {
+      if (btn?.tipo === "URL" && btn?.url_dinamica === true) {
+        const suffix = (button_dynamic_suffix && String(button_dynamic_suffix).trim()) ||
+          formattedPhone.replace(/^55/, "");
+        components.push({
+          type: "button",
+          sub_type: "url",
+          index: String(index),
+          parameters: [{ type: "text", text: suffix }],
+        });
+      }
+      // URL estática, QUICK_REPLY, CATALOG e PHONE_NUMBER não precisam de component
+    });
 
     const payload = {
       messaging_product: "whatsapp",
