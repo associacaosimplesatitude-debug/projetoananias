@@ -182,6 +182,8 @@ Deno.serve(async (req) => {
       },
     };
 
+    console.log("[whatsapp-send-template-avulso] payload:", JSON.stringify(payload));
+
     const graphRes = await fetch(
       `https://graph.facebook.com/v22.0/${phoneNumberId}/messages`,
       {
