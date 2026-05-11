@@ -522,6 +522,7 @@ function ChatWindow({
         onSent={() => {
           queryClient.invalidateQueries({ queryKey: ["whatsapp-chat-messages", phone] });
           queryClient.invalidateQueries({ queryKey: ["whatsapp-chat-contacts"] });
+          queryClient.invalidateQueries({ queryKey: ["agente-conversa-pausa", phone] });
         }}
       />
     </div>
