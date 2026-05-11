@@ -49,6 +49,40 @@ function normalizarTextoBusca(input: string): string {
     .trim();
 }
 
+/**
+ * Guardrail anti-alucinação de link de proposta.
+ * Bloqueia respostas que contenham UUID de proposta que não tenha vindo
+ * de uma chamada criar_proposta REAL feita neste mesmo turno.
+ */
+function validarLinksProposta(
+  texto: string,
+  toolCallsTurno: Array<{ name: string; output: any }>,
+): { ok: true } | { ok: false; uuids_invalidos: string[]; uuids_validos: string[] } {
+  const regex = /gestaoebd\.com\.br\/proposta\/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/gi;
+  const matches = [...(texto || "").matchAll(regex)];
+  if (matches.length === 0) return { ok: true };
+
+  const uuidsNoTexto = matches.map((m) => m[1].toLowerCase());
+
+  const uuidsValidos: string[] = [];
+  for (const tc of toolCallsTurno) {
+    if (tc.name !== "criar_proposta") continue;
+    const link = String(tc.output?.link || "");
+    const propId = String(tc.output?.proposta_id || "");
+    const tok = String(tc.output?.token || "");
+    const m = link.match(/proposta\/([a-f0-9-]{36})/i);
+    if (m) uuidsValidos.push(m[1].toLowerCase());
+    if (propId) uuidsValidos.push(propId.toLowerCase());
+    if (tok) uuidsValidos.push(tok.toLowerCase());
+  }
+
+  const invalidos = uuidsNoTexto.filter((u) => !uuidsValidos.includes(u));
+  if (invalidos.length > 0) {
+    return { ok: false, uuids_invalidos: invalidos, uuids_validos: uuidsValidos };
+  }
+  return { ok: true };
+}
+
 function formatarTelefoneWhatsapp(input: string): string {
   const d = normalizarTelefone(input || "");
   if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
