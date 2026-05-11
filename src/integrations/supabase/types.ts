@@ -350,6 +350,7 @@ export type Database = {
           enviada_ao_cliente_em: string | null
           id: string
           meta_message_id: string | null
+          metadata: Json | null
           motivo_recusa: string | null
           role: string
           status_aprovacao: string | null
@@ -369,6 +370,7 @@ export type Database = {
           enviada_ao_cliente_em?: string | null
           id?: string
           meta_message_id?: string | null
+          metadata?: Json | null
           motivo_recusa?: string | null
           role: string
           status_aprovacao?: string | null
@@ -388,6 +390,7 @@ export type Database = {
           enviada_ao_cliente_em?: string | null
           id?: string
           meta_message_id?: string | null
+          metadata?: Json | null
           motivo_recusa?: string | null
           role?: string
           status_aprovacao?: string | null

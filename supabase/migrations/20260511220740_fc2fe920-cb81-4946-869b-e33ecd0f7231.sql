@@ -1,0 +1,1 @@
+ALTER TABLE public.agente_ia_mensagens ADD COLUMN IF NOT EXISTS metadata jsonb DEFAULT '{}'::jsonb;
