@@ -1,0 +1,197 @@
+// Envia template Meta aprovado para UM destinatário (1:1).
+// Usado pelo painel de atendimento quando a janela de 24h expirou.
+
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
+};
+
+function jsonResponse(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+function formatPhone(phone: string): string {
+  let cleaned = (phone || "").replace(/\D/g, "");
+  if (cleaned.startsWith("0")) cleaned = cleaned.slice(1);
+  if (!cleaned.startsWith("55")) cleaned = "55" + cleaned;
+  return cleaned;
+}
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+    const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
+
+    // --- Auth: requer JWT de usuário com role admin/superadmin/gerente_ebd/financeiro
+    const auth = req.headers.get("Authorization") || "";
+    const token = auth.replace("Bearer ", "").trim();
+    if (!token) return jsonResponse({ error: "Não autorizado" }, 401);
+
+    const { data: { user }, error: authErr } = await supabase.auth.getUser(token);
+    if (authErr || !user) return jsonResponse({ error: "Não autorizado" }, 401);
+
+    const { data: roles } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", user.id);
+    const allowed = ["admin", "superadmin", "gerente_ebd", "financeiro"];
+    const ok = (roles || []).some((r: any) => allowed.includes(r.role));
+    if (!ok) return jsonResponse({ error: "Permissão negada" }, 403);
+
+    const body = await req.json();
+    const telefone: string = body?.telefone;
+    const template_id: string = body?.template_id;
+    const variable_values: Record<string, string> = body?.variable_values || {};
+    const button_dynamic_suffix: string | undefined = body?.button_dynamic_suffix;
+    const nome_destino: string | undefined = body?.nome_destino;
+
+    if (!telefone || !template_id) {
+      return jsonResponse({ error: "telefone e template_id são obrigatórios" }, 400);
+    }
+
+    // Carrega template
+    const { data: tpl, error: tplErr } = await supabase
+      .from("whatsapp_templates")
+      .select("*")
+      .eq("id", template_id)
+      .single();
+    if (tplErr || !tpl) return jsonResponse({ error: "Template não encontrado" }, 404);
+    if (tpl.status !== "APROVADO" && tpl.status !== "APPROVED") {
+      return jsonResponse({ error: "Template não está aprovado" }, 400);
+    }
+
+    // Carrega credenciais Meta
+    const { data: settings } = await supabase
+      .from("system_settings")
+      .select("key, value")
+      .in("key", ["whatsapp_phone_number_id", "whatsapp_access_token"]);
+    const sm: Record<string, string> = {};
+    (settings || []).forEach((s: any) => { sm[s.key] = s.value; });
+    const phoneNumberId = sm["whatsapp_phone_number_id"];
+    const accessToken = sm["whatsapp_access_token"];
+    if (!phoneNumberId || !accessToken) {
+      return jsonResponse({ error: "Credenciais WhatsApp não configuradas" }, 500);
+    }
+
+    const formattedPhone = formatPhone(telefone);
+
+    // Monta components
+    const variables: string[] = (tpl.variaveis_usadas as string[]) || [];
+    const components: any[] = [];
+
+    // Header IMAGE
+    if (tpl.cabecalho_tipo === "IMAGE" && tpl.cabecalho_midia_url) {
+      components.push({
+        type: "header",
+        parameters: [{ type: "image", image: { link: tpl.cabecalho_midia_url } }],
+      });
+    }
+
+    // Body params
+    if (variables.length > 0) {
+      const varValues = variables.map((v) => {
+        const key = String(v).replace(/\{\{|\}\}/g, "").trim();
+        return String(variable_values[key] ?? "-");
+      });
+      components.push({
+        type: "body",
+        parameters: varValues.map((t) => ({ type: "text", text: t })),
+      });
+    }
+
+    // Botão URL dinâmica
+    const botoes = (() => {
+      const raw = tpl.botoes;
+      if (!raw) return [] as any[];
+      try { return typeof raw === "string" ? JSON.parse(raw) : raw; } catch { return []; }
+    })();
+    const hasUrlDinamica = botoes.some((b: any) => b.tipo === "URL" && b.url_dinamica === true);
+    if (hasUrlDinamica) {
+      const suffix = (button_dynamic_suffix && String(button_dynamic_suffix).trim()) ||
+        formattedPhone.replace(/^55/, "");
+      components.push({
+        type: "button",
+        sub_type: "url",
+        index: 0,
+        parameters: [{ type: "text", text: suffix }],
+      });
+    }
+
+    const payload = {
+      messaging_product: "whatsapp",
+      to: formattedPhone,
+      type: "template",
+      template: {
+        name: tpl.nome,
+        language: { code: tpl.idioma || "pt_BR" },
+        ...(components.length > 0 ? { components } : {}),
+      },
+    };
+
+    const graphRes = await fetch(
+      `https://graph.facebook.com/v22.0/${phoneNumberId}/messages`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      },
+    );
+
+    const graphResult = await graphRes.json().catch(() => ({}));
+    const isSuccess = graphRes.ok;
+
+    // Texto representativo da mensagem (corpo com variáveis substituídas)
+    let textoExibido = String(tpl.corpo || tpl.nome);
+    Object.entries(variable_values || {}).forEach(([k, v]) => {
+      const re = new RegExp(`\\{\\{\\s*${k}\\s*\\}\\}`, "g");
+      textoExibido = textoExibido.replace(re, String(v));
+    });
+
+    // Log em whatsapp_mensagens
+    await supabase.from("whatsapp_mensagens").insert({
+      tipo_mensagem: "template_avulso",
+      telefone_destino: formattedPhone,
+      nome_destino: nome_destino || null,
+      mensagem: textoExibido,
+      status: isSuccess ? "enviado" : "erro",
+      erro_detalhes: isSuccess ? null : JSON.stringify(graphResult).slice(0, 1000),
+      enviado_por: user.id,
+      payload_enviado: payload,
+      resposta_recebida: graphResult,
+    });
+
+    // Adiciona ao timeline da conversa também (assistant)
+    if (isSuccess) {
+      await supabase.from("whatsapp_conversas").insert({
+        telefone: formattedPhone,
+        role: "assistant",
+        content: `📋 [Template: ${tpl.nome}]\n\n${textoExibido}`,
+      });
+    }
+
+    if (!isSuccess) {
+      const errMsg = graphResult?.error?.message || JSON.stringify(graphResult).slice(0, 300);
+      return jsonResponse({ error: "Falha no envio Meta", detalhe: errMsg, meta: graphResult }, 500);
+    }
+
+    const wamid = graphResult?.messages?.[0]?.id || null;
+    return jsonResponse({ success: true, message_id: wamid });
+  } catch (err: any) {
+    console.error("[whatsapp-send-template-avulso] erro:", err);
+    return jsonResponse({ error: err?.message || "Erro interno" }, 500);
+  }
+});
