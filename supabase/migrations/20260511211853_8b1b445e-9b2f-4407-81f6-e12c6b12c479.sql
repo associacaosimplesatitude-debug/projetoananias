@@ -1,0 +1,1 @@
+UPDATE agente_ia_conversas SET status = 'fechada', fechada_em = now() WHERE telefone IN ('11947141878', '5511947141878') AND status = 'ativa';
