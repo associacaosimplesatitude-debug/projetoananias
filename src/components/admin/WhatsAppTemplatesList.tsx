@@ -161,6 +161,10 @@ export default function WhatsAppTemplatesList() {
                 <SelectItem value="REJEITADO">Rejeitado</SelectItem>
               </SelectContent>
             </Select>
+            <Button onClick={syncFromMeta} variant="outline" disabled={syncingMeta} className="gap-2">
+              {syncingMeta ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
+              Sincronizar do Meta
+            </Button>
             <Button onClick={() => { setEditingTemplate(null); setShowCreator(true); }} className="gap-2">
               <Plus className="h-4 w-4" /> Novo Template
             </Button>
