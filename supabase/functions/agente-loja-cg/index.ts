@@ -26,6 +26,87 @@ function log(msg: string, extra?: unknown) {
   else console.log(`[agente-loja-cg] ${msg}`);
 }
 
+type DadosCadastroAtuais = {
+  origem: "cliente" | "lead";
+  primeiroNome: string;
+  nome: string;
+  igreja: string;
+  email: string;
+  telefone: string;
+  endereco: string;
+  cidade: string;
+  estado: string;
+  cep: string;
+};
+
+function normalizarTextoBusca(input: string): string {
+  return (input || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function formatarTelefoneWhatsapp(input: string): string {
+  const d = normalizarTelefone(input || "");
+  if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+  if (d.length === 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
+  return input || "—";
+}
+
+function formatarCep(input: string): string {
+  const d = (input || "").replace(/\D/g, "");
+  if (d.length === 8) return `${d.slice(0, 5)}-${d.slice(5)}`;
+  return input || "—";
+}
+
+function ehPedidoDadosCadastrais(input: string): boolean {
+  const t = normalizarTextoBusca(input);
+  return [
+    "meus dados",
+    "meu cadastro",
+    "dados cadastrais",
+    "dados do cadastro",
+    "confira meus dados",
+    "confere meus dados",
+    "veja meus dados",
+    "verifique meus dados",
+    "verifica meus dados",
+    "qual meu endereco",
+    "qual meu telefone",
+    "qual meu email",
+  ].some((termo) => t.includes(termo));
+}
+
+function montarRespostaDadosCadastrais(dados: DadosCadastroAtuais | null, telefoneFallback: string): string {
+  if (!dados) {
+    return [
+      "Conferi seu contato no sistema neste momento, mas ainda não encontrei um cadastro completo vinculado a este número.",
+      "",
+      `- **Telefone informado:** ${formatarTelefoneWhatsapp(telefoneFallback)}`,
+      "- **Status:** contato ainda não localizado no cadastro principal",
+    ].join("\n");
+  }
+
+  const intro = dados.primeiroNome && dados.primeiroNome !== "—"
+    ? `${dados.primeiroNome}, estes são os dados atuais do seu cadastro no sistema:`
+    : "Estes são os dados atuais do seu cadastro no sistema:";
+
+  return [
+    intro,
+    "",
+    `- **Nome:** ${dados.nome || "—"}`,
+    `- **Igreja:** ${dados.igreja || "—"}`,
+    `- **Email:** ${dados.email || "—"}`,
+    `- **Telefone:** ${formatarTelefoneWhatsapp(dados.telefone)}`,
+    `- **Endereço:** ${dados.endereco || "—"}`,
+    `- **Cidade/UF:** ${dados.cidade || "—"} - ${dados.estado || "—"}`,
+    `- **CEP:** ${formatarCep(dados.cep)}`,
+  ].join("\n");
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -72,7 +153,7 @@ serve(async (req) => {
     // ── Buscar conversa ativa
     let { data: conversa } = await supabase
       .from("agente_ia_conversas")
-      .select("id, cliente_id, status, agente_pausado, total_turnos, total_tokens_in, total_tokens_out")
+      .select("id, cliente_id, status, agente_pausado, total_turnos, total_tokens_in, total_tokens_out, custo_estimado")
       .in("telefone", variantes)
       .eq("status", "ativa")
       .order("ultima_mensagem_em", { ascending: false })
@@ -88,7 +169,7 @@ serve(async (req) => {
       const { data: nova, error: novaErr } = await supabase
         .from("agente_ia_conversas")
         .insert({ telefone: telefoneNorm, status: "ativa" })
-        .select("id, cliente_id, status, total_turnos, total_tokens_in, total_tokens_out")
+          .select("id, cliente_id, status, total_turnos, total_tokens_in, total_tokens_out, custo_estimado")
         .single();
       if (novaErr || !nova) {
         log("erro criando conversa", novaErr);
@@ -148,6 +229,7 @@ serve(async (req) => {
 
     // ── DADOS ATUAIS DO CLIENTE — re-buscados FRESCOS a cada turno (fonte da verdade absoluta)
     let dadosAtuais = "";
+    let cadastroAtual: DadosCadastroAtuais | null = null;
     if (ctx.cliente_id) {
       const { data: c } = await supabase
         .from("ebd_clientes")
@@ -157,8 +239,21 @@ serve(async (req) => {
       if (c) {
         const nomeFull = (c.nome_responsavel || c.nome_superintendente || c.nome_igreja || "").trim();
         const primeiro = nomeFull.split(/\s+/)[0] || "—";
-        const enderecoCompleto = [c.endereco_rua, c.endereco_numero, c.endereco_complemento, c.endereco_bairro]
-          .filter(Boolean).join(", ");
+        const enderecoPrincipal = [c.endereco_rua, c.endereco_numero].filter(Boolean).join(", ");
+        const enderecoDetalhes = [c.endereco_complemento, c.endereco_bairro].filter(Boolean).join(" - ");
+        const enderecoCompleto = [enderecoPrincipal, enderecoDetalhes].filter(Boolean).join(" - ");
+        cadastroAtual = {
+          origem: "cliente",
+          primeiroNome: primeiro,
+          nome: nomeFull || "—",
+          igreja: c.nome_igreja || "—",
+          email: c.email_superintendente || "—",
+          telefone: c.telefone || "—",
+          endereco: enderecoCompleto || "—",
+          cidade: c.endereco_cidade || "—",
+          estado: c.endereco_estado || "—",
+          cep: c.endereco_cep || "—",
+        };
         dadosAtuais = `
 🔒 DADOS ATUAIS DO CADASTRO DO CLIENTE (FONTE DA VERDADE — relido do banco AGORA, sobrepõe QUALQUER informação anterior do histórico desta conversa):
 - cliente_id: ${c.id}
@@ -184,8 +279,20 @@ REGRA: Se o cliente perguntar quais dados estão no cadastro dele, responda EXCL
         .in("telefone", variantes)
         .maybeSingle();
       if (lead) {
-        const enderecoCompleto = [lead.endereco_rua, lead.endereco_numero, lead.endereco_bairro]
-          .filter(Boolean).join(", ");
+        const enderecoPrincipal = [lead.endereco_rua, lead.endereco_numero].filter(Boolean).join(", ");
+        const enderecoCompleto = [enderecoPrincipal, lead.endereco_bairro].filter(Boolean).join(" - ");
+        cadastroAtual = {
+          origem: "lead",
+          primeiroNome: (lead.nome_responsavel || lead.nome_igreja || "").trim().split(/\s+/)[0] || "—",
+          nome: lead.nome_responsavel || "—",
+          igreja: lead.nome_igreja || "—",
+          email: lead.email || "—",
+          telefone: lead.telefone || "—",
+          endereco: enderecoCompleto || "—",
+          cidade: lead.endereco_cidade || "—",
+          estado: lead.endereco_estado || "—",
+          cep: lead.endereco_cep || "—",
+        };
         dadosAtuais = `
 🔒 DADOS ATUAIS DO LEAD (FONTE DA VERDADE — relido AGORA, sobrepõe histórico):
 - Nome: ${lead.nome_responsavel || "—"}
@@ -219,6 +326,73 @@ INSTRUÇÃO: Cumprimente neutro com apresentação do agente. Colete naturalment
       conteudo: mensagemUser,
       status_aprovacao: "nao_aplicavel",
     });
+
+    if (ehPedidoDadosCadastrais(mensagemUser)) {
+      const respostaCadastro = montarRespostaDadosCadastrais(cadastroAtual, telefoneNorm);
+      log("resposta determinística de cadastro acionada", {
+        conversa_id: conversa.id,
+        cliente_id: ctx.cliente_id,
+        origem: cadastroAtual?.origem || "nao_encontrado",
+      });
+
+      const { data: assistMsg, error: assistErr } = await supabase
+        .from("agente_ia_mensagens")
+        .insert({
+          conversa_id: conversa.id,
+          role: "assistant",
+          conteudo: respostaCadastro,
+          tokens_in: 0,
+          tokens_out: 0,
+          status_aprovacao: statusAprovacaoAssistant,
+        })
+        .select("id")
+        .single();
+      if (assistErr) log("erro insert assistant determinístico", assistErr);
+
+      await supabase
+        .from("agente_ia_conversas")
+        .update({
+          ultima_mensagem_em: new Date().toISOString(),
+          total_turnos: (conversa.total_turnos || 0) + 1,
+        })
+        .eq("id", conversa.id);
+
+      if (ehAutonomo && assistMsg?.id && respostaCadastro) {
+        log("modo autônomo — disparando envio Meta (determinístico)", { mensagem_id: assistMsg.id });
+        const envioPromise = fetch(`${SUPABASE_URL}/functions/v1/agente-enviar-mensagem-whatsapp`, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${SERVICE_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            mensagem_id: assistMsg.id,
+            telefone_destino: telefoneNorm,
+            texto: respostaCadastro,
+          }),
+        }).then(async (r) => {
+          if (!r.ok) console.error(`[agente-loja-cg] envio Meta falhou (determinístico):`, await r.text());
+          else log("envio Meta determinístico disparado com sucesso");
+        }).catch(err => console.error(`[agente-loja-cg] envio Meta erro (determinístico):`, err));
+        // @ts-ignore EdgeRuntime no Deno deploy
+        const wait = (globalThis as any).EdgeRuntime?.waitUntil ?? ((q: Promise<any>) => q);
+        wait(envioPromise);
+      }
+
+      return jsonResponse({
+        success: true,
+        conversa_id: conversa.id,
+        mensagem_pendente_id: assistMsg?.id || null,
+        resposta_preview: respostaCadastro,
+        tokens: {
+          in: 0,
+          out: 0,
+          custo_usd: 0,
+          custo_acumulado_usd: Number(conversa.custo_estimado || 0),
+        },
+        modo: modoCalculado,
+      });
+    }
 
     // ── Reconstruir histórico para Claude (somente user/assistant/tool relevantes)
     const { data: historico } = await supabase
