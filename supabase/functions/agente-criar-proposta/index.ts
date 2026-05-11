@@ -65,8 +65,16 @@ serve(async (req) => {
       .select("value")
       .eq("key", "agente_ia_vendedor_id")
       .maybeSingle();
-    const vendedorId = typeof setting?.value === "string" ? setting.value : (setting?.value as any);
-    if (!vendedorId) return jsonResponse({ error: "agente_ia_vendedor_id não configurado" }, 500);
+    let vendedorId: any = setting?.value;
+    if (typeof vendedorId === "string") {
+      const trimmed = vendedorId.trim();
+      if ((trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
+        try { vendedorId = JSON.parse(trimmed); } catch { vendedorId = trimmed.slice(1, -1); }
+      } else {
+        vendedorId = trimmed;
+      }
+    }
+    if (!vendedorId || typeof vendedorId !== "string") return jsonResponse({ error: "agente_ia_vendedor_id não configurado" }, 500);
 
     // 3. RPC de preço
     const { data: precoData, error: precoErr } = await supabase.rpc("calcular_preco_para_cliente", {
