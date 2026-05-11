@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Edit, Copy, Trash2, RefreshCw, Loader2 } from "lucide-react";
+import { Plus, Edit, Copy, Trash2, RefreshCw, Loader2, RefreshCcw } from "lucide-react";
 import { format } from "date-fns";
 import WhatsAppTemplateCreator from "./WhatsAppTemplateCreator";
 
@@ -24,6 +24,25 @@ export default function WhatsAppTemplatesList() {
   const [showCreator, setShowCreator] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<any>(null);
   const [checkingId, setCheckingId] = useState<string | null>(null);
+  const [syncingMeta, setSyncingMeta] = useState(false);
+
+  const syncFromMeta = async () => {
+    setSyncingMeta(true);
+    try {
+      const response = await supabase.functions.invoke("whatsapp-sync-templates-from-meta", { body: {} });
+      if (response.error) throw new Error(response.error.message);
+      if (response.data?.error) throw new Error(response.data.error);
+      const r = response.data;
+      toast.success(`Sincronização: ${r.inseridos} novos, ${r.atualizados} atualizados (total Meta: ${r.total_meta})`);
+      if (r.erros?.length) toast.warning(`${r.erros.length} erro(s) — veja console`, { duration: 6000 });
+      if (r.erros?.length) console.warn("Erros sync templates:", r.erros);
+      queryClient.invalidateQueries({ queryKey: ["whatsapp-templates"] });
+    } catch (err: any) {
+      toast.error("Erro ao sincronizar: " + err.message);
+    } finally {
+      setSyncingMeta(false);
+    }
+  };
 
   const { data: templates, isLoading } = useQuery({
     queryKey: ["whatsapp-templates", statusFilter],
@@ -142,6 +161,10 @@ export default function WhatsAppTemplatesList() {
                 <SelectItem value="REJEITADO">Rejeitado</SelectItem>
               </SelectContent>
             </Select>
+            <Button onClick={syncFromMeta} variant="outline" disabled={syncingMeta} className="gap-2">
+              {syncingMeta ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
+              Sincronizar do Meta
+            </Button>
             <Button onClick={() => { setEditingTemplate(null); setShowCreator(true); }} className="gap-2">
               <Plus className="h-4 w-4" /> Novo Template
             </Button>
