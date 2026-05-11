@@ -401,6 +401,15 @@ function ChatWindow({
           <p className="text-xs text-muted-foreground font-mono">{phone}</p>
         </div>
         <Button
+          variant={agentePausado ? "default" : "outline"}
+          size="sm"
+          onClick={toggleAgentePausa}
+          title={agentePausado ? "Retomar Agente IA" : "Pausar Agente IA"}
+          className="shrink-0"
+        >
+          {agentePausado ? "▶️ Retomar IA" : "⏸️ Pausar IA"}
+        </Button>
+        <Button
           variant="ghost"
           size="icon"
           onClick={() => setShowLeadModal(true)}
@@ -410,6 +419,12 @@ function ChatWindow({
           <Eye className="h-4 w-4" />
         </Button>
       </div>
+
+      {agentePausado && (
+        <div className="px-4 py-2 bg-amber-50 dark:bg-amber-950/30 border-b border-amber-200 dark:border-amber-900 text-xs text-amber-900 dark:text-amber-200">
+          Agente IA pausado nessa conversa. Você está atendendo manualmente.
+        </div>
+      )}
 
       {/* Messages area */}
       <ScrollArea className="flex-1 px-4 py-2" style={{ background: "hsl(var(--muted) / 0.2)" }}>
