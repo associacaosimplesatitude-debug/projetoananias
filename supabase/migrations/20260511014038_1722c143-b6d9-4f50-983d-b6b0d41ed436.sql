@@ -1,0 +1,1 @@
+UPDATE agente_ia_conversas SET status='ativa', fechada_em=NULL WHERE id='576c65ec-4e73-4141-b459-01bf75f9e220';
