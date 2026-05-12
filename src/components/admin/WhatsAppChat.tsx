@@ -29,6 +29,7 @@ import LeadDetailModal from "./whatsapp/LeadDetailModal";
 import TemplatePickerDialog from "./whatsapp/TemplatePickerDialog";
 import EncaminharVendedorDialog from "./whatsapp/EncaminharVendedorDialog";
 import { UserPlus, RotateCcw } from "lucide-react";
+import { resolveLeadsByPhones } from "@/lib/leadResolver";
 
 // Normalize para chave local: somente dígitos, sem o DDI 55 quando existir
 function normalizePhone(phone: string): string {
