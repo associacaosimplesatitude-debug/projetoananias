@@ -228,16 +228,19 @@ function ChatWindow({
   contact,
   onBack,
   isMobile,
+  scope = "admin",
 }: {
   phone: string;
   contact: Contact | null;
   onBack: () => void;
   isMobile: boolean;
+  scope?: "admin" | "vendedor";
 }) {
   const [inputMsg, setInputMsg] = useState("");
   const [sending, setSending] = useState(false);
   const [showLeadModal, setShowLeadModal] = useState(false);
   const [showTemplateDialog, setShowTemplateDialog] = useState(false);
+  const [showEncaminharDialog, setShowEncaminharDialog] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
 
