@@ -172,7 +172,7 @@ export function VincularComissaoDialog({
               type="number"
             />
             <p className="text-xs text-muted-foreground">
-              Se informado, atualiza também o pedido Shopify caso não tenha vínculo com Bling.
+              Se informado, atualiza também o pedido E-commerce caso não tenha vínculo com Bling.
             </p>
           </div>
         </div>
