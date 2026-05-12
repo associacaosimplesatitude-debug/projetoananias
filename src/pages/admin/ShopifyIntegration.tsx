@@ -382,7 +382,7 @@ export default function ShopifyIntegration() {
             <h4 className="font-medium">Se os produtos não aparecem:</h4>
             <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1">
               <li>Verifique se o <strong>Storefront Access Token</strong> está correto</li>
-              <li>Certifique-se de que o app Shopify tem o scope <code>unauthenticated_read_product_listings</code></li>
+              <li>Certifique-se de que o app E-commerce tem o scope <code>unauthenticated_read_product_listings</code></li>
               <li>Verifique se os produtos estão <strong>publicados</strong> no canal "Online Store"</li>
               <li>Confirme se a loja está ativa e não em modo de senha</li>
             </ul>
