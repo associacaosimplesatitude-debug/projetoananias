@@ -60,6 +60,7 @@ export interface ResolvedLead {
   vendedorAtribuidoNome: string | null;
   conversaId: string | null;
   clienteId: string | null;
+  nomeResolvido: string | null;
 }
 
 function emptyResolved(phone: string): ResolvedLead {
