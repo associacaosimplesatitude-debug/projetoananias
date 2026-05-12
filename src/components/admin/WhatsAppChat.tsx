@@ -68,6 +68,13 @@ function phoneVariants(phone: string): string[] {
 }
 
 // Types
+type ContactTagType = "atendendo" | "vendedor_historico" | "sem_vendedor" | "novo_contato";
+
+interface ContactTag {
+  type: ContactTagType;
+  vendedorNome?: string | null;
+}
+
 interface Contact {
   telefone: string;
   nome: string;
@@ -75,6 +82,13 @@ interface Contact {
   ultimaMensagem: string;
   ultimaData: string;
   vendedorNome?: string | null;
+  conversaId?: string | null;
+  vendedorAtribuidoId?: string | null;
+  vendedorAtribuidoNome?: string | null;
+  vendedorHistoricoId?: string | null;
+  vendedorHistoricoNome?: string | null;
+  clienteId?: string | null;
+  tag: ContactTag;
 }
 
 interface ChatMessage {
