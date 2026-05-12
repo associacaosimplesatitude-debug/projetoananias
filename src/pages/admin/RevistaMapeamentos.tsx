@@ -183,8 +183,8 @@ export default function RevistaMapeamentos() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>URL do produto na Shopify (opcional)</Label>
-                <Input value={shopifyUrl} onChange={(e) => setShopifyUrl(e.target.value)} placeholder="https://sualoja.myshopify.com/products/..." />
+                <Label>URL do produto no E-commerce (opcional)</Label>
+                <Input value={shopifyUrl} onChange={(e) => setShopifyUrl(e.target.value)} placeholder="https://loja.editoracentralgospel.com.br/products/..." />
               </div>
               <div className="space-y-2">
                 <Label>Bling Produto ID (opcional)</Label>
