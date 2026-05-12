@@ -157,7 +157,7 @@ export default function RevistaMapeamentos() {
             </DialogHeader>
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label>SKU (Shopify) *</Label>
+                <Label>SKU (E-commerce) *</Label>
                 <Input value={sku} onChange={(e) => setSku(e.target.value)} placeholder="Ex: REV-ADULTO-3T-2026" />
               </div>
               <div className="space-y-2">
