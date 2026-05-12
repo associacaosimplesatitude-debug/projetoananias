@@ -99,6 +99,7 @@ interface Contact {
   vendedorHistoricoId?: string | null;
   vendedorHistoricoNome?: string | null;
   clienteId?: string | null;
+  tipoCliente?: string | null;
   tag: ContactTag;
 }
 
