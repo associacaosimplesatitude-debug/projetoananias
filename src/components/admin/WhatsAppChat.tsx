@@ -507,6 +507,7 @@ function ChatWindow({
         open={showEncaminharDialog}
         onOpenChange={setShowEncaminharDialog}
         conversaId={contact?.conversaId || null}
+        telefone={contact?.telefone || phone || null}
         vendedorHistoricoId={contact?.vendedorHistoricoId || null}
         vendedorHistoricoNome={contact?.vendedorHistoricoNome || null}
       />
