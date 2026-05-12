@@ -254,7 +254,7 @@ export default function RevistaMapeamentos() {
               <TableHead>SKU</TableHead>
               <TableHead>Revista Digital</TableHead>
               <TableHead>Revista EBD</TableHead>
-              <TableHead>URL Shopify</TableHead>
+              <TableHead>URL E-commerce</TableHead>
               <TableHead>Bling Produto ID</TableHead>
               <TableHead>Data</TableHead>
               <TableHead className="w-24"></TableHead>
