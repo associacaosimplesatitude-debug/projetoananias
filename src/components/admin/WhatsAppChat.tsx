@@ -29,6 +29,7 @@ import LeadDetailModal from "./whatsapp/LeadDetailModal";
 import TemplatePickerDialog from "./whatsapp/TemplatePickerDialog";
 import EncaminharVendedorDialog from "./whatsapp/EncaminharVendedorDialog";
 import { UserPlus, RotateCcw } from "lucide-react";
+import { resolveLeadsByPhones } from "@/lib/leadResolver";
 
 // Normalize para chave local: somente dígitos, sem o DDI 55 quando existir
 function normalizePhone(phone: string): string {
@@ -884,159 +885,17 @@ export default function WhatsAppChat({ scope: scopeProp = "superadmin", vendedor
 
       const phones = Object.keys(phoneMap);
 
-      // Atribuições e clientes via agente_ia_conversas
-      const allVariants = Array.from(
-        new Set(phones.flatMap((p) => phoneVariants(p))),
-      );
-      const { data: agenteConversas } = allVariants.length
-        ? await (supabase as any)
-            .from("agente_ia_conversas")
-            .select(
-              "id, telefone, cliente_id, vendedor_atribuido_id, ultima_mensagem_em, cliente:ebd_clientes!cliente_id(vendedor_id)",
-            )
-            .in("telefone", allVariants)
-            .order("ultima_mensagem_em", { ascending: false })
-        : { data: [] as any[] };
-
-      // Map por telefone normalizado (mais recente vence)
-      const atribuicaoMap: Record<
-        string,
-        {
-          conversaId: string;
-          clienteId: string | null;
-          vendedorAtribuidoId: string | null;
-          vendedorHistoricoId: string | null;
-        }
-      > = {};
-      (agenteConversas || []).forEach((row: any) => {
-        const key = normalizePhone(row.telefone || "");
-        if (!key || atribuicaoMap[key]) return;
-        atribuicaoMap[key] = {
-          conversaId: row.id,
-          clienteId: row.cliente_id || null,
-          vendedorAtribuidoId: row.vendedor_atribuido_id || null,
-          vendedorHistoricoId: row.cliente?.vendedor_id || null,
-        };
-      });
-
-      // Vendedor de leads de reativação como fallback (+ tipo_lead p/ tag tipoCliente)
-      const { data: leads } = await supabase
-        .from("ebd_leads_reativacao")
-        .select("telefone, vendedor_id, tipo_lead")
-        .not("telefone", "is", null);
-      const leadVendedorByVariant: Record<string, { id: string }> = {};
-      const leadTipoByVariant: Record<string, string> = {};
-      (leads || []).forEach((l: any) => {
-        if (!l.telefone) return;
-        phoneVariants(l.telefone).forEach((v) => {
-          if (l.vendedor_id) leadVendedorByVariant[v] = { id: l.vendedor_id };
-          if (l.tipo_lead && !leadTipoByVariant[v]) leadTipoByVariant[v] = l.tipo_lead;
-        });
-      });
-
-      // Fallback: cruzar com ebd_clientes diretamente pelo telefone (cliente já cadastrado
-      // mesmo que agente_ia_conversas.cliente_id ainda não esteja preenchido).
-      const { data: clientesByPhone } = allVariants.length
-        ? await supabase
-            .from("ebd_clientes")
-            .select("id, telefone, vendedor_id, tipo_cliente, updated_at")
-            .not("telefone", "is", null)
-            .in("telefone", allVariants)
-            .order("updated_at", { ascending: false })
-        : { data: [] as any[] };
-      const clienteByVariant: Record<
-        string,
-        { clienteId: string; vendedorId: string | null; tipoCliente: string | null }
-      > = {};
-      (clientesByPhone || []).forEach((c: any) => {
-        if (!c.telefone) return;
-        phoneVariants(c.telefone).forEach((v) => {
-          if (clienteByVariant[v]) return; // primeiro = mais recente
-          clienteByVariant[v] = {
-            clienteId: c.id,
-            vendedorId: c.vendedor_id || null,
-            tipoCliente: c.tipo_cliente || null,
-          };
-        });
-      });
-
-      // Fallback adicional (mesma fonte usada no LeadDetailModal):
-      // pedidos Shopify com vendedor_id vinculado pelo telefone do cliente.
-      const { data: pedidosByPhone } = allVariants.length
-        ? await supabase
-            .from("ebd_shopify_pedidos")
-            .select("customer_phone, vendedor_id, created_at")
-            .not("vendedor_id", "is", null)
-            .not("customer_phone", "is", null)
-            .in("customer_phone", allVariants)
-            .order("created_at", { ascending: false })
-        : { data: [] as any[] };
-      const pedidoVendedorByVariant: Record<string, { id: string }> = {};
-      (pedidosByPhone || []).forEach((p: any) => {
-        if (!p.customer_phone || !p.vendedor_id) return;
-        phoneVariants(p.customer_phone).forEach((v) => {
-          if (pedidoVendedorByVariant[v]) return; // primeiro = mais recente
-          pedidoVendedorByVariant[v] = { id: p.vendedor_id };
-        });
-      });
-
-      // Resolver nomes de vendedores via uma única query (embed PostgREST retorna null)
-      const vendedorIds = Array.from(
-        new Set(
-          [
-            ...Object.values(atribuicaoMap).flatMap((a) => [
-              a.vendedorAtribuidoId,
-              a.vendedorHistoricoId,
-            ]),
-            ...Object.values(leadVendedorByVariant).map((l) => l.id),
-            ...Object.values(clienteByVariant).map((c) => c.vendedorId),
-            ...Object.values(pedidoVendedorByVariant).map((p) => p.id),
-          ].filter((id): id is string => !!id),
-        ),
-      );
-      const { data: vendedoresRows } = vendedorIds.length
-        ? await supabase.from("vendedores").select("id, nome").in("id", vendedorIds)
-        : { data: [] as any[] };
-      const vendedorById: Record<string, string> = {};
-      (vendedoresRows || []).forEach((v: any) => {
-        if (v?.id) vendedorById[v.id] = v.nome || "";
-      });
+      // Resolve via SHARED resolver — same authority used by LeadDetailModal.
+      const resolvedMap = await resolveLeadsByPhones(phones);
 
       const contactList: Contact[] = phones.map((phone) => {
-        const variants = phoneVariants(phone);
-        const atrib = atribuicaoMap[phone];
-        const fallbackLead = variants.reduce<{ id: string } | null>(
-          (acc, v) => acc || leadVendedorByVariant[v] || null,
-          null,
-        );
-        const fallbackLeadTipo = variants.reduce<string | null>(
-          (acc, v) => acc || leadTipoByVariant[v] || null,
-          null,
-        );
-        const fallbackCliente = variants.reduce<
-          { clienteId: string; vendedorId: string | null; tipoCliente: string | null } | null
-        >((acc, v) => acc || clienteByVariant[v] || null, null);
-        const fallbackPedido = variants.reduce<{ id: string } | null>(
-          (acc, v) => acc || pedidoVendedorByVariant[v] || null,
-          null,
-        );
-
-        const vendedorAtribuidoId = atrib?.vendedorAtribuidoId || null;
-        const vendedorAtribuidoNome = vendedorAtribuidoId
-          ? vendedorById[vendedorAtribuidoId] || null
-          : null;
-        const vendedorHistoricoId =
-          atrib?.vendedorHistoricoId ||
-          fallbackCliente?.vendedorId ||
-          fallbackLead?.id ||
-          fallbackPedido?.id ||
-          null;
-        const vendedorHistoricoNome = vendedorHistoricoId
-          ? vendedorById[vendedorHistoricoId] || null
-          : null;
-        const clienteId = atrib?.clienteId || fallbackCliente?.clienteId || null;
-        // Mesma ordem de fallback do LeadDetailModal: tipo_lead || tipo_cliente
-        const tipoCliente = fallbackLeadTipo || fallbackCliente?.tipoCliente || null;
+        const r = resolvedMap.get(phone);
+        const vendedorAtribuidoId = r?.vendedorAtribuidoId || null;
+        const vendedorAtribuidoNome = r?.vendedorAtribuidoNome || null;
+        const vendedorHistoricoId = r?.vendedorHistoricoId || null;
+        const vendedorHistoricoNome = r?.vendedorHistoricoNome || null;
+        const clienteId = r?.clienteId || null;
+        const tipoCliente = r?.tipoCliente || null;
 
         let tag: ContactTag;
         if (vendedorAtribuidoId) {
@@ -1056,7 +915,7 @@ export default function WhatsAppChat({ scope: scopeProp = "superadmin", vendedor
           ultimaMensagem: phoneMap[phone].ultimaMensagem,
           ultimaData: phoneMap[phone].ultimaData,
           vendedorNome: vendedorAtribuidoNome || vendedorHistoricoNome,
-          conversaId: atrib?.conversaId || null,
+          conversaId: r?.conversaId || null,
           clienteId,
           vendedorAtribuidoId,
           vendedorAtribuidoNome,
