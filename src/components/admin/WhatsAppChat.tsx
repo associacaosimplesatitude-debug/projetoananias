@@ -895,7 +895,7 @@ export default function WhatsAppChat({ scope = "admin", vendedorId = null }: Wha
         let tag: ContactTag;
         if (vendedorAtribuidoId) {
           tag = { type: "atendendo", vendedorNome: vendedorAtribuidoNome };
-        } else if (clienteId && vendedorHistoricoNome) {
+        } else if (vendedorHistoricoNome) {
           tag = { type: "vendedor_historico", vendedorNome: vendedorHistoricoNome };
         } else if (clienteId) {
           tag = { type: "sem_vendedor" };
