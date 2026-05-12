@@ -148,7 +148,7 @@ export default function LeadDetailModal({ open, onOpenChange, phone }: LeadDetai
 
             {/* Último Pedido Shopify (destaque) */}
             {pedidoShopify && (
-              <Section title="Último Pedido Shopify" icon={<ShoppingCart className="h-4 w-4" />}>
+              <Section title="Último Pedido E-commerce" icon={<ShoppingCart className="h-4 w-4" />}>
                 <InfoRow label="Pedido" value={pedidoShopify.orderNumber} />
                 <InfoRow
                   label="Valor"
