@@ -26,6 +26,8 @@ interface BackfillResult {
   pulados: number;
   erros: number;
   errosDetalhe?: Array<{ pedido: string; motivo: string }>;
+  clientesResetados: number;
+  clientesResetDetalhe?: Array<{ id: string; nome: string; motivo?: string }>;
   duracaoMs: number;
 }
 
