@@ -6,7 +6,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
-const BLING_API_BASE = "https://www.bling.com.br/Api/v3";
+const BLING_API_BASE = "https://api.bling.com.br/Api/v3";
 const RATE_LIMIT_MS = 350;
 const MAX_PAGES_PER_CALL = 3;
 const MAX_EXECUTION_MS = 15000;
@@ -29,7 +29,7 @@ async function getValidToken(supabase: any): Promise<string> {
 
   if (!config.refresh_token) throw new Error("Refresh token não disponível");
   const credentials = btoa(`${config.client_id}:${config.client_secret}`);
-  const tokenRes = await fetch("https://www.bling.com.br/Api/v3/oauth/token", {
+  const tokenRes = await fetch("https://api.bling.com.br/Api/v3/oauth/token", {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded",

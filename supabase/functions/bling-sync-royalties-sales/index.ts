@@ -40,7 +40,7 @@ async function refreshBlingToken(supabase: any, config: BlingConfig, configId: s
   
   const credentials = btoa(`${config.client_id}:${config.client_secret}`);
   
-  const response = await fetch("https://www.bling.com.br/Api/v3/oauth/token", {
+  const response = await fetch("https://api.bling.com.br/Api/v3/oauth/token", {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded",
@@ -85,7 +85,7 @@ async function blingApiCall(accessToken: string, endpoint: string, retries = 3):
   for (let attempt = 1; attempt <= retries; attempt++) {
     await delay(400); // Slightly more conservative rate limiting
     
-    const response = await fetch(`https://www.bling.com.br/Api/v3${endpoint}`, {
+    const response = await fetch(`https://api.bling.com.br/Api/v3${endpoint}`, {
       headers: {
         "Authorization": `Bearer ${accessToken}`,
         "Accept": "application/json",

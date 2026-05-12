@@ -353,7 +353,7 @@ async function checkBlingStock(supabase: any, produtoIds: number[]): Promise<str
     
     for (const produtoId of produtoIds) {
       const productResponse = await fetch(
-        `https://www.bling.com.br/Api/v3/produtos/${produtoId}`,
+        `https://api.bling.com.br/Api/v3/produtos/${produtoId}`,
         {
           headers: {
             'Authorization': `Bearer ${config.access_token}`,
@@ -371,7 +371,7 @@ async function checkBlingStock(supabase: any, produtoIds: number[]): Promise<str
       const produto = productData.data;
 
       const stockResponse = await fetch(
-        `https://www.bling.com.br/Api/v3/estoques/saldos?idsProdutos[]=${produtoId}`,
+        `https://api.bling.com.br/Api/v3/estoques/saldos?idsProdutos[]=${produtoId}`,
         {
           headers: {
             'Authorization': `Bearer ${config.access_token}`,

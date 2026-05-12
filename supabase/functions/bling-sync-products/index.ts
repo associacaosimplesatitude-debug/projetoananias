@@ -97,7 +97,7 @@ async function refreshTokenIfNeeded(supabase: any, config: any, forceRefresh: bo
     
     const credentials = btoa(`${config.client_id}:${config.client_secret}`);
     
-    const tokenResponse = await fetch('https://www.bling.com.br/Api/v3/oauth/token', {
+    const tokenResponse = await fetch('https://api.bling.com.br/Api/v3/oauth/token', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
@@ -139,7 +139,7 @@ async function refreshTokenIfNeeded(supabase: any, config: any, forceRefresh: bo
 async function getProductStock(accessToken: string, productId: number, retryCount = 0): Promise<number> {
   try {
     const response = await fetch(
-      `https://www.bling.com.br/Api/v3/estoques/saldos?idsProdutos[]=${productId}`,
+      `https://api.bling.com.br/Api/v3/estoques/saldos?idsProdutos[]=${productId}`,
       {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
@@ -180,7 +180,7 @@ async function getProductStock(accessToken: string, productId: number, retryCoun
 async function getProductDetails(accessToken: string, productId: number, retryCount = 0): Promise<{ pesoBruto: number; pesoLiquido: number } | null> {
   try {
     const response = await fetch(
-      `https://www.bling.com.br/Api/v3/produtos/${productId}`,
+      `https://api.bling.com.br/Api/v3/produtos/${productId}`,
       {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
@@ -257,7 +257,7 @@ serve(async (req) => {
       }
       
       const productsResponse = await fetch(
-        `https://www.bling.com.br/Api/v3/produtos?pagina=${page}&limite=100`,
+        `https://api.bling.com.br/Api/v3/produtos?pagina=${page}&limite=100`,
         {
           headers: {
             'Authorization': `Bearer ${accessToken}`,

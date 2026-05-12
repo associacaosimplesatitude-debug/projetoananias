@@ -17,7 +17,7 @@ async function refreshBlingToken(supabase: any, config: any, tableName: string, 
   
   const credentials = btoa(`${clientId}:${clientSecret}`);
   
-  const tokenResponse = await fetch('https://www.bling.com.br/Api/v3/oauth/token', {
+  const tokenResponse = await fetch('https://api.bling.com.br/Api/v3/oauth/token', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
@@ -111,7 +111,7 @@ serve(async (req) => {
     }
 
     // Buscar contato pelo email no Bling
-    const searchUrl = `https://www.bling.com.br/Api/v3/contatos?pesquisa=${encodeURIComponent(customer_email.toLowerCase())}&limite=1`;
+    const searchUrl = `https://api.bling.com.br/Api/v3/contatos?pesquisa=${encodeURIComponent(customer_email.toLowerCase())}&limite=1`;
     console.log('Chamando Bling API:', searchUrl);
 
     let response = await fetch(searchUrl, {

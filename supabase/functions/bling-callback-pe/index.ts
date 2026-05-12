@@ -81,7 +81,7 @@ serve(async (req) => {
     const credentials = btoa(`${clientId}:${clientSecret}`);
     console.log('[PE] Making token request with credentials length:', credentials.length);
     
-    const tokenResponse = await fetch('https://www.bling.com.br/Api/v3/oauth/token', {
+    const tokenResponse = await fetch('https://api.bling.com.br/Api/v3/oauth/token', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',

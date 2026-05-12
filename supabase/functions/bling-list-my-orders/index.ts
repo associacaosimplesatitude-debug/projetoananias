@@ -23,7 +23,7 @@ async function refreshBlingToken(supabase: any, config: any, tableName: string, 
   
   const credentials = btoa(`${clientId}:${clientSecret}`);
   
-  const tokenResponse = await fetch('https://www.bling.com.br/Api/v3/oauth/token', {
+  const tokenResponse = await fetch('https://api.bling.com.br/Api/v3/oauth/token', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
@@ -179,7 +179,7 @@ serve(async (req) => {
     }
 
     // 1) Buscar o contato pelo email no Bling (para pegar o idContato)
-    const contatoUrl = `https://www.bling.com.br/Api/v3/contatos?pesquisa=${encodeURIComponent(emailLower)}&limite=1`;
+    const contatoUrl = `https://api.bling.com.br/Api/v3/contatos?pesquisa=${encodeURIComponent(emailLower)}&limite=1`;
     console.log('Buscando contato no Bling:', contatoUrl);
 
     const contatoResult = await blingApiCall(contatoUrl, accessToken, supabase, config);
@@ -203,7 +203,7 @@ serve(async (req) => {
 
     for (let pagina = 1; pagina <= maxPaginas; pagina++) {
       // Buscar TODOS os pedidos do contato, sem filtrar por loja
-      const pedidosUrl = `https://www.bling.com.br/Api/v3/pedidos/vendas?idContato=${contatoId}&pagina=${pagina}&limite=${limite}`;
+      const pedidosUrl = `https://api.bling.com.br/Api/v3/pedidos/vendas?idContato=${contatoId}&pagina=${pagina}&limite=${limite}`;
       console.log('Buscando pedidos no Bling:', pedidosUrl);
 
       const pedidosResult = await blingApiCall(pedidosUrl, accessToken, supabase, config);
@@ -247,7 +247,7 @@ serve(async (req) => {
         return situacoesCache.get(situacaoId)!;
       }
       try {
-        const sitUrl = `https://www.bling.com.br/Api/v3/situacoes/${situacaoId}`;
+        const sitUrl = `https://api.bling.com.br/Api/v3/situacoes/${situacaoId}`;
         const sitResult = await blingApiCall(sitUrl, accessToken, supabase, config);
         if (sitResult.newToken) accessToken = sitResult.newToken;
         
@@ -268,7 +268,7 @@ serve(async (req) => {
     for (const orderId of filteredOrderIds.slice(0, desiredLimit)) {
       try {
         // Buscar detalhes do pedido
-        const detailUrl = `https://www.bling.com.br/Api/v3/pedidos/vendas/${orderId}`;
+        const detailUrl = `https://api.bling.com.br/Api/v3/pedidos/vendas/${orderId}`;
         const detailResult = await blingApiCall(detailUrl, accessToken, supabase, config);
         if (detailResult.newToken) accessToken = detailResult.newToken;
 

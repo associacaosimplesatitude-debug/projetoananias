@@ -18,7 +18,7 @@ async function refreshBlingToken(supabase: any, config: any): Promise<string> {
   console.log('[sync-comissoes-nfe] Refreshing token...');
   
   const credentials = btoa(`${config.client_id}:${config.client_secret}`);
-  const response = await fetch('https://www.bling.com.br/Api/v3/oauth/token', {
+  const response = await fetch('https://api.bling.com.br/Api/v3/oauth/token', {
     method: 'POST',
     headers: {
       'Authorization': `Basic ${credentials}`,
@@ -106,7 +106,7 @@ async function findBlingOrderId(
 
   console.log('[findBlingOrderId] Searching by numeroLoja:', cleanNumero);
   
-  const searchUrl = `https://www.bling.com.br/Api/v3/pedidos/vendas?numeroLoja=${encodeURIComponent(cleanNumero)}&limite=20`;
+  const searchUrl = `https://api.bling.com.br/Api/v3/pedidos/vendas?numeroLoja=${encodeURIComponent(cleanNumero)}&limite=20`;
   const result = await blingApiCall(searchUrl, accessToken);
   
   if (result?.data && result.data.length > 0) {
@@ -132,7 +132,7 @@ async function fetchNfeForOrder(
 ): Promise<{ found: boolean; nfeNumero?: string; linkDanfe?: string; error?: string }> {
   try {
     // Step 1: Get order details
-    const orderUrl = `https://www.bling.com.br/Api/v3/pedidos/vendas/${blingOrderId}`;
+    const orderUrl = `https://api.bling.com.br/Api/v3/pedidos/vendas/${blingOrderId}`;
     const orderResult = await blingApiCall(orderUrl, accessToken);
 
     if (orderResult.notFound) {
@@ -167,7 +167,7 @@ async function fetchNfeForOrder(
     }
 
     // Step 3: Get NFe details
-    const nfeUrl = `https://www.bling.com.br/Api/v3/nfe/${nfeId}`;
+    const nfeUrl = `https://api.bling.com.br/Api/v3/nfe/${nfeId}`;
     const nfeResult = await blingApiCall(nfeUrl, accessToken);
 
     if (nfeResult.notFound) {

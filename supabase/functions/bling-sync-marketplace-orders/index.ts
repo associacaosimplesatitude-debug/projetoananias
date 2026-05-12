@@ -16,7 +16,7 @@ async function refreshBlingToken(supabase: any, config: any): Promise<string> {
   
   const credentials = btoa(`${config.client_id}:${config.client_secret}`);
   
-  const tokenResponse = await fetch('https://www.bling.com.br/Api/v3/oauth/token', {
+  const tokenResponse = await fetch('https://api.bling.com.br/Api/v3/oauth/token', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
@@ -265,7 +265,7 @@ serve(async (req) => {
           await delay(400); // Rate limit: 3 req/s
         }
 
-        const url = `https://www.bling.com.br/Api/v3/pedidos/vendas?pagina=${page}&limite=100&dataInicial=${dataInicialStr}${lojaId ? `&idLoja=${lojaId}` : ''}`;
+        const url = `https://api.bling.com.br/Api/v3/pedidos/vendas?pagina=${page}&limite=100&dataInicial=${dataInicialStr}${lojaId ? `&idLoja=${lojaId}` : ''}`;
         console.log(`[REQ] URL: ${url}`);
 
         const response = await fetch(url, {

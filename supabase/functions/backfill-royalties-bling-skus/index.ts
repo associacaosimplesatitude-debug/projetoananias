@@ -9,7 +9,7 @@ const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 async function refreshBlingToken(supabase: any, config: any, configId: string): Promise<string> {
   const credentials = btoa(`${config.client_id}:${config.client_secret}`);
-  const response = await fetch("https://www.bling.com.br/Api/v3/oauth/token", {
+  const response = await fetch("https://api.bling.com.br/Api/v3/oauth/token", {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded",
@@ -100,7 +100,7 @@ Deno.serve(async (req) => {
       try {
         await delay(400); // Rate limit
 
-        const response = await fetch(`https://www.bling.com.br/Api/v3/produtos/${book.bling_produto_id}`, {
+        const response = await fetch(`https://api.bling.com.br/Api/v3/produtos/${book.bling_produto_id}`, {
           headers: {
             "Authorization": `Bearer ${accessToken}`,
             "Accept": "application/json",
@@ -110,7 +110,7 @@ Deno.serve(async (req) => {
         if (response.status === 429) {
           console.log(`[Bling] Rate limited, waiting 3s...`);
           await delay(3000);
-          const retryResponse = await fetch(`https://www.bling.com.br/Api/v3/produtos/${book.bling_produto_id}`, {
+          const retryResponse = await fetch(`https://api.bling.com.br/Api/v3/produtos/${book.bling_produto_id}`, {
             headers: {
               "Authorization": `Bearer ${accessToken}`,
               "Accept": "application/json",
