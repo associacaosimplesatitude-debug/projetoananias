@@ -250,13 +250,13 @@ function ChatWindow({
   contact,
   onBack,
   isMobile,
-  scope = "admin",
+  scope = "superadmin",
 }: {
   phone: string;
   contact: Contact | null;
   onBack: () => void;
   isMobile: boolean;
-  scope?: "admin" | "vendedor";
+  scope?: "superadmin" | "gerente" | "vendedor";
 }) {
   const [inputMsg, setInputMsg] = useState("");
   const [sending, setSending] = useState(false);
