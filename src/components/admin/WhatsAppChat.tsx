@@ -99,6 +99,7 @@ interface Contact {
   vendedorHistoricoId?: string | null;
   vendedorHistoricoNome?: string | null;
   clienteId?: string | null;
+  tipoCliente?: string | null;
   tag: ContactTag;
 }
 
@@ -197,28 +198,38 @@ function ContactList({
                 </div>
                 {(() => {
                   const t = contact.tag;
-                  if (t.type === "atendendo")
-                    return (
-                      <Badge className="text-[10px] px-1.5 py-0 h-4 mt-0.5 bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-100">
-                        Em atendimento: {t.vendedorNome}
-                      </Badge>
-                    );
-                  if (t.type === "vendedor_historico")
-                    return (
-                      <Badge className="text-[10px] px-1.5 py-0 h-4 mt-0.5 bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-100">
-                        Vendedor: {t.vendedorNome}
-                      </Badge>
-                    );
-                  if (t.type === "sem_vendedor")
-                    return (
-                      <Badge className="text-[10px] px-1.5 py-0 h-4 mt-0.5 bg-amber-100 text-amber-700 border-amber-200 hover:bg-amber-100">
-                        Sem vendedor
-                      </Badge>
-                    );
+                  const vendedorNome =
+                    contact.vendedorAtribuidoNome ||
+                    contact.vendedorHistoricoNome ||
+                    null;
                   return (
-                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 mt-0.5">
-                      Novo contato
-                    </Badge>
+                    <div className="flex flex-wrap items-center gap-1 mt-0.5">
+                      {t.type === "atendendo" && (
+                        <Badge className="text-[10px] px-1.5 py-0 h-4 bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-100">
+                          Em atendimento: {t.vendedorNome}
+                        </Badge>
+                      )}
+                      {t.type !== "atendendo" && vendedorNome && (
+                        <Badge className="text-[10px] px-1.5 py-0 h-4 bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-100">
+                          Vendedor: {vendedorNome}
+                        </Badge>
+                      )}
+                      {t.type !== "atendendo" && !vendedorNome && t.type === "sem_vendedor" && (
+                        <Badge className="text-[10px] px-1.5 py-0 h-4 bg-amber-100 text-amber-700 border-amber-200 hover:bg-amber-100">
+                          Sem vendedor
+                        </Badge>
+                      )}
+                      {t.type !== "atendendo" && !vendedorNome && t.type === "novo_contato" && (
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4">
+                          Novo contato
+                        </Badge>
+                      )}
+                      {contact.tipoCliente && (
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 bg-purple-50 text-purple-700 border-purple-200">
+                          {contact.tipoCliente}
+                        </Badge>
+                      )}
+                    </div>
                   );
                 })()}
                 <p className="text-xs text-muted-foreground truncate mt-0.5">
@@ -239,13 +250,13 @@ function ChatWindow({
   contact,
   onBack,
   isMobile,
-  scope = "admin",
+  scope = "superadmin",
 }: {
   phone: string;
   contact: Contact | null;
   onBack: () => void;
   isMobile: boolean;
-  scope?: "admin" | "vendedor";
+  scope?: "superadmin" | "gerente" | "vendedor";
 }) {
   const [inputMsg, setInputMsg] = useState("");
   const [sending, setSending] = useState(false);
@@ -449,9 +460,26 @@ function ChatWindow({
           <p className="font-medium text-sm text-foreground truncate">
             {contact?.nome || phone}
           </p>
-          <p className="text-xs text-muted-foreground font-mono">{phone}</p>
+          <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+            <span className="text-xs text-muted-foreground font-mono">{phone}</span>
+            {contact?.tipoCliente && (
+              <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 bg-purple-50 text-purple-700 border-purple-200">
+                {contact.tipoCliente}
+              </Badge>
+            )}
+            {(contact?.vendedorAtribuidoNome || contact?.vendedorHistoricoNome) && (
+              <Badge className={`text-[10px] px-1.5 py-0 h-4 ${
+                contact?.vendedorAtribuidoNome
+                  ? "bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-100"
+                  : "bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
+              }`}>
+                {contact.vendedorAtribuidoNome ? "Atendendo: " : "Vendedor: "}
+                {contact.vendedorAtribuidoNome || contact.vendedorHistoricoNome}
+              </Badge>
+            )}
+          </div>
         </div>
-        {scope === "admin" && (
+        {scope === "superadmin" && (
           <Button
             variant="outline"
             size="sm"
@@ -483,15 +511,28 @@ function ChatWindow({
             )}
           </Button>
         )}
-        <Button
-          variant={agentePausado ? "default" : "outline"}
-          size="sm"
-          onClick={toggleAgentePausa}
-          title={agentePausado ? "Retomar Agente IA" : "Pausar Agente IA"}
-          className="shrink-0"
-        >
-          {agentePausado ? "▶️ Retomar IA" : "⏸️ Pausar IA"}
-        </Button>
+        {scope === "gerente" && !contact?.vendedorAtribuidoId && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowEncaminharDialog(true)}
+            className="shrink-0"
+          >
+            <UserPlus className="h-4 w-4 mr-1.5" />
+            Encaminhar
+          </Button>
+        )}
+        {scope === "superadmin" && (
+          <Button
+            variant={agentePausado ? "default" : "outline"}
+            size="sm"
+            onClick={toggleAgentePausa}
+            title={agentePausado ? "Retomar Agente IA" : "Pausar Agente IA"}
+            className="shrink-0"
+          >
+            {agentePausado ? "▶️ Retomar IA" : "⏸️ Pausar IA"}
+          </Button>
+        )}
         <Button
           variant="ghost"
           size="icon"
@@ -512,7 +553,13 @@ function ChatWindow({
         vendedorHistoricoNome={contact?.vendedorHistoricoNome || null}
       />
 
-      {agentePausado && (
+      {scope === "gerente" && contact?.vendedorAtribuidoNome && (
+        <div className="px-4 py-2 bg-blue-50 dark:bg-blue-950/30 border-b border-blue-200 dark:border-blue-900 text-xs text-blue-900 dark:text-blue-200">
+          Conversa transferida para o vendedor <strong>{contact.vendedorAtribuidoNome}</strong>. Apenas leitura.
+        </div>
+      )}
+
+      {agentePausado && scope === "superadmin" && (
         <div className="px-4 py-2 bg-amber-50 dark:bg-amber-950/30 border-b border-amber-200 dark:border-amber-900 text-xs text-amber-900 dark:text-amber-200">
           Agente IA pausado nessa conversa. Você está atendendo manualmente.
         </div>
@@ -546,36 +593,59 @@ function ChatWindow({
         <div ref={messagesEndRef} />
       </ScrollArea>
 
-      {/* Banner janela 24h expirada */}
+      {/* Banner janela 24h expirada (apenas informativo para gerente/vendedor) */}
       {windowExpired && (
         <div className="px-4 py-2.5 border-t bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900 flex items-center gap-3">
           <Clock className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
           <p className="text-xs text-amber-900 dark:text-amber-200 flex-1">
             Janela de 24h expirou. Para continuar a conversa, envie uma mensagem de template aprovada pela Meta.
           </p>
-          <Button
-            size="sm"
-            variant="outline"
-            className="shrink-0 border-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900"
-            onClick={() => setShowTemplateDialog(true)}
-          >
-            <FileText className="h-3.5 w-3.5 mr-1.5" />
-            Selecionar Template
-          </Button>
+          {scope === "superadmin" && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="shrink-0 border-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900"
+              onClick={() => setShowTemplateDialog(true)}
+            >
+              <FileText className="h-3.5 w-3.5 mr-1.5" />
+              Selecionar Template
+            </Button>
+          )}
         </div>
       )}
 
       {/* Input area */}
       <div className="flex items-center gap-2 px-4 py-3 border-t bg-card">
         <Input
-          placeholder={windowExpired ? "Janela expirada — use um template" : "Digite uma mensagem..."}
-          value={inputMsg}
-          onChange={(e) => setInputMsg(e.target.value)}
-          onKeyDown={handleKeyDown}
+          placeholder={
+            scope !== "superadmin"
+              ? "Somente leitura — apenas o superadmin envia mensagens nesta etapa."
+              : windowExpired
+              ? "Janela expirada — use um template"
+              : "Digite uma mensagem..."
+          }
+          value={scope !== "superadmin" ? "" : inputMsg}
+          onChange={(e) => {
+            if (scope !== "superadmin") return;
+            setInputMsg(e.target.value);
+          }}
+          onKeyDown={(e) => {
+            if (scope !== "superadmin") {
+              e.preventDefault();
+              return;
+            }
+            handleKeyDown(e);
+          }}
+          onFocus={() => {
+            if (scope !== "superadmin") {
+              toast.info("Apenas o superadmin pode enviar mensagens. Você está em modo leitura.");
+            }
+          }}
+          readOnly={scope !== "superadmin"}
           disabled={sending}
           className="flex-1"
         />
-        {!windowExpired && (
+        {scope === "superadmin" && !windowExpired && (
           <Button
             variant="outline"
             size="icon"
@@ -588,7 +658,7 @@ function ChatWindow({
         )}
         <Button
           onClick={handleSend}
-          disabled={!inputMsg.trim() || sending}
+          disabled={scope !== "superadmin" || !inputMsg.trim() || sending}
           size="icon"
           className="shrink-0"
         >
@@ -693,11 +763,14 @@ function EmptyChat() {
 
 // ============ MAIN COMPONENT ============
 export interface WhatsAppChatProps {
-  scope?: "admin" | "vendedor";
+  scope?: "superadmin" | "gerente" | "vendedor" | "admin";
   vendedorId?: string | null;
 }
 
-export default function WhatsAppChat({ scope = "admin", vendedorId = null }: WhatsAppChatProps = {}) {
+export default function WhatsAppChat({ scope: scopeProp = "superadmin", vendedorId = null }: WhatsAppChatProps = {}) {
+  // Compat: legacy "admin" → "superadmin"
+  const scope: "superadmin" | "gerente" | "vendedor" =
+    scopeProp === "admin" ? "superadmin" : scopeProp;
   const isMobile = useIsMobile();
   const [selectedPhone, setSelectedPhone] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
@@ -846,19 +919,19 @@ export default function WhatsAppChat({ scope = "admin", vendedorId = null }: Wha
         };
       });
 
-      // Vendedor de leads de reativação como fallback
+      // Vendedor de leads de reativação como fallback (+ tipo_lead p/ tag tipoCliente)
       const { data: leads } = await supabase
         .from("ebd_leads_reativacao")
-        .select("telefone, vendedor_id")
-        .not("vendedor_id", "is", null)
+        .select("telefone, vendedor_id, tipo_lead")
         .not("telefone", "is", null);
       const leadVendedorByVariant: Record<string, { id: string }> = {};
+      const leadTipoByVariant: Record<string, string> = {};
       (leads || []).forEach((l: any) => {
-        if (l.telefone && l.vendedor_id) {
-          phoneVariants(l.telefone).forEach((v) => {
-            leadVendedorByVariant[v] = { id: l.vendedor_id };
-          });
-        }
+        if (!l.telefone) return;
+        phoneVariants(l.telefone).forEach((v) => {
+          if (l.vendedor_id) leadVendedorByVariant[v] = { id: l.vendedor_id };
+          if (l.tipo_lead && !leadTipoByVariant[v]) leadTipoByVariant[v] = l.tipo_lead;
+        });
       });
 
       // Fallback: cruzar com ebd_clientes diretamente pelo telefone (cliente já cadastrado
@@ -866,14 +939,14 @@ export default function WhatsAppChat({ scope = "admin", vendedorId = null }: Wha
       const { data: clientesByPhone } = allVariants.length
         ? await supabase
             .from("ebd_clientes")
-            .select("id, telefone, vendedor_id, updated_at")
+            .select("id, telefone, vendedor_id, tipo_cliente, updated_at")
             .not("telefone", "is", null)
             .in("telefone", allVariants)
             .order("updated_at", { ascending: false })
         : { data: [] as any[] };
       const clienteByVariant: Record<
         string,
-        { clienteId: string; vendedorId: string | null }
+        { clienteId: string; vendedorId: string | null; tipoCliente: string | null }
       > = {};
       (clientesByPhone || []).forEach((c: any) => {
         if (!c.telefone) return;
@@ -882,6 +955,7 @@ export default function WhatsAppChat({ scope = "admin", vendedorId = null }: Wha
           clienteByVariant[v] = {
             clienteId: c.id,
             vendedorId: c.vendedor_id || null,
+            tipoCliente: c.tipo_cliente || null,
           };
         });
       });
@@ -935,8 +1009,12 @@ export default function WhatsAppChat({ scope = "admin", vendedorId = null }: Wha
           (acc, v) => acc || leadVendedorByVariant[v] || null,
           null,
         );
+        const fallbackLeadTipo = variants.reduce<string | null>(
+          (acc, v) => acc || leadTipoByVariant[v] || null,
+          null,
+        );
         const fallbackCliente = variants.reduce<
-          { clienteId: string; vendedorId: string | null } | null
+          { clienteId: string; vendedorId: string | null; tipoCliente: string | null } | null
         >((acc, v) => acc || clienteByVariant[v] || null, null);
         const fallbackPedido = variants.reduce<{ id: string } | null>(
           (acc, v) => acc || pedidoVendedorByVariant[v] || null,
@@ -957,6 +1035,8 @@ export default function WhatsAppChat({ scope = "admin", vendedorId = null }: Wha
           ? vendedorById[vendedorHistoricoId] || null
           : null;
         const clienteId = atrib?.clienteId || fallbackCliente?.clienteId || null;
+        // Mesma ordem de fallback do LeadDetailModal: tipo_lead || tipo_cliente
+        const tipoCliente = fallbackLeadTipo || fallbackCliente?.tipoCliente || null;
 
         let tag: ContactTag;
         if (vendedorAtribuidoId) {
@@ -982,13 +1062,17 @@ export default function WhatsAppChat({ scope = "admin", vendedorId = null }: Wha
           vendedorAtribuidoNome,
           vendedorHistoricoId,
           vendedorHistoricoNome,
+          tipoCliente,
           tag,
         };
       });
 
       let scoped = contactList;
-      if (scope === "vendedor" && vendedorId) {
-        scoped = contactList.filter((c) => c.vendedorAtribuidoId === vendedorId);
+      if (scope === "vendedor") {
+        // 2ª trava: descarta qualquer contato sem atribuição explícita ao vendedor logado.
+        scoped = contactList.filter(
+          (c) => !!c.vendedorAtribuidoId && c.vendedorAtribuidoId === vendedorId,
+        );
       }
 
       scoped.sort(
@@ -1019,6 +1103,7 @@ export default function WhatsAppChat({ scope = "admin", vendedorId = null }: Wha
             contact={selectedContact}
             onBack={() => setSelectedPhone(null)}
             isMobile
+            scope={scope}
           />
         </div>
       );
@@ -1058,6 +1143,7 @@ export default function WhatsAppChat({ scope = "admin", vendedorId = null }: Wha
               contact={selectedContact}
               onBack={() => setSelectedPhone(null)}
               isMobile={false}
+              scope={scope}
             />
           ) : (
             <EmptyChat />

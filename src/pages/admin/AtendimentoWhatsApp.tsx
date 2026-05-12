@@ -1,7 +1,16 @@
-import { MessageCircle } from "lucide-react";
+import { MessageCircle, Loader2 } from "lucide-react";
 import WhatsAppChat from "@/components/admin/WhatsAppChat";
+import { useWhatsAppRole } from "@/hooks/useWhatsAppRole";
 
 const AtendimentoWhatsApp = () => {
+  const { loading, isSuperAdmin, isGerente } = useWhatsAppRole();
+
+  const scope: "superadmin" | "gerente" | "vendedor" = isSuperAdmin
+    ? "superadmin"
+    : isGerente
+    ? "gerente"
+    : "vendedor";
+
   return (
     <div className="-m-6 flex flex-col" style={{ height: 'calc(100vh - 64px)' }}>
       <div className="flex items-center gap-2 px-4 py-2 border-b bg-background">
@@ -9,7 +18,13 @@ const AtendimentoWhatsApp = () => {
         <h1 className="text-lg font-semibold">Atendimento WhatsApp</h1>
       </div>
       <div className="flex-1 overflow-hidden">
-        <WhatsAppChat scope="admin" />
+        {loading ? (
+          <div className="flex items-center justify-center h-full text-muted-foreground">
+            <Loader2 className="h-5 w-5 animate-spin mr-2" /> Carregando...
+          </div>
+        ) : (
+          <WhatsAppChat scope={scope} />
+        )}
       </div>
     </div>
   );
