@@ -146,7 +146,7 @@ export default function VendedorPedidosPage() {
           console.error('[PROPOSTAS_SYNC] Error:', error);
         } else if (data?.propostas_synced > 0) {
           console.log(`[PROPOSTAS_SYNC] Updated ${data.propostas_synced} propostas`);
-          toast.success(`${data.propostas_synced} proposta(s) atualizada(s) com status da Shopify`);
+          toast.success(`${data.propostas_synced} proposta(s) atualizada(s) com status do E-commerce`);
           refetch();
         }
       } catch (err) {
