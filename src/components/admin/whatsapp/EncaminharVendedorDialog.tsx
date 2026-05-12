@@ -20,6 +20,7 @@ interface Props {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   conversaId: string | null;
+  telefone?: string | null;
   vendedorHistoricoId?: string | null;
   vendedorHistoricoNome?: string | null;
   onSuccess?: () => void;
@@ -29,6 +30,7 @@ export default function EncaminharVendedorDialog({
   open,
   onOpenChange,
   conversaId,
+  telefone,
   vendedorHistoricoId,
   vendedorHistoricoNome,
   onSuccess,
@@ -61,13 +63,21 @@ export default function EncaminharVendedorDialog({
   }, [vendedores, search]);
 
   async function handleConfirm() {
-    if (!conversaId || !selected) return;
+    if (!selected) {
+      toast.error("Selecione um vendedor");
+      return;
+    }
+    if (!conversaId && !telefone) {
+      toast.error("Conversa sem identificador (faltam telefone e id)");
+      return;
+    }
     setLoading(true);
     try {
       const { error } = await supabase.rpc("encaminhar_conversa_para_vendedor", {
-        _conversa_id: conversaId,
         _vendedor_id: selected,
-      });
+        _conversa_id: conversaId ?? undefined,
+        _telefone: conversaId ? undefined : (telefone ?? undefined),
+      } as any);
       if (error) throw error;
       toast.success("Conversa encaminhada para o vendedor");
       queryClient.invalidateQueries({ queryKey: ["agente-conversa-pausa"] });
