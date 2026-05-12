@@ -910,7 +910,7 @@ export default function WhatsAppChat({ scope: scopeProp = "superadmin", vendedor
 
         return {
           telefone: phone,
-          nome: photoMap[phone]?.nome || phoneMap[phone].nome || phone,
+          nome: r?.nomeResolvido || photoMap[phone]?.nome || phoneMap[phone].nome || phone,
           foto: photoMap[phone]?.foto || null,
           ultimaMensagem: phoneMap[phone].ultimaMensagem,
           ultimaData: phoneMap[phone].ultimaData,

@@ -60,6 +60,7 @@ export interface ResolvedLead {
   vendedorAtribuidoNome: string | null;
   conversaId: string | null;
   clienteId: string | null;
+  nomeResolvido: string | null;
 }
 
 function emptyResolved(phone: string): ResolvedLead {
@@ -75,6 +76,7 @@ function emptyResolved(phone: string): ResolvedLead {
     vendedorAtribuidoNome: null,
     conversaId: null,
     clienteId: null,
+    nomeResolvido: null,
   };
 }
 
@@ -211,6 +213,13 @@ export async function resolveLeadsByPhones(phones: string[]): Promise<Map<string
     const vendedorAtribuidoId = aic?.vendedor_atribuido_id || null;
     const vendedorAtribuidoNome = vendedorAtribuidoId ? vendedorById[vendedorAtribuidoId] || null : null;
 
+    const shopifyOrder = pedidos[0] || null;
+    const nomeResolvido =
+      lead?.nome_igreja ||
+      cliente?.nome_igreja ||
+      shopifyOrder?.customer_name ||
+      null;
+
     result.set(phone, {
       phone,
       lead,
@@ -223,6 +232,7 @@ export async function resolveLeadsByPhones(phones: string[]): Promise<Map<string
       vendedorAtribuidoNome,
       conversaId: aic?.id || null,
       clienteId: aic?.cliente_id || cliente?.id || null,
+      nomeResolvido,
     });
   }
 
