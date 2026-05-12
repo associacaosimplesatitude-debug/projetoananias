@@ -1360,7 +1360,7 @@ export default function GestaoComissoes() {
                       <ShoppingCart className={`h-4 w-4 ${syncShopifyBlingMutation.isPending ? 'animate-pulse' : ''}`} />
                       {syncShopifyBlingMutation.isPending 
                         ? 'Sincronizando...' 
-                        : `Sincronizar Shopify (${pedidosShopifyPendentes.length})`}
+                        : `Sincronizar E-commerce (${pedidosShopifyPendentes.length})`}
                     </Button>
                   </div>
                 )}
