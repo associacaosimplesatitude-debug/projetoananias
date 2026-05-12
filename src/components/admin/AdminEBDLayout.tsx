@@ -571,7 +571,7 @@ function AdminSidebar() {
                     <SidebarMenuButton asChild isActive={isActive('/admin/ebd/shopify')}>
                       <RouterNavLink to="/admin/ebd/shopify">
                         <Store className="h-4 w-4" />
-                        <span>Integração Shopify</span>
+                        <span>Integração E-commerce</span>
                       </RouterNavLink>
                     </SidebarMenuButton>
                   </SidebarMenuItem>

@@ -635,7 +635,7 @@ export default function PedidosCentralGospel() {
                             {pedido.origem === 'loja' ? (
                               <Badge className="bg-amber-500 hover:bg-amber-500 text-white text-xs">Loja</Badge>
                             ) : (
-                              <Badge variant="secondary" className="text-xs">Shopify</Badge>
+                              <Badge variant="secondary" className="text-xs">E-commerce</Badge>
                             )}
                           </div>
                         </TableCell>

@@ -50,14 +50,14 @@ export default function ShopifyIntegration() {
         message: "Conexão bem-sucedida!",
         productCount: products.length,
       });
-      toast.success("Conexão com Shopify verificada!");
+      toast.success("Conexão com E-commerce verificada!");
     },
     onError: (error: Error) => {
       setTestResult({
         success: false,
         message: error.message,
       });
-      toast.error("Falha na conexão com Shopify", {
+      toast.error("Falha na conexão com E-commerce", {
         description: error.message,
       });
     },
@@ -97,9 +97,9 @@ export default function ShopifyIntegration() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Integração Shopify</h1>
+        <h1 className="text-2xl font-bold tracking-tight">Integração E-commerce</h1>
         <p className="text-muted-foreground">
-          Gerencie a integração da loja Shopify para o catálogo de produtos
+          Gerencie a integração da loja E-commerce para o catálogo de produtos
         </p>
       </div>
 
@@ -382,7 +382,7 @@ export default function ShopifyIntegration() {
             <h4 className="font-medium">Se os produtos não aparecem:</h4>
             <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1">
               <li>Verifique se o <strong>Storefront Access Token</strong> está correto</li>
-              <li>Certifique-se de que o app Shopify tem o scope <code>unauthenticated_read_product_listings</code></li>
+              <li>Certifique-se de que o app E-commerce tem o scope <code>unauthenticated_read_product_listings</code></li>
               <li>Verifique se os produtos estão <strong>publicados</strong> no canal "Online Store"</li>
               <li>Confirme se a loja está ativa e não em modo de senha</li>
             </ul>
@@ -391,7 +391,7 @@ export default function ShopifyIntegration() {
           <div className="space-y-2">
             <h4 className="font-medium">Token incorreto (erro 401/403):</h4>
             <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1">
-              <li>Acesse o admin da Shopify → Apps → Seu App → API credentials</li>
+              <li>Acesse o admin do E-commerce → Apps → Seu App → API credentials</li>
               <li>Copie o <strong>Storefront access token</strong> (não o Admin API token)</li>
               <li>Atualize o token no arquivo <code>src/lib/shopify.ts</code></li>
             </ul>
@@ -400,7 +400,7 @@ export default function ShopifyIntegration() {
           <div className="space-y-2">
             <h4 className="font-medium">Erro de pagamento (402):</h4>
             <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1">
-              <li>A loja Shopify precisa de um plano pago ativo</li>
+              <li>A loja E-commerce precisa de um plano pago ativo</li>
               <li>Verifique o status da assinatura em <code>Settings → Plan</code></li>
             </ul>
           </div>

@@ -77,7 +77,7 @@ export function ShopifyPedidoDetailDialog({ open, onOpenChange, pedido }: Shopif
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <ShoppingCart className="h-5 w-5" />
-            Detalhes do Pedido Shopify
+            Detalhes do Pedido E-commerce
           </DialogTitle>
         </DialogHeader>
 

@@ -789,7 +789,7 @@ export default function GestaoComissoes() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["shopify-pedidos-pendentes-bling"] });
       queryClient.invalidateQueries({ queryKey: ["admin-comissoes-parcelas"] });
-      toast.success(`${data.synced || 0} pedidos Shopify sincronizados com Bling!`);
+      toast.success(`${data.synced || 0} pedidos E-commerce sincronizados com Bling!`);
       
       // Após sincronizar pedidos, sincronizar NF/DANFE automaticamente
       setTimeout(() => {
@@ -798,7 +798,7 @@ export default function GestaoComissoes() {
     },
     onError: (error) => {
       console.error("Erro ao sincronizar pedidos Shopify:", error);
-      toast.error(error instanceof Error ? error.message : "Erro ao sincronizar pedidos Shopify");
+      toast.error(error instanceof Error ? error.message : "Erro ao sincronizar pedidos E-commerce");
     },
   });
 
@@ -1360,7 +1360,7 @@ export default function GestaoComissoes() {
                       <ShoppingCart className={`h-4 w-4 ${syncShopifyBlingMutation.isPending ? 'animate-pulse' : ''}`} />
                       {syncShopifyBlingMutation.isPending 
                         ? 'Sincronizando...' 
-                        : `Sincronizar Shopify (${pedidosShopifyPendentes.length})`}
+                        : `Sincronizar E-commerce (${pedidosShopifyPendentes.length})`}
                     </Button>
                   </div>
                 )}

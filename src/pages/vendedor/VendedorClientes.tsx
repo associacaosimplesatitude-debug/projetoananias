@@ -387,7 +387,7 @@ export default function VendedorClientes() {
       console.log("[ORDER_LOOKUP] finalResult=", pedidos?.length || 0);
 
       if (!pedidos || pedidos.length === 0) {
-        toast.info("Nenhum pedido Shopify encontrado para este cliente.");
+        toast.info("Nenhum pedido E-commerce encontrado para este cliente.");
         return;
       }
 

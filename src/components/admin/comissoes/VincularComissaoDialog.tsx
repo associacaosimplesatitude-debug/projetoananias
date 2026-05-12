@@ -116,7 +116,7 @@ export function VincularComissaoDialog({
           {/* Shopify Pedido ID */}
           <div className="space-y-2">
             <Label htmlFor="shopify-pedido-id">
-              Shopify Pedido ID <span className="text-red-500">*</span>
+              Pedido E-commerce ID <span className="text-red-500">*</span>
             </Label>
             <Input
               id="shopify-pedido-id"
@@ -172,7 +172,7 @@ export function VincularComissaoDialog({
               type="number"
             />
             <p className="text-xs text-muted-foreground">
-              Se informado, atualiza também o pedido Shopify caso não tenha vínculo com Bling.
+              Se informado, atualiza também o pedido E-commerce caso não tenha vínculo com Bling.
             </p>
           </div>
         </div>

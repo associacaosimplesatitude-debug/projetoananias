@@ -86,7 +86,7 @@ export default function LeadDetailModal({ open, onOpenChange, phone }: LeadDetai
           <div className="space-y-4">
             {showFromLicencaShopifyBadge && (
               <Badge variant="secondary" className="text-xs">
-                Dados vindos de Licença/Shopify — ainda não há registro na base de Leads
+                Dados vindos de Licença/E-commerce — ainda não há registro na base de Leads
               </Badge>
             )}
 
@@ -122,7 +122,7 @@ export default function LeadDetailModal({ open, onOpenChange, phone }: LeadDetai
 
             {/* Shopify Orders list */}
             {pedidos.length > 0 && (
-              <Section title={`Pedidos Shopify (${pedidos.length})`} icon={<ShoppingCart className="h-4 w-4" />}>
+              <Section title={`Pedidos E-commerce (${pedidos.length})`} icon={<ShoppingCart className="h-4 w-4" />}>
                 {pedidos.map((p: any) => (
                   <div key={p.id} className="border rounded p-2 space-y-1 text-sm">
                     <div className="flex justify-between items-center">
@@ -148,7 +148,7 @@ export default function LeadDetailModal({ open, onOpenChange, phone }: LeadDetai
 
             {/* Último Pedido Shopify (destaque) */}
             {pedidoShopify && (
-              <Section title="Último Pedido Shopify" icon={<ShoppingCart className="h-4 w-4" />}>
+              <Section title="Último Pedido E-commerce" icon={<ShoppingCart className="h-4 w-4" />}>
                 <InfoRow label="Pedido" value={pedidoShopify.orderNumber} />
                 <InfoRow
                   label="Valor"

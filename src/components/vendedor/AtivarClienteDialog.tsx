@@ -214,7 +214,7 @@ export function AtivarClienteDialog({
           <Alert variant="destructive" className="my-4">
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription>
-              Este cliente realizou compra pelo e-commerce (Shopify). A ativação do painel e criação de usuário/senha é feita <strong>automaticamente</strong> no momento da confirmação do pagamento. Não é possível ativar manualmente.
+              Este cliente realizou compra pelo E-commerce. A ativação do painel e criação de usuário/senha é feita <strong>automaticamente</strong> no momento da confirmação do pagamento. Não é possível ativar manualmente.
             </AlertDescription>
           </Alert>
         ) : (

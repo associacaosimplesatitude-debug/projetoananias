@@ -112,7 +112,7 @@ export function AlunosLista({ licencaId, onPoolChanged }: Props) {
 
   const handleResend = async (aluno: AlunoRow) => {
     if (!aluno.shopify_id) {
-      toast.error("Licença shopify não encontrada para reenvio");
+      toast.error("Licença E-commerce não encontrada para reenvio");
       return;
     }
     setResendingId(aluno.id);

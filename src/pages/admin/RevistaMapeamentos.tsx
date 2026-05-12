@@ -157,7 +157,7 @@ export default function RevistaMapeamentos() {
             </DialogHeader>
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label>SKU (Shopify) *</Label>
+                <Label>SKU (E-commerce) *</Label>
                 <Input value={sku} onChange={(e) => setSku(e.target.value)} placeholder="Ex: REV-ADULTO-3T-2026" />
               </div>
               <div className="space-y-2">
@@ -183,8 +183,8 @@ export default function RevistaMapeamentos() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>URL do produto na Shopify (opcional)</Label>
-                <Input value={shopifyUrl} onChange={(e) => setShopifyUrl(e.target.value)} placeholder="https://sualoja.myshopify.com/products/..." />
+                <Label>URL do produto no E-commerce (opcional)</Label>
+                <Input value={shopifyUrl} onChange={(e) => setShopifyUrl(e.target.value)} placeholder="https://loja.editoracentralgospel.com.br/products/..." />
               </div>
               <div className="space-y-2">
                 <Label>Bling Produto ID (opcional)</Label>
@@ -211,7 +211,7 @@ export default function RevistaMapeamentos() {
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label>SKU (Shopify) *</Label>
+              <Label>SKU (E-commerce) *</Label>
               <Input value={editSku} onChange={(e) => setEditSku(e.target.value)} />
             </div>
             <div className="space-y-2">
@@ -226,8 +226,8 @@ export default function RevistaMapeamentos() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>URL do produto na Shopify (opcional)</Label>
-              <Input value={editShopifyUrl} onChange={(e) => setEditShopifyUrl(e.target.value)} placeholder="https://sualoja.myshopify.com/products/..." />
+              <Label>URL do produto no E-commerce (opcional)</Label>
+              <Input value={editShopifyUrl} onChange={(e) => setEditShopifyUrl(e.target.value)} placeholder="https://loja.editoracentralgospel.com.br/products/..." />
             </div>
             <div className="space-y-2">
               <Label>Bling Produto ID (opcional)</Label>
@@ -254,7 +254,7 @@ export default function RevistaMapeamentos() {
               <TableHead>SKU</TableHead>
               <TableHead>Revista Digital</TableHead>
               <TableHead>Revista EBD</TableHead>
-              <TableHead>URL Shopify</TableHead>
+              <TableHead>URL E-commerce</TableHead>
               <TableHead>Bling Produto ID</TableHead>
               <TableHead>Data</TableHead>
               <TableHead className="w-24"></TableHead>
