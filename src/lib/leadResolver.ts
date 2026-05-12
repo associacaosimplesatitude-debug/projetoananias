@@ -15,33 +15,76 @@ export function normalizePhone(phone: string): string {
   return digits;
 }
 
+// Country dial-code rules: prefix + accepted local lengths.
+// Order matters: first match wins.
+const DDI_RULES: Array<{ ddi: string; localLens: number[] }> = [
+  { ddi: "55", localLens: [10, 11] },     // BR
+  { ddi: "1", localLens: [10] },          // US/CA
+  { ddi: "351", localLens: [9] },         // PT
+  { ddi: "44", localLens: [9, 10] },      // UK
+  { ddi: "33", localLens: [9] },          // FR
+  { ddi: "34", localLens: [9] },          // ES
+  { ddi: "39", localLens: [9, 10] },      // IT
+  { ddi: "49", localLens: [10, 11] },     // DE
+  { ddi: "52", localLens: [10] },         // MX
+  { ddi: "54", localLens: [10, 11] },     // AR
+];
+
+function addBoth(set: Set<string>, value: string) {
+  if (!value) return;
+  set.add(value);
+  set.add("+" + value);
+}
+
 export function generatePhoneVariants(phone: string): string[] {
   const digits = (phone || "").replace(/\D/g, "");
   if (!digits) return [];
   const variants = new Set<string>();
-  variants.add(digits);
 
-  let local = digits;
-  if (digits.length >= 12 && digits.startsWith("55")) {
-    local = digits.slice(2);
-    variants.add(local);
+  // Try to detect DDI
+  let detected: { ddi: string; local: string } | null = null;
+  for (const rule of DDI_RULES) {
+    if (digits.startsWith(rule.ddi)) {
+      const rest = digits.slice(rule.ddi.length);
+      if (rule.localLens.includes(rest.length)) {
+        detected = { ddi: rule.ddi, local: rest };
+        break;
+      }
+    }
   }
-  if (!digits.startsWith("55") && (local.length === 10 || local.length === 11)) {
-    variants.add("55" + local);
+
+  if (detected) {
+    const { ddi, local } = detected;
+    addBoth(variants, ddi + local);
+    addBoth(variants, local);
+
+    if (ddi === "55") {
+      // BR ninth-digit rule
+      if (local.length === 11 && local[2] === "9") {
+        const without9 = local.slice(0, 2) + local.slice(3);
+        addBoth(variants, without9);
+        addBoth(variants, ddi + without9);
+      } else if (local.length === 10) {
+        const with9 = local.slice(0, 2) + "9" + local.slice(2);
+        addBoth(variants, with9);
+        addBoth(variants, ddi + with9);
+      }
+    }
+  } else {
+    // Unknown DDI — fallback: assume BR sem DDI (back-compat)
+    addBoth(variants, digits);
+    addBoth(variants, "55" + digits);
+
+    if (digits.length === 11 && digits[2] === "9") {
+      const without9 = digits.slice(0, 2) + digits.slice(3);
+      addBoth(variants, without9);
+      addBoth(variants, "55" + without9);
+    } else if (digits.length === 10) {
+      const with9 = digits.slice(0, 2) + "9" + digits.slice(2);
+      addBoth(variants, with9);
+      addBoth(variants, "55" + with9);
+    }
   }
-  if (local.length === 10) {
-    const with9 = local.slice(0, 2) + "9" + local.slice(2);
-    variants.add(with9);
-    variants.add("55" + with9);
-  }
-  if (local.length === 11 && local[2] === "9") {
-    const without9 = local.slice(0, 2) + local.slice(3);
-    variants.add(without9);
-    variants.add("55" + without9);
-  }
-  Array.from(variants)
-    .filter((v) => v.startsWith("55"))
-    .forEach((v) => variants.add("+" + v));
 
   return Array.from(variants);
 }
