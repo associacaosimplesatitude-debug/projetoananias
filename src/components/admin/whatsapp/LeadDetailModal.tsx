@@ -52,7 +52,7 @@ export default function LeadDetailModal({ open, onOpenChange, phone }: LeadDetai
   // Merge info from all sources (display fields stay as before)
   const shopifyOrder = pedidos[0] || null;
   const tipoCliente = resolved?.tipoCliente || "—";
-  const nome = lead?.nome_igreja || cliente?.nome_igreja || shopifyOrder?.customer_name || "—";
+  const nome = resolved?.nomeResolvido || "—";
   const email = lead?.email || cliente?.email_superintendente || shopifyOrder?.customer_email || "—";
   const cnpjCpf = lead?.cnpj || cliente?.cnpj || cliente?.cpf || shopifyOrder?.customer_document || "—";
   const ultimoLogin = lead?.ultimo_login_ebd || cliente?.ultimo_login || null;
