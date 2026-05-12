@@ -1143,6 +1143,7 @@ export default function WhatsAppChat({ scope: scopeProp = "superadmin", vendedor
               contact={selectedContact}
               onBack={() => setSelectedPhone(null)}
               isMobile={false}
+              scope={scope}
             />
           ) : (
             <EmptyChat />
