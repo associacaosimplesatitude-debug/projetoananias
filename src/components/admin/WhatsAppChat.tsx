@@ -782,7 +782,7 @@ export default function WhatsAppChat({ scope = "admin", vendedorId = null }: Wha
         ? await (supabase as any)
             .from("agente_ia_conversas")
             .select(
-              "id, telefone, cliente_id, vendedor_atribuido_id, ultima_mensagem_em, vendedor_atribuido:vendedores!vendedor_atribuido_id(nome), cliente:ebd_clientes!cliente_id(vendedor_id, vendedor:vendedores!vendedor_id(id, nome))",
+              "id, telefone, cliente_id, vendedor_atribuido_id, ultima_mensagem_em, cliente:ebd_clientes!cliente_id(vendedor_id)",
             )
             .in("telefone", allVariants)
             .order("ultima_mensagem_em", { ascending: false })
@@ -795,9 +795,7 @@ export default function WhatsAppChat({ scope = "admin", vendedorId = null }: Wha
           conversaId: string;
           clienteId: string | null;
           vendedorAtribuidoId: string | null;
-          vendedorAtribuidoNome: string | null;
           vendedorHistoricoId: string | null;
-          vendedorHistoricoNome: string | null;
         }
       > = {};
       (agenteConversas || []).forEach((row: any) => {
@@ -807,23 +805,21 @@ export default function WhatsAppChat({ scope = "admin", vendedorId = null }: Wha
           conversaId: row.id,
           clienteId: row.cliente_id || null,
           vendedorAtribuidoId: row.vendedor_atribuido_id || null,
-          vendedorAtribuidoNome: row.vendedor_atribuido?.nome || null,
-          vendedorHistoricoId: row.cliente?.vendedor?.id || null,
-          vendedorHistoricoNome: row.cliente?.vendedor?.nome || null,
+          vendedorHistoricoId: row.cliente?.vendedor_id || null,
         };
       });
 
       // Vendedor de leads de reativação como fallback
       const { data: leads } = await supabase
         .from("ebd_leads_reativacao")
-        .select("telefone, vendedor_id, vendedores(id, nome)")
+        .select("telefone, vendedor_id")
         .not("vendedor_id", "is", null)
         .not("telefone", "is", null);
-      const leadVendedorByVariant: Record<string, { id: string; nome: string }> = {};
+      const leadVendedorByVariant: Record<string, { id: string }> = {};
       (leads || []).forEach((l: any) => {
-        if (l.telefone && l.vendedores?.nome) {
+        if (l.telefone && l.vendedor_id) {
           phoneVariants(l.telefone).forEach((v) => {
-            leadVendedorByVariant[v] = { id: l.vendedores.id, nome: l.vendedores.nome };
+            leadVendedorByVariant[v] = { id: l.vendedor_id };
           });
         }
       });
@@ -833,14 +829,14 @@ export default function WhatsAppChat({ scope = "admin", vendedorId = null }: Wha
       const { data: clientesByPhone } = allVariants.length
         ? await supabase
             .from("ebd_clientes")
-            .select("id, telefone, vendedor_id, vendedores(id, nome), updated_at")
+            .select("id, telefone, vendedor_id, updated_at")
             .not("telefone", "is", null)
             .in("telefone", allVariants)
             .order("updated_at", { ascending: false })
         : { data: [] as any[] };
       const clienteByVariant: Record<
         string,
-        { clienteId: string; vendedorId: string | null; vendedorNome: string | null }
+        { clienteId: string; vendedorId: string | null }
       > = {};
       (clientesByPhone || []).forEach((c: any) => {
         if (!c.telefone) return;
@@ -849,9 +845,29 @@ export default function WhatsAppChat({ scope = "admin", vendedorId = null }: Wha
           clienteByVariant[v] = {
             clienteId: c.id,
             vendedorId: c.vendedor_id || null,
-            vendedorNome: c.vendedores?.nome || null,
           };
         });
+      });
+
+      // Resolver nomes de vendedores via uma única query (embed PostgREST retorna null)
+      const vendedorIds = Array.from(
+        new Set(
+          [
+            ...Object.values(atribuicaoMap).flatMap((a) => [
+              a.vendedorAtribuidoId,
+              a.vendedorHistoricoId,
+            ]),
+            ...Object.values(leadVendedorByVariant).map((l) => l.id),
+            ...Object.values(clienteByVariant).map((c) => c.vendedorId),
+          ].filter((id): id is string => !!id),
+        ),
+      );
+      const { data: vendedoresRows } = vendedorIds.length
+        ? await supabase.from("vendedores").select("id, nome").in("id", vendedorIds)
+        : { data: [] as any[] };
+      const vendedorById: Record<string, string> = {};
+      (vendedoresRows || []).forEach((v: any) => {
+        if (v?.id) vendedorById[v.id] = v.nome || "";
       });
 
       const contactList: Contact[] = phones.map((phone) => {
