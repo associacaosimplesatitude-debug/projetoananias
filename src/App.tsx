@@ -224,6 +224,7 @@ import VendedorPDV from "./pages/vendedor/VendedorPDV";
 import VendedorEmailsEBD from "./pages/vendedor/VendedorEmailsEBD";
 import VendedorFunil from "./pages/vendedor/VendedorFunil";
 import VendedorIntegracoes from "./pages/vendedor/VendedorIntegracoes";
+import VendedorWhatsApp from "./pages/vendedor/VendedorWhatsApp";
 
 // Shopify Pages
 import ShopifyPedidos from "./pages/shopify/ShopifyPedidos";
@@ -671,6 +672,7 @@ const App = () => (
                         </VendedorProtectedRoute>
                       } />
                       <Route path="atendimento" element={<AtendimentoWhatsApp />} />
+                      <Route path="whatsapp" element={<VendedorWhatsApp />} />
                       <Route path="tutoriais" element={<Tutoriais />} />
                     </Route>
                     <Route path="/vendedor/catalogo" element={<VendedorCatalogo />} />

@@ -51,6 +51,7 @@ interface MenuItem {
 const allMenuItems: MenuItem[] = [
   { to: "/vendedor", icon: LayoutDashboard, label: "Painel", end: true },
   { to: "/vendedor/atendimento", icon: MessageCircle, label: "Atendimento" },
+  { to: "/vendedor/whatsapp", icon: MessageCircle, label: "Conversas IA" },
   { to: "/vendedor/clientes", icon: Users, label: "Clientes" },
   // PDV para vendas de balcão (Polo Penha)
   { to: "/vendedor/pdv", icon: Store, label: "PDV Balcão", poloOnly: true },
