@@ -50,7 +50,7 @@ export default function ShopifyIntegration() {
         message: "Conexão bem-sucedida!",
         productCount: products.length,
       });
-      toast.success("Conexão com Shopify verificada!");
+      toast.success("Conexão com E-commerce verificada!");
     },
     onError: (error: Error) => {
       setTestResult({
