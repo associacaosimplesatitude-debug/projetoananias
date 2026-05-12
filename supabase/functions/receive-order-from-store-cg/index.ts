@@ -274,7 +274,7 @@ async function provisionSuperintendente(
         email_superintendente: email,
         superintendente_user_id: userId,
         status_ativacao_ebd: true,
-        tipo_cliente: "Igreja",
+        tipo_cliente: null, // pedidos da Nova Loja entram como indefinido para qualificação manual pelo vendedor
         senha_provisoria_enviada_em: tempPassword ? nowIso : null,
         deve_trocar_senha: !!tempPassword,
       };
