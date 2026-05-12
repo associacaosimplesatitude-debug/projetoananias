@@ -400,7 +400,7 @@ export default function ShopifyIntegration() {
           <div className="space-y-2">
             <h4 className="font-medium">Erro de pagamento (402):</h4>
             <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1">
-              <li>A loja Shopify precisa de um plano pago ativo</li>
+              <li>A loja E-commerce precisa de um plano pago ativo</li>
               <li>Verifique o status da assinatura em <code>Settings → Plan</code></li>
             </ul>
           </div>
