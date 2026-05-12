@@ -145,6 +145,8 @@ export type Database = {
       agente_ia_conversas: {
         Row: {
           agente_pausado: boolean
+          atribuida_em: string | null
+          atribuida_por: string | null
           cliente_id: string | null
           created_at: string
           custo_estimado: number | null
@@ -162,10 +164,13 @@ export type Database = {
           total_turnos: number | null
           ultima_mensagem_em: string
           valor_venda: number | null
+          vendedor_atribuido_id: string | null
           whatsapp_conversa_id: string | null
         }
         Insert: {
           agente_pausado?: boolean
+          atribuida_em?: string | null
+          atribuida_por?: string | null
           cliente_id?: string | null
           created_at?: string
           custo_estimado?: number | null
@@ -183,10 +188,13 @@ export type Database = {
           total_turnos?: number | null
           ultima_mensagem_em?: string
           valor_venda?: number | null
+          vendedor_atribuido_id?: string | null
           whatsapp_conversa_id?: string | null
         }
         Update: {
           agente_pausado?: boolean
+          atribuida_em?: string | null
+          atribuida_por?: string | null
           cliente_id?: string | null
           created_at?: string
           custo_estimado?: number | null
@@ -204,6 +212,7 @@ export type Database = {
           total_turnos?: number | null
           ultima_mensagem_em?: string
           valor_venda?: number | null
+          vendedor_atribuido_id?: string | null
           whatsapp_conversa_id?: string | null
         }
         Relationships: [
@@ -219,6 +228,13 @@ export type Database = {
             columns: ["proposta_id"]
             isOneToOne: false
             referencedRelation: "vendedor_propostas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agente_ia_conversas_vendedor_atribuido_id_fkey"
+            columns: ["vendedor_atribuido_id"]
+            isOneToOne: false
+            referencedRelation: "vendedores"
             referencedColumns: ["id"]
           },
           {
@@ -9132,8 +9148,16 @@ export type Database = {
         Returns: Json
       }
       contexto_inicial_cliente: { Args: { p_telefone: string }; Returns: Json }
+      devolver_conversa_para_agente: {
+        Args: { _conversa_id: string }
+        Returns: Json
+      }
       disparos_recebidos: {
         Args: { p_dias?: number; p_email?: string; p_telefone: string }
+        Returns: Json
+      }
+      encaminhar_conversa_para_vendedor: {
+        Args: { _conversa_id: string; _vendedor_id: string }
         Returns: Json
       }
       execute_readonly_query: { Args: { sql_query: string }; Returns: Json }

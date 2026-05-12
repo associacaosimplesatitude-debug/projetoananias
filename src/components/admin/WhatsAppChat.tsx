@@ -27,6 +27,8 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import LeadDetailModal from "./whatsapp/LeadDetailModal";
 import TemplatePickerDialog from "./whatsapp/TemplatePickerDialog";
+import EncaminharVendedorDialog from "./whatsapp/EncaminharVendedorDialog";
+import { UserPlus, RotateCcw } from "lucide-react";
 
 // Normalize phone: strip non-digits, remove leading "55" country code if present
 function normalizePhone(phone: string): string {
@@ -66,6 +68,13 @@ function phoneVariants(phone: string): string[] {
 }
 
 // Types
+type ContactTagType = "atendendo" | "vendedor_historico" | "sem_vendedor" | "novo_contato";
+
+interface ContactTag {
+  type: ContactTagType;
+  vendedorNome?: string | null;
+}
+
 interface Contact {
   telefone: string;
   nome: string;
@@ -73,6 +82,13 @@ interface Contact {
   ultimaMensagem: string;
   ultimaData: string;
   vendedorNome?: string | null;
+  conversaId?: string | null;
+  vendedorAtribuidoId?: string | null;
+  vendedorAtribuidoNome?: string | null;
+  vendedorHistoricoId?: string | null;
+  vendedorHistoricoNome?: string | null;
+  clienteId?: string | null;
+  tag: ContactTag;
 }
 
 interface ChatMessage {
@@ -168,11 +184,32 @@ function ContactList({
                       : ""}
                   </span>
                 </div>
-                {contact.vendedorNome && (
-                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 mt-0.5">
-                    {contact.vendedorNome}
-                  </Badge>
-                )}
+                {(() => {
+                  const t = contact.tag;
+                  if (t.type === "atendendo")
+                    return (
+                      <Badge className="text-[10px] px-1.5 py-0 h-4 mt-0.5 bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-100">
+                        Em atendimento: {t.vendedorNome}
+                      </Badge>
+                    );
+                  if (t.type === "vendedor_historico")
+                    return (
+                      <Badge className="text-[10px] px-1.5 py-0 h-4 mt-0.5 bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-100">
+                        Vendedor: {t.vendedorNome}
+                      </Badge>
+                    );
+                  if (t.type === "sem_vendedor")
+                    return (
+                      <Badge className="text-[10px] px-1.5 py-0 h-4 mt-0.5 bg-amber-100 text-amber-700 border-amber-200 hover:bg-amber-100">
+                        Sem vendedor
+                      </Badge>
+                    );
+                  return (
+                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 mt-0.5">
+                      Novo contato
+                    </Badge>
+                  );
+                })()}
                 <p className="text-xs text-muted-foreground truncate mt-0.5">
                   {contact.ultimaMensagem}
                 </p>
@@ -191,16 +228,19 @@ function ChatWindow({
   contact,
   onBack,
   isMobile,
+  scope = "admin",
 }: {
   phone: string;
   contact: Contact | null;
   onBack: () => void;
   isMobile: boolean;
+  scope?: "admin" | "vendedor";
 }) {
   const [inputMsg, setInputMsg] = useState("");
   const [sending, setSending] = useState(false);
   const [showLeadModal, setShowLeadModal] = useState(false);
   const [showTemplateDialog, setShowTemplateDialog] = useState(false);
+  const [showEncaminharDialog, setShowEncaminharDialog] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
 
@@ -400,6 +440,38 @@ function ChatWindow({
           </p>
           <p className="text-xs text-muted-foreground font-mono">{phone}</p>
         </div>
+        {scope === "admin" && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={async () => {
+              if (contact?.vendedorAtribuidoId && contact?.conversaId) {
+                const { error } = await supabase.rpc("devolver_conversa_para_agente", {
+                  _conversa_id: contact.conversaId,
+                });
+                if (error) return toast.error(error.message);
+                toast.success("Conversa devolvida ao agente");
+                queryClient.invalidateQueries({ queryKey: ["whatsapp-chat-contacts"] });
+                queryClient.invalidateQueries({ queryKey: ["agente-conversa-pausa", phone] });
+              } else {
+                setShowEncaminharDialog(true);
+              }
+            }}
+            className="shrink-0"
+          >
+            {contact?.vendedorAtribuidoId ? (
+              <>
+                <RotateCcw className="h-4 w-4 mr-1.5" />
+                Devolver à IA
+              </>
+            ) : (
+              <>
+                <UserPlus className="h-4 w-4 mr-1.5" />
+                Encaminhar
+              </>
+            )}
+          </Button>
+        )}
         <Button
           variant={agentePausado ? "default" : "outline"}
           size="sm"
@@ -419,6 +491,14 @@ function ChatWindow({
           <Eye className="h-4 w-4" />
         </Button>
       </div>
+
+      <EncaminharVendedorDialog
+        open={showEncaminharDialog}
+        onOpenChange={setShowEncaminharDialog}
+        conversaId={contact?.conversaId || null}
+        vendedorHistoricoId={contact?.vendedorHistoricoId || null}
+        vendedorHistoricoNome={contact?.vendedorHistoricoNome || null}
+      />
 
       {agentePausado && (
         <div className="px-4 py-2 bg-amber-50 dark:bg-amber-950/30 border-b border-amber-200 dark:border-amber-900 text-xs text-amber-900 dark:text-amber-200">
@@ -600,13 +680,18 @@ function EmptyChat() {
 }
 
 // ============ MAIN COMPONENT ============
-export default function WhatsAppChat() {
+export interface WhatsAppChatProps {
+  scope?: "admin" | "vendedor";
+  vendedorId?: string | null;
+}
+
+export default function WhatsAppChat({ scope = "admin", vendedorId = null }: WhatsAppChatProps = {}) {
   const isMobile = useIsMobile();
   const [selectedPhone, setSelectedPhone] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
 
   const { data: contacts = [], isLoading: loadingContacts } = useQuery({
-    queryKey: ["whatsapp-chat-contacts"],
+    queryKey: ["whatsapp-chat-contacts", scope, vendedorId],
     queryFn: async () => {
       // Get all unique phones from conversas
       const { data: conversas } = await supabase
@@ -619,8 +704,7 @@ export default function WhatsAppChat() {
         .select("telefone_destino, nome_destino, mensagem, created_at")
         .order("created_at", { ascending: false });
 
-      // Build phone map keyed by normalized phone (so received vs sent
-      // messages on the same number with/without country code merge into one).
+      // Build phone map keyed by normalized phone
       const phoneMap: Record<
         string,
         { nome: string; ultimaMensagem: string; ultimaData: string; rawPhones: Set<string> }
@@ -664,7 +748,6 @@ export default function WhatsAppChat() {
         upsert(m.telefone_destino, m.nome_destino, m.mensagem, m.created_at);
       });
 
-      // Get webhook info for names and photos — match across all raw phone variants
       const allRawPhones = Array.from(
         new Set(Object.values(phoneMap).flatMap((v) => Array.from(v.rawPhones))),
       );
@@ -691,43 +774,112 @@ export default function WhatsAppChat() {
 
       const phones = Object.keys(phoneMap);
 
-      // Get vendor info from leads - fetch all leads with vendors then match by normalized phone
+      // Atribuições e clientes via agente_ia_conversas
+      const allVariants = Array.from(
+        new Set(phones.flatMap((p) => phoneVariants(p))),
+      );
+      const { data: agenteConversas } = allVariants.length
+        ? await (supabase as any)
+            .from("agente_ia_conversas")
+            .select(
+              "id, telefone, cliente_id, vendedor_atribuido_id, ultima_mensagem_em, vendedor_atribuido:vendedores!vendedor_atribuido_id(nome), cliente:ebd_clientes!cliente_id(vendedor_id, vendedor:vendedores!vendedor_id(id, nome))",
+            )
+            .in("telefone", allVariants)
+            .order("ultima_mensagem_em", { ascending: false })
+        : { data: [] as any[] };
+
+      // Map por telefone normalizado (mais recente vence)
+      const atribuicaoMap: Record<
+        string,
+        {
+          conversaId: string;
+          clienteId: string | null;
+          vendedorAtribuidoId: string | null;
+          vendedorAtribuidoNome: string | null;
+          vendedorHistoricoId: string | null;
+          vendedorHistoricoNome: string | null;
+        }
+      > = {};
+      (agenteConversas || []).forEach((row: any) => {
+        const key = normalizePhone(row.telefone || "");
+        if (!key || atribuicaoMap[key]) return;
+        atribuicaoMap[key] = {
+          conversaId: row.id,
+          clienteId: row.cliente_id || null,
+          vendedorAtribuidoId: row.vendedor_atribuido_id || null,
+          vendedorAtribuidoNome: row.vendedor_atribuido?.nome || null,
+          vendedorHistoricoId: row.cliente?.vendedor?.id || null,
+          vendedorHistoricoNome: row.cliente?.vendedor?.nome || null,
+        };
+      });
+
+      // Vendedor de leads de reativação como fallback
       const { data: leads } = await supabase
         .from("ebd_leads_reativacao")
-        .select("telefone, vendedores(nome)")
+        .select("telefone, vendedor_id, vendedores(id, nome)")
         .not("vendedor_id", "is", null)
         .not("telefone", "is", null);
-
-      // Build a map: normalizedPhone -> vendedorNome (including 9-digit variants)
-      const vendedorByNormalized: Record<string, string> = {};
+      const leadVendedorByVariant: Record<string, { id: string; nome: string }> = {};
       (leads || []).forEach((l: any) => {
         if (l.telefone && l.vendedores?.nome) {
-          phoneVariants(l.telefone).forEach(v => {
-            vendedorByNormalized[v] = l.vendedores.nome;
+          phoneVariants(l.telefone).forEach((v) => {
+            leadVendedorByVariant[v] = { id: l.vendedores.id, nome: l.vendedores.nome };
           });
         }
       });
 
-      // Build contact list, matching vendor by phone variants
       const contactList: Contact[] = phones.map((phone) => {
         const variants = phoneVariants(phone);
-        const matchedVendedor = variants.reduce<string | null>((found, v) => found || vendedorByNormalized[v] || null, null);
+        const atrib = atribuicaoMap[phone];
+        const fallbackLead = variants.reduce<{ id: string; nome: string } | null>(
+          (acc, v) => acc || leadVendedorByVariant[v] || null,
+          null,
+        );
+
+        const vendedorAtribuidoId = atrib?.vendedorAtribuidoId || null;
+        const vendedorAtribuidoNome = atrib?.vendedorAtribuidoNome || null;
+        const vendedorHistoricoId = atrib?.vendedorHistoricoId || fallbackLead?.id || null;
+        const vendedorHistoricoNome = atrib?.vendedorHistoricoNome || fallbackLead?.nome || null;
+
+        let tag: ContactTag;
+        if (vendedorAtribuidoId) {
+          tag = { type: "atendendo", vendedorNome: vendedorAtribuidoNome };
+        } else if (atrib?.clienteId && vendedorHistoricoNome) {
+          tag = { type: "vendedor_historico", vendedorNome: vendedorHistoricoNome };
+        } else if (atrib?.clienteId) {
+          tag = { type: "sem_vendedor" };
+        } else {
+          tag = { type: "novo_contato" };
+        }
+
         return {
           telefone: phone,
           nome: photoMap[phone]?.nome || phoneMap[phone].nome || phone,
           foto: photoMap[phone]?.foto || null,
           ultimaMensagem: phoneMap[phone].ultimaMensagem,
           ultimaData: phoneMap[phone].ultimaData,
-          vendedorNome: matchedVendedor,
+          vendedorNome: vendedorAtribuidoNome || vendedorHistoricoNome,
+          conversaId: atrib?.conversaId || null,
+          clienteId: atrib?.clienteId || null,
+          vendedorAtribuidoId,
+          vendedorAtribuidoNome,
+          vendedorHistoricoId,
+          vendedorHistoricoNome,
+          tag,
         };
       });
 
-      contactList.sort(
+      let scoped = contactList;
+      if (scope === "vendedor" && vendedorId) {
+        scoped = contactList.filter((c) => c.vendedorAtribuidoId === vendedorId);
+      }
+
+      scoped.sort(
         (a, b) =>
           new Date(b.ultimaData).getTime() - new Date(a.ultimaData).getTime()
       );
 
-      return contactList;
+      return scoped;
     },
     refetchInterval: 15000,
   });
