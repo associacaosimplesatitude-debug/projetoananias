@@ -582,7 +582,7 @@ function LicencaEditDrawer({ licenca, open, onClose, onSaved }: {
                   </Badge>
                 </div>
                 <div className="bg-muted/50 rounded-lg p-3">
-                  <p className="text-muted-foreground text-xs mb-1">Pedido Shopify</p>
+                  <p className="text-muted-foreground text-xs mb-1">Pedido E-commerce</p>
                   <p className="font-medium font-mono">{licenca.shopify_order_number ? `#${licenca.shopify_order_number}` : "Manual"}</p>
                 </div>
                 <div className="bg-muted/50 rounded-lg p-3 col-span-2">
