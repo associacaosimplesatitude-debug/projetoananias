@@ -79,8 +79,9 @@ export function BackfillLeadsButton() {
         <DialogHeader>
           <DialogTitle>Backfill de Leads dos Pedidos</DialogTitle>
           <DialogDescription>
-            Percorre pedidos pagos da Nova Loja dos últimos N dias e cria leads
-            que ainda não existem na base de Leads. Idempotente — não cria duplicatas.
+            Percorre pedidos pagos da Nova Loja dos últimos N dias, cria leads
+            que ainda não existem e reseta o tipo_cliente='Igreja' dos clientes
+            da Nova Loja para indefinido. Idempotente.
           </DialogDescription>
         </DialogHeader>
 
