@@ -131,6 +131,7 @@ export function BackfillLeadsButton() {
               <div>Leads criados: <strong>{result.leadsCriados}</strong></div>
               <div>Leads atualizados: <strong>{result.leadsAtualizados}</strong></div>
               <div>Pulados (já completos): <strong>{result.pulados}</strong></div>
+              <div>Clientes 'Igreja' resetados: <strong>{result.clientesResetados}</strong></div>
               <div>Erros: <strong>{result.erros}</strong></div>
               <div className="text-xs text-muted-foreground">
                 Janela: {result.rangeDays} dias • {result.duracaoMs} ms
