@@ -219,7 +219,7 @@ serve(async (req) => {
         }
       } else {
         const errorText = await blingResponse.text();
-        throw new Error(`Bling HTTP ${blingResponse.status}: ${errorText.slice(0, 200)}`);
+        throw new Error(`Bling HTTP ${blingResponse.status}: ${errorText.slice(0, 1500)}`);
       }
       return null;
     };

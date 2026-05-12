@@ -1192,12 +1192,26 @@ serve(async (req) => {
     console.log(`[CONTATO] Endereço shipping: rua="${shippingAddress.endereco}" numero="${shippingAddress.numero}" cep="${shippingAddress.cep}"`);
 
     // 3) Montar payload do contato com todos os campos obrigatórios
+    // Sanitização de telefone: Bling rejeita números fora dos formatos BR válidos
+    // - 10 dígitos: DDD + fixo (8 dígitos)
+    // - 11 dígitos: DDD + 9 + celular (8 dígitos) — terceiro dígito DEVE ser 9
+    // Qualquer outra coisa (9 dígitos, 11 sem o 9 do celular, etc.) → omitir o campo
+    const telefoneRaw = String(clienteDb?.telefone || cliente.telefone || '').replace(/\D/g, '');
+    let telefoneValido = '';
+    if (telefoneRaw.length === 10) {
+      telefoneValido = telefoneRaw;
+    } else if (telefoneRaw.length === 11 && telefoneRaw[2] === '9') {
+      telefoneValido = telefoneRaw;
+    } else if (telefoneRaw.length > 0) {
+      console.warn(`[CONTATO] Telefone inválido omitido: "${telefoneRaw}" (len=${telefoneRaw.length})`);
+    }
+
     const contatoPayloadCompleto: any = {
       nome: nomeCompleto,
       tipo: tipoPessoa,
       numeroDocumento: documento, // CPF/CNPJ vindo do banco
       email: clienteDb?.email_superintendente || cliente.email || '',
-      telefone: String(clienteDb?.telefone || cliente.telefone || '').replace(/\D/g, ''),
+      ...(telefoneValido ? { telefone: telefoneValido } : {}),
       situacao: 'A',
       endereco: {
         geral: {
@@ -1365,10 +1379,19 @@ serve(async (req) => {
           }
         }
         
-        // Se ainda não encontrou, lançar erro (CPF/CNPJ é obrigatório)
+        // Se ainda não encontrou, lançar erro com a mensagem REAL do Bling (incluindo fields)
         if (!contatoId) {
-          console.error('[CONTATO] ERRO CRÍTICO: Não foi possível criar contato no Bling');
-          throw new Error('Falha ao criar contato no Bling. Verifique os dados do cliente.');
+          const fieldsMsg = Array.isArray(createResult?.error?.fields) && createResult.error.fields.length > 0
+            ? createResult.error.fields.map((f: any) => `[${f?.element || f?.field || '?'}] ${f?.msg || f?.message || ''}`).join(' | ')
+            : null;
+          const baseMsg =
+            createResult?.error?.description ||
+            createResult?.error?.message ||
+            JSON.stringify(createResult).slice(0, 400);
+          const blingMsg = fieldsMsg ? `${baseMsg} → ${fieldsMsg}` : baseMsg;
+          console.error('[CONTATO] ERRO CRÍTICO Bling:', blingMsg);
+          console.error('[CONTATO] Payload enviado:', JSON.stringify(contatoPayloadCompleto));
+          throw new Error(`Falha ao criar contato no Bling: ${blingMsg}`);
         }
       }
     }
