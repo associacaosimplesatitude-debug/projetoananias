@@ -460,9 +460,26 @@ function ChatWindow({
           <p className="font-medium text-sm text-foreground truncate">
             {contact?.nome || phone}
           </p>
-          <p className="text-xs text-muted-foreground font-mono">{phone}</p>
+          <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+            <span className="text-xs text-muted-foreground font-mono">{phone}</span>
+            {contact?.tipoCliente && (
+              <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 bg-purple-50 text-purple-700 border-purple-200">
+                {contact.tipoCliente}
+              </Badge>
+            )}
+            {(contact?.vendedorAtribuidoNome || contact?.vendedorHistoricoNome) && (
+              <Badge className={`text-[10px] px-1.5 py-0 h-4 ${
+                contact?.vendedorAtribuidoNome
+                  ? "bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-100"
+                  : "bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
+              }`}>
+                {contact.vendedorAtribuidoNome ? "Atendendo: " : "Vendedor: "}
+                {contact.vendedorAtribuidoNome || contact.vendedorHistoricoNome}
+              </Badge>
+            )}
+          </div>
         </div>
-        {scope === "admin" && (
+        {scope === "superadmin" && (
           <Button
             variant="outline"
             size="sm"
@@ -494,15 +511,28 @@ function ChatWindow({
             )}
           </Button>
         )}
-        <Button
-          variant={agentePausado ? "default" : "outline"}
-          size="sm"
-          onClick={toggleAgentePausa}
-          title={agentePausado ? "Retomar Agente IA" : "Pausar Agente IA"}
-          className="shrink-0"
-        >
-          {agentePausado ? "▶️ Retomar IA" : "⏸️ Pausar IA"}
-        </Button>
+        {scope === "gerente" && !contact?.vendedorAtribuidoId && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowEncaminharDialog(true)}
+            className="shrink-0"
+          >
+            <UserPlus className="h-4 w-4 mr-1.5" />
+            Encaminhar
+          </Button>
+        )}
+        {scope === "superadmin" && (
+          <Button
+            variant={agentePausado ? "default" : "outline"}
+            size="sm"
+            onClick={toggleAgentePausa}
+            title={agentePausado ? "Retomar Agente IA" : "Pausar Agente IA"}
+            className="shrink-0"
+          >
+            {agentePausado ? "▶️ Retomar IA" : "⏸️ Pausar IA"}
+          </Button>
+        )}
         <Button
           variant="ghost"
           size="icon"
