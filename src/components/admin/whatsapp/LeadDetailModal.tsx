@@ -10,47 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, User, Phone, Mail, Building, ShieldCheck, ShoppingCart, LogIn, Package, Truck } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-
-// Generate all phone format variants for server-side filtering
-function generatePhoneFilters(phone: string): string[] {
-  const digits = phone.replace(/\D/g, "");
-  const variants = new Set<string>();
-
-  // Raw digits
-  variants.add(digits);
-
-  // Strip country code 55
-  let local = digits;
-  if (digits.length >= 12 && digits.startsWith("55")) {
-    local = digits.slice(2);
-    variants.add(local);
-  }
-
-  // With country code
-  if (!digits.startsWith("55") && (digits.length === 10 || digits.length === 11)) {
-    variants.add("55" + digits);
-  }
-
-  // 9th digit variants for local number
-  // 10 digits (DDD + 8) -> add with 9
-  if (local.length === 10) {
-    const with9 = local.slice(0, 2) + "9" + local.slice(2);
-    variants.add(with9);
-    variants.add("55" + with9);
-  }
-  // 11 digits (DDD + 9 + 8) -> add without 9
-  if (local.length === 11 && local[2] === "9") {
-    const without9 = local.slice(0, 2) + local.slice(3);
-    variants.add(without9);
-    variants.add("55" + without9);
-  }
-
-  // Add + prefixed versions
-  const withPlus = [...variants].filter(v => v.startsWith("55")).map(v => "+" + v);
-  withPlus.forEach(v => variants.add(v));
-
-  return [...variants];
-}
+import { resolveLeadByPhone } from "@/lib/leadResolver";
 
 interface LeadDetailModalProps {
   open: boolean;
@@ -59,73 +19,39 @@ interface LeadDetailModalProps {
 }
 
 export default function LeadDetailModal({ open, onOpenChange, phone }: LeadDetailModalProps) {
-  // Fetch lead data
+  // Fetch lead data via SHARED resolver (same authority used by the WhatsApp list)
   const { data, isLoading } = useQuery({
     queryKey: ["lead-detail", phone],
     enabled: open && !!phone,
     queryFn: async () => {
-      const filters = generatePhoneFilters(phone);
+      const resolved = await resolveLeadByPhone(phone);
 
-      // 1. Leads - server-side filter
-      const { data: leads } = await supabase
-        .from("ebd_leads_reativacao")
-        .select("*, vendedores(nome)")
-        .in("telefone", filters);
-      const lead = leads?.[0] || null;
-
-      // 2. Clients - server-side filter
-      const { data: clientes } = await supabase
-        .from("ebd_clientes")
-        .select("id, nome_igreja, email_superintendente, telefone, tipo_cliente, cnpj, cpf, senha_temporaria, ultimo_login, onboarding_concluido, data_proxima_compra")
-        .in("telefone", filters);
-      const cliente = clientes?.[0] || null;
-
-      // 3. Shopify orders - server-side filter
-      const { data: rawPedidos } = await supabase
-        .from("ebd_shopify_pedidos")
-        .select("id, order_number, customer_name, customer_email, customer_phone, customer_document, valor_total, valor_frete, status_pagamento, created_at, codigo_rastreio, codigo_rastreio_bling, url_rastreio, vendedor_id")
-        .in("customer_phone", filters)
-        .order("created_at", { ascending: false });
-      const pedidos = rawPedidos || [];
-
-      // 4. Last order (vendedor_propostas) if we have a cliente_id
+      // Última proposta (modal-only extra)
       let ultimoPedido = null;
-      const clienteId = cliente?.id || null;
-      if (clienteId) {
+      if (resolved.clienteId) {
         const { data: propostas } = await supabase
           .from("vendedor_propostas")
           .select("id, status, valor_total, created_at, cliente_nome")
-          .eq("cliente_id", clienteId)
+          .eq("cliente_id", resolved.clienteId)
           .order("created_at", { ascending: false })
           .limit(1);
         ultimoPedido = propostas?.[0] || null;
       }
 
-      // Get vendedor name for shopify orders
-      let vendedorNomeShopify: string | null = null;
-      if (pedidos.length > 0 && pedidos[0].vendedor_id) {
-        const { data: vend } = await supabase
-          .from("vendedores")
-          .select("nome")
-          .eq("id", pedidos[0].vendedor_id)
-          .maybeSingle();
-        vendedorNomeShopify = vend?.nome || null;
-      }
-
-      return { lead, cliente, ultimoPedido, pedidos, vendedorNomeShopify };
+      return { resolved, ultimoPedido };
     },
   });
 
-  const lead = data?.lead;
-  const cliente = data?.cliente;
+  const resolved = data?.resolved;
+  const lead = resolved?.lead;
+  const cliente = resolved?.cliente;
+  const pedidos = resolved?.pedidos || [];
   const ultimoPedido = data?.ultimoPedido;
-  const pedidos = data?.pedidos || [];
-  const vendedorNomeShopify = data?.vendedorNomeShopify;
-  const vendedorNome = (lead?.vendedores as any)?.nome || vendedorNomeShopify || null;
+  const vendedorNome = resolved?.vendedorHistoricoNome || null;
 
-  // Merge info from all sources
+  // Merge info from all sources (display fields stay as before)
   const shopifyOrder = pedidos[0] || null;
-  const tipoCliente = lead?.tipo_lead || cliente?.tipo_cliente || "—";
+  const tipoCliente = resolved?.tipoCliente || "—";
   const nome = lead?.nome_igreja || cliente?.nome_igreja || shopifyOrder?.customer_name || "—";
   const email = lead?.email || cliente?.email_superintendente || shopifyOrder?.customer_email || "—";
   const cnpjCpf = lead?.cnpj || cliente?.cnpj || cliente?.cpf || shopifyOrder?.customer_document || "—";
