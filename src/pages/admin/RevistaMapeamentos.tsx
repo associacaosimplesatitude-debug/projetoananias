@@ -143,7 +143,7 @@ export default function RevistaMapeamentos() {
             <Link2 className="h-6 w-6" /> Mapeamento SKU → Revista
           </h1>
           <p className="text-sm text-muted-foreground">
-            Vincule SKUs do Shopify às revistas digitais para geração automática de licenças.
+            Vincule SKUs do E-commerce às revistas digitais para geração automática de licenças.
           </p>
         </div>
 
