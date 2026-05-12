@@ -61,6 +61,24 @@ export interface ResolvedLead {
   conversaId: string | null;
   clienteId: string | null;
   nomeResolvido: string | null;
+  // Extended fallback fields (lead -> cliente -> shopify)
+  emailResolvido: string | null;
+  documentoResolvido: string | null;
+  vendedorResolvido: { id: string; nome: string } | null;
+  pedidoShopify: {
+    id: string;
+    orderNumber: string;
+    valorTotal: number;
+    statusPagamento: string;
+    createdAt: string;
+    codigoRastreio: string | null;
+    urlRastreio: string | null;
+  } | null;
+  ultimoLogin: string | null;
+  tipoLead: string | null;
+  statusLead: string | null;
+  contaCriada: boolean | null;
+  fontes: Array<"lead" | "cliente" | "shopify">;
 }
 
 function emptyResolved(phone: string): ResolvedLead {
@@ -77,6 +95,15 @@ function emptyResolved(phone: string): ResolvedLead {
     conversaId: null,
     clienteId: null,
     nomeResolvido: null,
+    emailResolvido: null,
+    documentoResolvido: null,
+    vendedorResolvido: null,
+    pedidoShopify: null,
+    ultimoLogin: null,
+    tipoLead: null,
+    statusLead: null,
+    contaCriada: null,
+    fontes: [],
   };
 }
 
