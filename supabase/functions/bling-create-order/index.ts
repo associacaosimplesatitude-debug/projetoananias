@@ -1365,15 +1365,16 @@ serve(async (req) => {
           }
         }
         
-        // Se ainda não encontrou, lançar erro com a mensagem REAL do Bling
+        // Se ainda não encontrou, lançar erro com a mensagem REAL do Bling (incluindo fields)
         if (!contatoId) {
-          const blingMsg =
+          const fieldsMsg = Array.isArray(createResult?.error?.fields) && createResult.error.fields.length > 0
+            ? createResult.error.fields.map((f: any) => `[${f?.element || f?.field || '?'}] ${f?.msg || f?.message || ''}`).join(' | ')
+            : null;
+          const baseMsg =
             createResult?.error?.description ||
             createResult?.error?.message ||
-            (Array.isArray(createResult?.error?.fields)
-              ? createResult.error.fields.map((f: any) => `${f?.element || f?.field || '?'}: ${f?.msg || f?.message || ''}`).join(' | ')
-              : null) ||
-            JSON.stringify(createResult).slice(0, 800);
+            JSON.stringify(createResult).slice(0, 400);
+          const blingMsg = fieldsMsg ? `${baseMsg} → ${fieldsMsg}` : baseMsg;
           console.error('[CONTATO] ERRO CRÍTICO Bling:', blingMsg);
           console.error('[CONTATO] Payload enviado:', JSON.stringify(contatoPayloadCompleto));
           throw new Error(`Falha ao criar contato no Bling: ${blingMsg}`);
