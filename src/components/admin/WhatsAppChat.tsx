@@ -499,7 +499,6 @@ function ChatWindow({
         vendedorHistoricoId={contact?.vendedorHistoricoId || null}
         vendedorHistoricoNome={contact?.vendedorHistoricoNome || null}
       />
-      </div>
 
       {agentePausado && (
         <div className="px-4 py-2 bg-amber-50 dark:bg-amber-950/30 border-b border-amber-200 dark:border-amber-900 text-xs text-amber-900 dark:text-amber-200">
