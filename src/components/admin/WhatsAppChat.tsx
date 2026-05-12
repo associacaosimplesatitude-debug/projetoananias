@@ -901,13 +901,21 @@ export default function WhatsAppChat({ scope = "admin", vendedorId = null }: Wha
         const fallbackCliente = variants.reduce<
           { clienteId: string; vendedorId: string | null } | null
         >((acc, v) => acc || clienteByVariant[v] || null, null);
+        const fallbackPedido = variants.reduce<{ id: string } | null>(
+          (acc, v) => acc || pedidoVendedorByVariant[v] || null,
+          null,
+        );
 
         const vendedorAtribuidoId = atrib?.vendedorAtribuidoId || null;
         const vendedorAtribuidoNome = vendedorAtribuidoId
           ? vendedorById[vendedorAtribuidoId] || null
           : null;
         const vendedorHistoricoId =
-          atrib?.vendedorHistoricoId || fallbackCliente?.vendedorId || fallbackLead?.id || null;
+          atrib?.vendedorHistoricoId ||
+          fallbackCliente?.vendedorId ||
+          fallbackLead?.id ||
+          fallbackPedido?.id ||
+          null;
         const vendedorHistoricoNome = vendedorHistoricoId
           ? vendedorById[vendedorHistoricoId] || null
           : null;
