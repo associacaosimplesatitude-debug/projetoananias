@@ -440,6 +440,38 @@ function ChatWindow({
           </p>
           <p className="text-xs text-muted-foreground font-mono">{phone}</p>
         </div>
+        {scope === "admin" && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={async () => {
+              if (contact?.vendedorAtribuidoId && contact?.conversaId) {
+                const { error } = await supabase.rpc("devolver_conversa_para_agente", {
+                  _conversa_id: contact.conversaId,
+                });
+                if (error) return toast.error(error.message);
+                toast.success("Conversa devolvida ao agente");
+                queryClient.invalidateQueries({ queryKey: ["whatsapp-chat-contacts"] });
+                queryClient.invalidateQueries({ queryKey: ["agente-conversa-pausa", phone] });
+              } else {
+                setShowEncaminharDialog(true);
+              }
+            }}
+            className="shrink-0"
+          >
+            {contact?.vendedorAtribuidoId ? (
+              <>
+                <RotateCcw className="h-4 w-4 mr-1.5" />
+                Devolver à IA
+              </>
+            ) : (
+              <>
+                <UserPlus className="h-4 w-4 mr-1.5" />
+                Encaminhar
+              </>
+            )}
+          </Button>
+        )}
         <Button
           variant={agentePausado ? "default" : "outline"}
           size="sm"
@@ -458,6 +490,15 @@ function ChatWindow({
         >
           <Eye className="h-4 w-4" />
         </Button>
+      </div>
+
+      <EncaminharVendedorDialog
+        open={showEncaminharDialog}
+        onOpenChange={setShowEncaminharDialog}
+        conversaId={contact?.conversaId || null}
+        vendedorHistoricoId={contact?.vendedorHistoricoId || null}
+        vendedorHistoricoNome={contact?.vendedorHistoricoNome || null}
+      />
       </div>
 
       {agentePausado && (
