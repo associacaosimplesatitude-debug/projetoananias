@@ -86,7 +86,7 @@ export default function LeadDetailModal({ open, onOpenChange, phone }: LeadDetai
           <div className="space-y-4">
             {showFromLicencaShopifyBadge && (
               <Badge variant="secondary" className="text-xs">
-                Dados vindos de Licença/Shopify — ainda não há registro na base de Leads
+                Dados vindos de Licença/E-commerce — ainda não há registro na base de Leads
               </Badge>
             )}
 
