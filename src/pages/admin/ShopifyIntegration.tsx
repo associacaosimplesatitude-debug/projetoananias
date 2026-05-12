@@ -57,7 +57,7 @@ export default function ShopifyIntegration() {
         success: false,
         message: error.message,
       });
-      toast.error("Falha na conexão com Shopify", {
+      toast.error("Falha na conexão com E-commerce", {
         description: error.message,
       });
     },
