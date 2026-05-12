@@ -30,40 +30,51 @@ import TemplatePickerDialog from "./whatsapp/TemplatePickerDialog";
 import EncaminharVendedorDialog from "./whatsapp/EncaminharVendedorDialog";
 import { UserPlus, RotateCcw } from "lucide-react";
 
-// Normalize phone: strip non-digits, remove leading "55" country code if present
+// Normalize para chave local: somente dígitos, sem o DDI 55 quando existir
 function normalizePhone(phone: string): string {
   const digits = phone.replace(/\D/g, "");
+  if (!digits) return "";
   if (digits.length >= 12 && digits.startsWith("55")) {
     return digits.slice(2);
   }
   return digits;
 }
 
-// Generate phone variants for matching (with and without 9th digit, with and without country code)
+// Mesma cobertura de variantes usada no modal de detalhes
 function phoneVariants(phone: string): string[] {
-  const base = normalizePhone(phone);
+  const digits = phone.replace(/\D/g, "");
+  if (!digits) return [];
+
   const variants = new Set<string>();
-  variants.add(base);
-  // With country code
-  variants.add("55" + base);
-  // Without country code
-  if (base.startsWith("55") && base.length >= 12) {
-    variants.add(base.slice(2));
+  variants.add(digits);
+
+  let local = digits;
+  if (digits.length >= 12 && digits.startsWith("55")) {
+    local = digits.slice(2);
+    variants.add(local);
   }
-  // 9th digit variants
-  if (base.length === 10) {
-    const with9 = base.slice(0, 2) + "9" + base.slice(2);
+
+  if (!digits.startsWith("55") && (local.length === 10 || local.length === 11)) {
+    variants.add(`55${local}`);
+  }
+
+  if (local.length === 10) {
+    const with9 = local.slice(0, 2) + "9" + local.slice(2);
     variants.add(with9);
-    variants.add("55" + with9);
+    variants.add(`55${with9}`);
   }
-  if (base.length === 11 && base[2] === "9") {
-    const without9 = base.slice(0, 2) + base.slice(3);
+
+  if (local.length === 11 && local[2] === "9") {
+    const without9 = local.slice(0, 2) + local.slice(3);
     variants.add(without9);
-    variants.add("55" + without9);
+    variants.add(`55${without9}`);
   }
-  // Also add the original raw phone (in case it has + or formatting)
-  const raw = phone.replace(/\D/g, "");
-  variants.add(raw);
+
+  const plusVariants = [...variants]
+    .filter((value) => value.startsWith("55"))
+    .map((value) => `+${value}`);
+  plusVariants.forEach((value) => variants.add(value));
+
   return Array.from(variants);
 }
 
