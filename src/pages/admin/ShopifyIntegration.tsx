@@ -97,9 +97,9 @@ export default function ShopifyIntegration() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Integração Shopify</h1>
+        <h1 className="text-2xl font-bold tracking-tight">Integração E-commerce</h1>
         <p className="text-muted-foreground">
-          Gerencie a integração da loja Shopify para o catálogo de produtos
+          Gerencie a integração da loja E-commerce para o catálogo de produtos
         </p>
       </div>
 
