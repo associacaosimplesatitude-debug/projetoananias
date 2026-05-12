@@ -705,16 +705,41 @@ export default function WhatsAppChat({ scope = "admin", vendedorId = null }: Wha
   const { data: contacts = [], isLoading: loadingContacts } = useQuery({
     queryKey: ["whatsapp-chat-contacts", scope, vendedorId],
     queryFn: async () => {
-      // Get all unique phones from conversas
-      const { data: conversas } = await supabase
+      // Para vendedor: só conversas atribuídas a ele. Sem vendedorId → lista vazia.
+      let allowedPhonesSet: Set<string> | null = null;
+      if (scope === "vendedor") {
+        if (!vendedorId) return [] as Contact[];
+        const { data: minhasConvs } = await (supabase as any)
+          .from("agente_ia_conversas")
+          .select("telefone")
+          .eq("vendedor_atribuido_id", vendedorId);
+        const phones = (minhasConvs || [])
+          .map((c: any) => c.telefone)
+          .filter(Boolean);
+        if (phones.length === 0) return [] as Contact[];
+        allowedPhonesSet = new Set<string>();
+        phones.forEach((p: string) => {
+          phoneVariants(p).forEach((v) => allowedPhonesSet!.add(v));
+          const norm = normalizePhone(p);
+          if (norm) allowedPhonesSet!.add(norm);
+        });
+      }
+
+      const conversasQuery = supabase
         .from("whatsapp_conversas")
         .select("telefone, content, created_at")
         .order("created_at", { ascending: false });
+      if (allowedPhonesSet)
+        conversasQuery.in("telefone", Array.from(allowedPhonesSet));
+      const { data: conversas } = await conversasQuery;
 
-      const { data: mensagens } = await supabase
+      const mensagensQuery = supabase
         .from("whatsapp_mensagens")
         .select("telefone_destino, nome_destino, mensagem, created_at")
         .order("created_at", { ascending: false });
+      if (allowedPhonesSet)
+        mensagensQuery.in("telefone_destino", Array.from(allowedPhonesSet));
+      const { data: mensagens } = await mensagensQuery;
 
       // Build phone map keyed by normalized phone
       const phoneMap: Record<
