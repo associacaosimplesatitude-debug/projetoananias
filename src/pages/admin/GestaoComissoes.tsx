@@ -775,7 +775,7 @@ export default function GestaoComissoes() {
     mutationFn: async () => {
       const pedidoIds = pedidosShopifyPendentes.map(p => p.id);
       if (pedidoIds.length === 0) {
-        throw new Error('Nenhum pedido Shopify pendente de sincronização');
+        throw new Error('Nenhum pedido E-commerce pendente de sincronização');
       }
       
       const { data, error } = await supabase.functions.invoke('bling-sync-shopify-orders', {
