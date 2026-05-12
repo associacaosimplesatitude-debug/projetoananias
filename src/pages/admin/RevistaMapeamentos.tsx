@@ -211,7 +211,7 @@ export default function RevistaMapeamentos() {
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label>SKU (Shopify) *</Label>
+              <Label>SKU (E-commerce) *</Label>
               <Input value={editSku} onChange={(e) => setEditSku(e.target.value)} />
             </div>
             <div className="space-y-2">
