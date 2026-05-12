@@ -213,8 +213,66 @@ Deno.serve(async (req) => {
       }
     }
 
+    // ─── FASE 2: Resetar tipo_cliente 'Igreja' de clientes vindos da Nova Loja ───
+    let clientesResetados = 0;
+    const clientesResetDetalhe: Array<{ id: string; nome: string; motivo?: string }> = [];
+    try {
+      const { data: igrejaClientes, error: igrejaErr } = await supabase
+        .from("ebd_clientes")
+        .select("id, nome_igreja, telefone, email_superintendente")
+        .eq("tipo_cliente", "Igreja");
+      if (igrejaErr) throw igrejaErr;
+      console.log(`${LOG} fase2: ${igrejaClientes?.length ?? 0} clientes com tipo_cliente='Igreja' encontrados`);
+
+      for (const c of igrejaClientes || []) {
+        try {
+          const phoneVariants = buildPhoneVariants(c.telefone || "");
+          let temPedidoNovaLoja = false;
+
+          if (phoneVariants.length > 0) {
+            const { data: byPhone } = await supabase
+              .from("ebd_loja_pedidos_cg")
+              .select("id")
+              .in("customer_phone", phoneVariants)
+              .limit(1)
+              .maybeSingle();
+            if (byPhone) temPedidoNovaLoja = true;
+          }
+          if (!temPedidoNovaLoja && c.email_superintendente) {
+            const { data: byEmail } = await supabase
+              .from("ebd_loja_pedidos_cg")
+              .select("id")
+              .eq("customer_email", c.email_superintendente)
+              .limit(1)
+              .maybeSingle();
+            if (byEmail) temPedidoNovaLoja = true;
+          }
+
+          if (!temPedidoNovaLoja) continue;
+
+          if (dryRun) {
+            clientesResetados++;
+          } else {
+            const { error: updErr } = await supabase
+              .from("ebd_clientes")
+              .update({ tipo_cliente: null })
+              .eq("id", c.id);
+            if (updErr) throw updErr;
+            clientesResetados++;
+          }
+        } catch (e) {
+          const motivo = (e as Error).message ?? String(e);
+          clientesResetDetalhe.push({ id: c.id, nome: c.nome_igreja, motivo: motivo.slice(0, 200) });
+          console.error(`${LOG} fase2 erro cliente ${c.id}:`, motivo);
+        }
+      }
+      console.log(`${LOG} fase2: ${clientesResetados} clientes resetados${dryRun ? " (dry-run)" : ""}`);
+    } catch (fatalFase2) {
+      console.error(`${LOG} fase2 fatal:`, fatalFase2);
+    }
+
     const duracaoMs = Date.now() - t0;
-    console.log(`${LOG} done criados=${leadsCriados} atualizados=${leadsAtualizados} pulados=${pulados} erros=${erros} ${duracaoMs}ms`);
+    console.log(`${LOG} done criados=${leadsCriados} atualizados=${leadsAtualizados} pulados=${pulados} erros=${erros} resetados=${clientesResetados} ${duracaoMs}ms`);
 
     return json({
       ok: true,
@@ -226,6 +284,8 @@ Deno.serve(async (req) => {
       pulados,
       erros,
       errosDetalhe,
+      clientesResetados,
+      clientesResetDetalhe,
       duracaoMs,
     });
   } catch (err) {

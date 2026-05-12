@@ -26,6 +26,8 @@ interface BackfillResult {
   pulados: number;
   erros: number;
   errosDetalhe?: Array<{ pedido: string; motivo: string }>;
+  clientesResetados: number;
+  clientesResetDetalhe?: Array<{ id: string; nome: string; motivo?: string }>;
   duracaoMs: number;
 }
 
@@ -49,8 +51,8 @@ export function BackfillLeadsButton() {
       setResult(data as BackfillResult);
       toast.success(
         dryRun
-          ? `Simulação: ${data.leadsCriados} criar, ${data.leadsAtualizados} atualizar`
-          : `Backfill: ${data.leadsCriados} criados, ${data.leadsAtualizados} atualizados`,
+          ? `Simulação: ${data.leadsCriados} criar, ${data.leadsAtualizados} atualizar, ${data.clientesResetados} resetar`
+          : `Backfill: ${data.leadsCriados} criados, ${data.leadsAtualizados} atualizados, ${data.clientesResetados} resetados`,
       );
     } catch (e: any) {
       toast.error(e?.message || "Falha ao executar backfill");
@@ -77,8 +79,9 @@ export function BackfillLeadsButton() {
         <DialogHeader>
           <DialogTitle>Backfill de Leads dos Pedidos</DialogTitle>
           <DialogDescription>
-            Percorre pedidos pagos da Nova Loja dos últimos N dias e cria leads
-            que ainda não existem na base de Leads. Idempotente — não cria duplicatas.
+            Percorre pedidos pagos da Nova Loja dos últimos N dias, cria leads
+            que ainda não existem e reseta o tipo_cliente='Igreja' dos clientes
+            da Nova Loja para indefinido. Idempotente.
           </DialogDescription>
         </DialogHeader>
 
@@ -128,6 +131,7 @@ export function BackfillLeadsButton() {
               <div>Leads criados: <strong>{result.leadsCriados}</strong></div>
               <div>Leads atualizados: <strong>{result.leadsAtualizados}</strong></div>
               <div>Pulados (já completos): <strong>{result.pulados}</strong></div>
+              <div>Clientes 'Igreja' resetados: <strong>{result.clientesResetados}</strong></div>
               <div>Erros: <strong>{result.erros}</strong></div>
               <div className="text-xs text-muted-foreground">
                 Janela: {result.rangeDays} dias • {result.duracaoMs} ms
