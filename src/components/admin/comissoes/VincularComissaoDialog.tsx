@@ -116,7 +116,7 @@ export function VincularComissaoDialog({
           {/* Shopify Pedido ID */}
           <div className="space-y-2">
             <Label htmlFor="shopify-pedido-id">
-              Shopify Pedido ID <span className="text-red-500">*</span>
+              Pedido E-commerce ID <span className="text-red-500">*</span>
             </Label>
             <Input
               id="shopify-pedido-id"
