@@ -601,7 +601,7 @@ const gerenteFeatures = [
     features: [
       "Gestão de revistas e lições",
       "Quizzes e conteúdo bíblico",
-      "Integração Shopify"
+      "Integração E-commerce"
     ],
     benefits: ["Gestão do portfólio", "Sincronização automática"],
     screenName: "Catálogo Admin",
