@@ -51,8 +51,8 @@ export function BackfillLeadsButton() {
       setResult(data as BackfillResult);
       toast.success(
         dryRun
-          ? `Simulação: ${data.leadsCriados} criar, ${data.leadsAtualizados} atualizar`
-          : `Backfill: ${data.leadsCriados} criados, ${data.leadsAtualizados} atualizados`,
+          ? `Simulação: ${data.leadsCriados} criar, ${data.leadsAtualizados} atualizar, ${data.clientesResetados} resetar`
+          : `Backfill: ${data.leadsCriados} criados, ${data.leadsAtualizados} atualizados, ${data.clientesResetados} resetados`,
       );
     } catch (e: any) {
       toast.error(e?.message || "Falha ao executar backfill");
