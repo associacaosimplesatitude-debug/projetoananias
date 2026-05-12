@@ -27,6 +27,8 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import LeadDetailModal from "./whatsapp/LeadDetailModal";
 import TemplatePickerDialog from "./whatsapp/TemplatePickerDialog";
+import EncaminharVendedorDialog from "./whatsapp/EncaminharVendedorDialog";
+import { UserPlus, RotateCcw } from "lucide-react";
 
 // Normalize phone: strip non-digits, remove leading "55" country code if present
 function normalizePhone(phone: string): string {
