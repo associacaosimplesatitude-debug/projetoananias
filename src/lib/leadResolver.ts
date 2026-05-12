@@ -248,6 +248,40 @@ export async function resolveLeadsByPhones(phones: string[]): Promise<Map<string
       shopifyOrder?.customer_name ||
       null;
 
+    const emailResolvido =
+      lead?.email || cliente?.email_superintendente || shopifyOrder?.customer_email || null;
+    const documentoResolvido =
+      lead?.cnpj || cliente?.cnpj || cliente?.cpf || shopifyOrder?.customer_document || null;
+
+    // vendedorResolvido: lead.vendedores -> cliente.vendedor_id -> shopify.vendedor_id
+    let vendedorResolvido: { id: string; nome: string } | null = null;
+    if (leadVend?.id) {
+      vendedorResolvido = { id: leadVend.id, nome: leadVend.nome || "" };
+    } else if (cliente?.vendedor_id) {
+      vendedorResolvido = { id: cliente.vendedor_id, nome: vendedorById[cliente.vendedor_id] || "" };
+    } else if (shopifyOrder?.vendedor_id) {
+      vendedorResolvido = { id: shopifyOrder.vendedor_id, nome: vendedorById[shopifyOrder.vendedor_id] || "" };
+    }
+
+    const pedidoShopify = shopifyOrder
+      ? {
+          id: shopifyOrder.id,
+          orderNumber: shopifyOrder.order_number,
+          valorTotal: Number(shopifyOrder.valor_total) || 0,
+          statusPagamento: shopifyOrder.status_pagamento,
+          createdAt: shopifyOrder.created_at,
+          codigoRastreio: shopifyOrder.codigo_rastreio || shopifyOrder.codigo_rastreio_bling || null,
+          urlRastreio: shopifyOrder.url_rastreio || null,
+        }
+      : null;
+
+    const ultimoLogin = cliente?.ultimo_login || lead?.ultimo_login_ebd || null;
+
+    const fontes: Array<"lead" | "cliente" | "shopify"> = [];
+    if (lead) fontes.push("lead");
+    if (cliente) fontes.push("cliente");
+    if (shopifyOrder) fontes.push("shopify");
+
     result.set(phone, {
       phone,
       lead,
@@ -261,6 +295,15 @@ export async function resolveLeadsByPhones(phones: string[]): Promise<Map<string
       conversaId: aic?.id || null,
       clienteId: aic?.cliente_id || cliente?.id || null,
       nomeResolvido,
+      emailResolvido,
+      documentoResolvido,
+      vendedorResolvido,
+      pedidoShopify,
+      ultimoLogin,
+      tipoLead: lead?.tipo_lead || null,
+      statusLead: lead?.status_lead || null,
+      contaCriada: lead ? !!lead.conta_criada : null,
+      fontes,
     });
   }
 
