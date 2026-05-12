@@ -763,11 +763,14 @@ function EmptyChat() {
 
 // ============ MAIN COMPONENT ============
 export interface WhatsAppChatProps {
-  scope?: "admin" | "vendedor";
+  scope?: "superadmin" | "gerente" | "vendedor" | "admin";
   vendedorId?: string | null;
 }
 
-export default function WhatsAppChat({ scope = "admin", vendedorId = null }: WhatsAppChatProps = {}) {
+export default function WhatsAppChat({ scope: scopeProp = "superadmin", vendedorId = null }: WhatsAppChatProps = {}) {
+  // Compat: legacy "admin" → "superadmin"
+  const scope: "superadmin" | "gerente" | "vendedor" =
+    scopeProp === "admin" ? "superadmin" : scopeProp;
   const isMobile = useIsMobile();
   const [selectedPhone, setSelectedPhone] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
