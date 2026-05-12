@@ -198,28 +198,38 @@ function ContactList({
                 </div>
                 {(() => {
                   const t = contact.tag;
-                  if (t.type === "atendendo")
-                    return (
-                      <Badge className="text-[10px] px-1.5 py-0 h-4 mt-0.5 bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-100">
-                        Em atendimento: {t.vendedorNome}
-                      </Badge>
-                    );
-                  if (t.type === "vendedor_historico")
-                    return (
-                      <Badge className="text-[10px] px-1.5 py-0 h-4 mt-0.5 bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-100">
-                        Vendedor: {t.vendedorNome}
-                      </Badge>
-                    );
-                  if (t.type === "sem_vendedor")
-                    return (
-                      <Badge className="text-[10px] px-1.5 py-0 h-4 mt-0.5 bg-amber-100 text-amber-700 border-amber-200 hover:bg-amber-100">
-                        Sem vendedor
-                      </Badge>
-                    );
+                  const vendedorNome =
+                    contact.vendedorAtribuidoNome ||
+                    contact.vendedorHistoricoNome ||
+                    null;
                   return (
-                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 mt-0.5">
-                      Novo contato
-                    </Badge>
+                    <div className="flex flex-wrap items-center gap-1 mt-0.5">
+                      {t.type === "atendendo" && (
+                        <Badge className="text-[10px] px-1.5 py-0 h-4 bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-100">
+                          Em atendimento: {t.vendedorNome}
+                        </Badge>
+                      )}
+                      {t.type !== "atendendo" && vendedorNome && (
+                        <Badge className="text-[10px] px-1.5 py-0 h-4 bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-100">
+                          Vendedor: {vendedorNome}
+                        </Badge>
+                      )}
+                      {t.type !== "atendendo" && !vendedorNome && t.type === "sem_vendedor" && (
+                        <Badge className="text-[10px] px-1.5 py-0 h-4 bg-amber-100 text-amber-700 border-amber-200 hover:bg-amber-100">
+                          Sem vendedor
+                        </Badge>
+                      )}
+                      {t.type !== "atendendo" && !vendedorNome && t.type === "novo_contato" && (
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4">
+                          Novo contato
+                        </Badge>
+                      )}
+                      {contact.tipoCliente && (
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 bg-purple-50 text-purple-700 border-purple-200">
+                          {contact.tipoCliente}
+                        </Badge>
+                      )}
+                    </div>
                   );
                 })()}
                 <p className="text-xs text-muted-foreground truncate mt-0.5">
