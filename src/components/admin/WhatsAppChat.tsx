@@ -873,20 +873,23 @@ export default function WhatsAppChat({ scope = "admin", vendedorId = null }: Wha
       const contactList: Contact[] = phones.map((phone) => {
         const variants = phoneVariants(phone);
         const atrib = atribuicaoMap[phone];
-        const fallbackLead = variants.reduce<{ id: string; nome: string } | null>(
+        const fallbackLead = variants.reduce<{ id: string } | null>(
           (acc, v) => acc || leadVendedorByVariant[v] || null,
           null,
         );
         const fallbackCliente = variants.reduce<
-          { clienteId: string; vendedorId: string | null; vendedorNome: string | null } | null
+          { clienteId: string; vendedorId: string | null } | null
         >((acc, v) => acc || clienteByVariant[v] || null, null);
 
         const vendedorAtribuidoId = atrib?.vendedorAtribuidoId || null;
-        const vendedorAtribuidoNome = atrib?.vendedorAtribuidoNome || null;
+        const vendedorAtribuidoNome = vendedorAtribuidoId
+          ? vendedorById[vendedorAtribuidoId] || null
+          : null;
         const vendedorHistoricoId =
           atrib?.vendedorHistoricoId || fallbackCliente?.vendedorId || fallbackLead?.id || null;
-        const vendedorHistoricoNome =
-          atrib?.vendedorHistoricoNome || fallbackCliente?.vendedorNome || fallbackLead?.nome || null;
+        const vendedorHistoricoNome = vendedorHistoricoId
+          ? vendedorById[vendedorHistoricoId] || null
+          : null;
         const clienteId = atrib?.clienteId || fallbackCliente?.clienteId || null;
 
         let tag: ContactTag;
