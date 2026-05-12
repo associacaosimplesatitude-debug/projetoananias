@@ -258,7 +258,7 @@ export const Navigation = () => {
     { to: '/admin/curriculo-ebd', label: 'Catálogo' },
     { to: '/admin/orders', label: 'Pedidos' },
     { to: '/admin/bling', label: 'Bling' },
-    { to: '/admin/shopify-pedidos', label: 'Shopify' },
+    { to: '/admin/shopify-pedidos', label: 'E-commerce' },
   ];
 
   const navItems = 
