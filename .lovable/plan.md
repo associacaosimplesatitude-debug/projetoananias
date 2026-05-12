@@ -1,31 +1,25 @@
-## Objetivo
-Garantir que toda conversa mostre a tag do vendedor na lista sempre que o modal de detalhes já conseguir identificar esse vendedor pelo telefone — inclusive casos de Gloria, Neila, Antonio e demais vendedores.
+## Problema
 
-## O que vou alterar
-1. Alinhar a busca de vendedor da lista de conversas com a lógica do modal de detalhes.
-2. Incluir na lista o mesmo fallback usado no modal para pedidos Shopify com `vendedor_id` vinculado ao telefone.
-3. Fortalecer o cruzamento por telefone para cobrir as mesmas variações aceitas no modal.
-4. Manter a prioridade visual atual da tag:
-   - Em atendimento: vendedor atribuído na conversa
-   - Vendedor: qualquer vendedor resolvido por lead, cliente ou pedido
-   - Sem vendedor: só quando houver vínculo de cliente sem nome de vendedor
-   - Novo contato: apenas quando não existir nenhum vínculo
+Você se logou como `elielson@editoracentralgospel.com` (perfil **gerente_ebd**) e clicou no botão verde **"Atendimento"** da sidebar do Admin EBD, mas não apareceu a aba/tela de **Conversas**.
 
-## Resultado esperado
-Na lista de conversas, abaixo do nome do cliente, deve aparecer a tag com o nome do vendedor nos mesmos casos em que o modal mostra esse vendedor. Exemplo:
-- `JULIO CESAR LOPES`
-- `Vendedor: Daniel`
+## Causa
 
-E o mesmo deve valer para clientes ligados a Gloria, Neila, Antonio e outros.
+O botão "Atendimento" do menu (`AdminEBDLayout.tsx`) leva para a rota `/admin/ebd/atendimento-whatsapp`, e essa página (`src/pages/admin/AtendimentoWhatsApp.tsx`) hoje **só carrega um iframe externo** (`crm.houseassessoria.com.br`) — ela não renderiza o componente de Conversas (`WhatsAppChat`) que foi construído no projeto.
 
-## Escopo e segurança
-- Sem alterar comissões
-- Sem alterar cadastro de clientes
-- Sem mudar dados no banco
-- Apenas ajuste de leitura e exibição no frontend
+A página de Conversas existe e já está liberada para gerente_ebd, mas só dentro de `/admin/whatsapp` (rota protegida apenas para superadmin via `requireAdmin`). Por isso o gerente nunca enxerga a aba Conversas pelo botão "Atendimento".
 
-## Detalhes técnicos
-- Atualizar `src/components/admin/WhatsAppChat.tsx` para usar a mesma cobertura de telefone do modal.
-- Acrescentar resolução de vendedor via `ebd_shopify_pedidos.vendedor_id` quando houver pedido encontrado pelo telefone.
-- Consolidar todos os `vendedor_id` encontrados em uma única consulta de nomes na tabela `vendedores`.
-- Ajustar a montagem final da tag para que a lista nunca caia em `Novo contato` quando o modal já consegue resolver um vendedor.
+## Solução proposta
+
+Substituir o conteúdo da página `/admin/ebd/atendimento-whatsapp` para renderizar o componente `WhatsAppChat` diretamente (mesmo componente usado na aba "Conversas" do `WhatsAppPanel`), em vez do iframe externo.
+
+Assim:
+- O botão verde **Atendimento** continua aparecendo no topo da sidebar do Admin EBD (já é exibido para todos os perfis dessa área).
+- Ao clicar, o gerente_ebd cai direto na tela de Conversas do WhatsApp do projeto, com a mesma UX que o superadmin tem na aba Conversas.
+
+### Arquivos alterados
+- `src/pages/admin/AtendimentoWhatsApp.tsx` — trocar iframe por `<WhatsAppChat scope="admin" />` com cabeçalho "Atendimento WhatsApp".
+
+### Fora do escopo
+- Não mexer em rotas, em `ProtectedRoute`, em roles, nem na lógica do `WhatsAppPanel`.
+- Não tocar no botão "Atendimento" da sidebar (já está correto).
+- Sem alteração de banco, RLS ou Edge Functions.
