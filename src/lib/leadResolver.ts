@@ -88,43 +88,69 @@ export async function resolveLeadsByPhones(phones: string[]): Promise<Map<string
   if (normPhones.length === 0) return result;
   normPhones.forEach((p) => result.set(p, emptyResolved(p)));
 
-  // Build all variants -> normalized phone reverse index
+  // Reverse index variant -> normalized phone (built incrementally per chunk)
   const variantToPhone = new Map<string, string>();
-  const allVariants = new Set<string>();
-  for (const p of normPhones) {
-    for (const v of generatePhoneVariants(p)) {
-      allVariants.add(v);
-      if (!variantToPhone.has(v)) variantToPhone.set(v, p);
-    }
-  }
-  const variantsArr = Array.from(allVariants);
 
-  // Fire batch queries in parallel
-  const [leadsRes, clientesRes, pedidosRes, aicRes] = await Promise.all([
-    supabase
-      .from("ebd_leads_reativacao")
-      .select("*, vendedores(id, nome)")
-      .in("telefone", variantsArr),
-    supabase
-      .from("ebd_clientes")
-      .select(
-        "id, nome_igreja, email_superintendente, telefone, tipo_cliente, cnpj, cpf, senha_temporaria, ultimo_login, onboarding_concluido, data_proxima_compra, vendedor_id, updated_at"
-      )
-      .in("telefone", variantsArr)
-      .order("updated_at", { ascending: false }),
-    supabase
-      .from("ebd_shopify_pedidos")
-      .select(
-        "id, order_number, customer_name, customer_email, customer_phone, customer_document, valor_total, valor_frete, status_pagamento, created_at, codigo_rastreio, codigo_rastreio_bling, url_rastreio, vendedor_id"
-      )
-      .in("customer_phone", variantsArr)
-      .order("created_at", { ascending: false }),
-    (supabase as any)
-      .from("agente_ia_conversas")
-      .select("id, telefone, cliente_id, vendedor_atribuido_id, ultima_mensagem_em")
-      .in("telefone", variantsArr)
-      .order("ultima_mensagem_em", { ascending: false }),
-  ]);
+  // Chunking: PostgREST recusa URLs muito longas com 400.
+  // Limita 10 telefones (≤ 60 variantes) por chamada.
+  const CHUNK_SIZE = 10;
+  const phoneChunks: string[][] = [];
+  for (let i = 0; i < normPhones.length; i += CHUNK_SIZE) {
+    phoneChunks.push(normPhones.slice(i, i + CHUNK_SIZE));
+  }
+
+  const allLeads: any[] = [];
+  const allClientes: any[] = [];
+  const allPedidos: any[] = [];
+  const allAic: any[] = [];
+
+  for (const chunk of phoneChunks) {
+    const chunkVariants = new Set<string>();
+    for (const p of chunk) {
+      for (const v of generatePhoneVariants(p)) {
+        chunkVariants.add(v);
+        if (!variantToPhone.has(v)) variantToPhone.set(v, p);
+      }
+    }
+    const chunkVarArr = Array.from(chunkVariants);
+
+    const [leadsRes, clientesRes, pedidosRes, aicRes] = await Promise.all([
+      supabase
+        .from("ebd_leads_reativacao")
+        .select("*, vendedores(id, nome)")
+        .in("telefone", chunkVarArr),
+      supabase
+        .from("ebd_clientes")
+        .select(
+          "id, nome_igreja, email_superintendente, telefone, tipo_cliente, cnpj, cpf, senha_temporaria, ultimo_login, onboarding_concluido, data_proxima_compra, vendedor_id, updated_at"
+        )
+        .in("telefone", chunkVarArr)
+        .order("updated_at", { ascending: false }),
+      supabase
+        .from("ebd_shopify_pedidos")
+        .select(
+          "id, order_number, customer_name, customer_email, customer_phone, customer_document, valor_total, valor_frete, status_pagamento, created_at, codigo_rastreio, codigo_rastreio_bling, url_rastreio, vendedor_id"
+        )
+        .in("customer_phone", chunkVarArr)
+        .order("created_at", { ascending: false }),
+      (supabase as any)
+        .from("agente_ia_conversas")
+        .select("id, telefone, cliente_id, vendedor_atribuido_id, ultima_mensagem_em")
+        .in("telefone", chunkVarArr)
+        .order("ultima_mensagem_em", { ascending: false }),
+    ]);
+
+    if (leadsRes.data) allLeads.push(...leadsRes.data);
+    if (clientesRes.data) allClientes.push(...clientesRes.data);
+    if (pedidosRes.data) allPedidos.push(...pedidosRes.data);
+    if (aicRes.data) allAic.push(...aicRes.data);
+  }
+
+  // Compat shims for downstream code expecting *.data shape
+  const leadsRes = { data: allLeads };
+  const clientesRes = { data: allClientes };
+  const pedidosRes = { data: allPedidos };
+  const aicRes = { data: allAic };
 
   // Group rows by normalized phone (first match wins for single-row picks)
   const groupBy = <T,>(rows: T[] | null | undefined, getter: (r: T) => string | null) => {
