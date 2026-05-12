@@ -1009,8 +1009,12 @@ export default function WhatsAppChat({ scope: scopeProp = "superadmin", vendedor
           (acc, v) => acc || leadVendedorByVariant[v] || null,
           null,
         );
+        const fallbackLeadTipo = variants.reduce<string | null>(
+          (acc, v) => acc || leadTipoByVariant[v] || null,
+          null,
+        );
         const fallbackCliente = variants.reduce<
-          { clienteId: string; vendedorId: string | null } | null
+          { clienteId: string; vendedorId: string | null; tipoCliente: string | null } | null
         >((acc, v) => acc || clienteByVariant[v] || null, null);
         const fallbackPedido = variants.reduce<{ id: string } | null>(
           (acc, v) => acc || pedidoVendedorByVariant[v] || null,
@@ -1031,6 +1035,8 @@ export default function WhatsAppChat({ scope: scopeProp = "superadmin", vendedor
           ? vendedorById[vendedorHistoricoId] || null
           : null;
         const clienteId = atrib?.clienteId || fallbackCliente?.clienteId || null;
+        // Mesma ordem de fallback do LeadDetailModal: tipo_lead || tipo_cliente
+        const tipoCliente = fallbackLeadTipo || fallbackCliente?.tipoCliente || null;
 
         let tag: ContactTag;
         if (vendedorAtribuidoId) {
@@ -1056,13 +1062,17 @@ export default function WhatsAppChat({ scope: scopeProp = "superadmin", vendedor
           vendedorAtribuidoNome,
           vendedorHistoricoId,
           vendedorHistoricoNome,
+          tipoCliente,
           tag,
         };
       });
 
       let scoped = contactList;
-      if (scope === "vendedor" && vendedorId) {
-        scoped = contactList.filter((c) => c.vendedorAtribuidoId === vendedorId);
+      if (scope === "vendedor") {
+        // 2ª trava: descarta qualquer contato sem atribuição explícita ao vendedor logado.
+        scoped = contactList.filter(
+          (c) => !!c.vendedorAtribuidoId && c.vendedorAtribuidoId === vendedorId,
+        );
       }
 
       scoped.sort(
