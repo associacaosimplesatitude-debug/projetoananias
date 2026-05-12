@@ -939,14 +939,14 @@ export default function WhatsAppChat({ scope: scopeProp = "superadmin", vendedor
       const { data: clientesByPhone } = allVariants.length
         ? await supabase
             .from("ebd_clientes")
-            .select("id, telefone, vendedor_id, updated_at")
+            .select("id, telefone, vendedor_id, tipo_cliente, updated_at")
             .not("telefone", "is", null)
             .in("telefone", allVariants)
             .order("updated_at", { ascending: false })
         : { data: [] as any[] };
       const clienteByVariant: Record<
         string,
-        { clienteId: string; vendedorId: string | null }
+        { clienteId: string; vendedorId: string | null; tipoCliente: string | null }
       > = {};
       (clientesByPhone || []).forEach((c: any) => {
         if (!c.telefone) return;
@@ -955,6 +955,7 @@ export default function WhatsAppChat({ scope: scopeProp = "superadmin", vendedor
           clienteByVariant[v] = {
             clienteId: c.id,
             vendedorId: c.vendedor_id || null,
+            tipoCliente: c.tipo_cliente || null,
           };
         });
       });
