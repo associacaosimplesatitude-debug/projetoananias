@@ -391,7 +391,7 @@ export default function ShopifyIntegration() {
           <div className="space-y-2">
             <h4 className="font-medium">Token incorreto (erro 401/403):</h4>
             <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1">
-              <li>Acesse o admin da Shopify → Apps → Seu App → API credentials</li>
+              <li>Acesse o admin do E-commerce → Apps → Seu App → API credentials</li>
               <li>Copie o <strong>Storefront access token</strong> (não o Admin API token)</li>
               <li>Atualize o token no arquivo <code>src/lib/shopify.ts</code></li>
             </ul>
