@@ -9156,10 +9156,19 @@ export type Database = {
         Args: { p_dias?: number; p_email?: string; p_telefone: string }
         Returns: Json
       }
-      encaminhar_conversa_para_vendedor: {
-        Args: { _conversa_id: string; _vendedor_id: string }
-        Returns: Json
-      }
+      encaminhar_conversa_para_vendedor:
+        | {
+            Args: { _conversa_id: string; _vendedor_id: string }
+            Returns: Json
+          }
+        | {
+            Args: {
+              _conversa_id?: string
+              _telefone?: string
+              _vendedor_id: string
+            }
+            Returns: Json
+          }
       execute_readonly_query: { Args: { sql_query: string }; Returns: Json }
       get_auth_email: { Args: never; Returns: string }
       get_autor_id_by_user: { Args: { _user_id: string }; Returns: string }
