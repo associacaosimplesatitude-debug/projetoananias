@@ -1,113 +1,59 @@
+# Corrigir tag "Novo contato" no /admin/whatsapp
 
-# Plano — Roteamento de conversas WhatsApp (gerente → vendedor) + visibilidade por papel
+## Problema
 
-## Decisões confirmadas
+A montagem da tag em `src/components/admin/WhatsAppChat.tsx` (linhas ~777-853) só considera vínculo cliente↔vendedor quando `agente_ia_conversas.cliente_id` está preenchido. Como muitas conversas vindas do webhook WhatsApp nunca têm esse `cliente_id` gravado, telefones de clientes antigos (inclusive de campanhas de retenção) caem no `else` final e aparecem como **"Novo contato"**, sem vendedor.
 
-- **Encaminhar = pausa total** do agente IA na conversa (só vendedor responde)
-- **Vendedor vê histórico completo** da conversa
-- **Sem auto-encaminhamento** — gerente sempre escolhe o vendedor manualmente
-- **Vendedor acessa via nova rota `/vendedor/whatsapp`**
-- **Visibilidade por papel** no `/admin/whatsapp`:
-  - **Superadmin (você):** vê TODAS as abas (Conversas, Funil Primeira Compra, Enviar Mensagem, Templates, Campanhas, Públicos, Webhooks, Credenciais API)
-  - **Gerente:** vê SOMENTE a aba "Conversas" (todas as conversas)
-  - **Vendedor:** vê SOMENTE a aba "Conversas" (filtrada para conversas atribuídas a ele) — via `/vendedor/whatsapp`
+Exemplo verificado: `11981147165` → cliente "IGREJA EVANGELICA FILHOS DO REI" em `ebd_clientes`, vendedor `Daniel` (`5e04d9c1-…`). A tag deveria mostrar **"Vendedor: Daniel"**.
 
-## 1. Banco de dados
+## Solução
 
-Migration adicionando em `agente_ia_conversas`:
+Adicionar uma 3ª fonte de fallback (além de `agente_ia_conversas` e `ebd_leads_reativacao`): consulta direta a `ebd_clientes` por todas as variantes de telefone.
 
-| Coluna | Tipo | Uso |
-|---|---|---|
-| `vendedor_atribuido_id` | uuid → vendedores | Vendedor que está atendendo |
-| `atribuida_em` | timestamptz | Quando o gerente encaminhou |
-| `atribuida_por` | uuid → auth.users | Qual gerente encaminhou |
+### Mudanças (somente frontend, em `src/components/admin/WhatsAppChat.tsx`)
 
-Índice parcial em `vendedor_atribuido_id` quando não nulo.
+1. Após o bloco que monta `leadVendedorByVariant` (linha ~822), adicionar uma nova consulta:
+   ```ts
+   const { data: clientesByPhone } = await supabase
+     .from("ebd_clientes")
+     .select("id, nome_igreja, telefone, vendedor_id, vendedores(id, nome), updated_at")
+     .not("telefone", "is", null)
+     .not("vendedor_id", "is", null)
+     .in("telefone", allVariants)
+     .order("updated_at", { ascending: false });
+   ```
 
-**RLS** em `agente_ia_conversas` e `agente_ia_mensagens`:
-- Vendedor faz SELECT apenas onde `vendedor_atribuido_id = get_vendedor_id_by_email(get_auth_email())`
-- Vendedor faz INSERT em `agente_ia_mensagens` apenas em conversas atribuídas a ele
-- Admin/superadmin/gerente mantêm acesso total (políticas atuais)
+2. Construir um índice por variante normalizada (mais recente vence; se múltiplos clientes no mesmo telefone, mantém o primeiro = mais recente):
+   ```ts
+   const clienteByVariant: Record<string, { clienteId: string; vendedorId: string; vendedorNome: string }> = {};
+   ```
 
-**RPC `encaminhar_conversa_para_vendedor(conversa_id, vendedor_id)`** (SECURITY DEFINER):
-- Checa `has_role(auth.uid(),'admin')` ou role gerente
-- Seta `vendedor_atribuido_id`, `atribuida_em`, `atribuida_por`
-- Marca `agente_pausado=true`, `status='pausada_humano'`, `motivo_pausa='encaminhada_vendedor'`
-- Cria/atualiza registro em `agente_ia_escalations` (motivo `cliente_solicitou_humano`, `vendedor_alvo_id`, status `em_atendimento`)
+3. No loop `phones.map(...)` (linha ~831), procurar nesse índice quando `atrib?.clienteId` estiver vazio:
+   ```ts
+   const fallbackCliente = variants.reduce<…>((acc, v) => acc || clienteByVariant[v] || null, null);
+   ```
 
-**RPC `devolver_conversa_para_agente(conversa_id)`** (admin/gerente only):
-- Limpa `vendedor_atribuido_id`, reativa agente
+4. Atualizar a regra da tag (linhas 844-853):
+   - `vendedorAtribuidoId` → `atendendo` (sem mudança)
+   - `atrib?.clienteId && vendedorHistoricoNome` → `vendedor_historico` (sem mudança)
+   - **Novo:** `fallbackCliente` (telefone bate em `ebd_clientes` com vendedor) → `vendedor_historico` com `vendedorNome = fallbackCliente.vendedorNome`
+   - `atrib?.clienteId` → `sem_vendedor`
+   - **Novo:** telefone existe em `ebd_clientes` sem vendedor → `sem_vendedor`
+   - resto → `novo_contato`
 
-## 2. Visibilidade por papel no `/admin/whatsapp`
+5. Preencher também `clienteId`, `vendedorHistoricoId`, `vendedorHistoricoNome` no `Contact` quando vier do fallback de `ebd_clientes`, para que o botão "Encaminhar para vendedor" e o `LeadDetailModal` continuem funcionando corretamente.
 
-Criar hook `useWhatsAppRole()` que determina:
-- `isSuperAdmin` (papel admin/superadmin)
-- `isGerente` (papel gerente)
-- `isVendedor` (existe em `vendedores`)
+### Performance
 
-Em `WhatsAppPanel.tsx`:
-- Renderizar a lista de tabs dinamicamente conforme o papel
-- Superadmin: todas as 8 abas (mantém estado atual)
-- Gerente: apenas a aba "Conversas"
-- Vendedor que entrar acidentalmente em `/admin/whatsapp` é redirecionado para `/vendedor/whatsapp`
+`allVariants` já é usado na consulta a `agente_ia_conversas`. A nova consulta usa o mesmo array com `.in()`, então é uma única query extra por carga da lista. Sem N+1.
 
-`ProtectedRoute` da rota `/admin/whatsapp` aceita admin **e** gerente.
+### Sem mudanças em
 
-## 3. Tag de vendedor responsável
+- Banco de dados / migrations
+- Edge functions
+- Lógica de envio, encaminhamento, RPCs
+- Página `/vendedor/whatsapp` (continua filtrando por `vendedorAtribuidoId`)
 
-Na lista de conversas (gerente e vendedor), tag por linha:
+## Resultado esperado
 
-| Estado | Tag | Cor |
-|---|---|---|
-| `vendedor_atribuido_id` preenchido | `Em atendimento: {nome}` | azul |
-| Cliente cadastrado com `ebd_clientes.vendedor_id` mas conversa não atribuída | `Vendedor histórico: {nome}` | verde |
-| Cliente cadastrado sem vendedor | `Sem vendedor` | amarelo |
-| Telefone sem `cliente_id` | `Novo contato` | cinza |
-
-Lookup: join `agente_ia_conversas → ebd_clientes (cliente_id) → vendedores`.
-
-## 4. Painel do GERENTE (`WhatsAppChat.tsx`)
-
-- Filtros novos na lista: Todas / Aguardando humano / Atribuídas / Não atribuídas
-- No header da conversa aberta, botão **"Encaminhar para vendedor"**:
-  - Modal com busca por nome de vendedores ativos
-  - Mostra "vendedor histórico" como atalho clicável (se houver), mas sem auto-selecionar
-  - Confirmação chama RPC `encaminhar_conversa_para_vendedor`
-  - Toast + invalidar queries
-- Botão "Devolver para o agente" aparece quando a conversa já está atribuída
-
-## 5. Painel do VENDEDOR (nova rota `/vendedor/whatsapp`)
-
-- Item novo no menu de `VendedorLayout` (ícone MessageCircle)
-- Página `src/pages/vendedor/VendedorWhatsApp.tsx`:
-  - Reaproveita `WhatsAppChat` em modo "vendedor" (prop `scope="vendedor"`)
-  - Lista filtrada por `vendedor_atribuido_id = vendedor logado` (RLS já garante)
-  - Histórico completo carregado normalmente (mensagens do agente + cliente + vendedor)
-  - Vendedor envia mensagens com o mesmo fluxo Meta API que o gerente
-  - **Sem botão** de encaminhar/devolver (apenas gerente/admin)
-- Badge de novas atribuições no menu (poll 30s ou Realtime se já habilitado)
-- `VendedorProtectedRoute` (já existe) protege a rota
-
-## 6. Não muda
-
-- Edge functions do agente IA (`agente-loja-cg`) — já respeitam `agente_pausado`
-- `tools.ts`, `skill.ts`, `index.ts` do agente
-- Endpoint Meta API de envio (`whatsapp-meta-send`) — vendedor reutiliza
-
-## Detalhes técnicos
-
-- Migration usa `IF NOT EXISTS` e idempotente
-- RPCs com `SECURITY DEFINER` + `SET search_path = public`
-- RLS de vendedor usa helper já existente `get_vendedor_id_by_email(get_auth_email())` (sem recursão)
-- `types.ts` regenerado pós-migration
-- Componente `WhatsAppChat` recebe prop opcional `scope: 'admin' | 'vendedor'` para esconder ações restritas
-
-## Ordem de execução
-
-1. Migration (colunas + RLS + RPCs)
-2. Hook `useWhatsAppRole`
-3. `WhatsAppPanel.tsx`: filtragem de tabs por papel
-4. `WhatsAppChat.tsx`: tags + botão "Encaminhar" + filtros + prop `scope`
-5. Modal `EncaminharVendedorDialog.tsx`
-6. `VendedorWhatsApp.tsx` + rota em `App.tsx` + item no `VendedorLayout`
-7. QA: superadmin (vê tudo) → gerente (só Conversas) → encaminha → vendedor recebe em `/vendedor/whatsapp`
+O telefone `11981147165` (e os outros marcados como "Novo contato" que já têm cadastro em `ebd_clientes`) passa a exibir o badge verde **"Vendedor: {nome}"** automaticamente, sem que o gerente precise encaminhar.

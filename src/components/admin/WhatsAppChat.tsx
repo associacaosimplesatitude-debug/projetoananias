@@ -828,6 +828,32 @@ export default function WhatsAppChat({ scope = "admin", vendedorId = null }: Wha
         }
       });
 
+      // Fallback: cruzar com ebd_clientes diretamente pelo telefone (cliente já cadastrado
+      // mesmo que agente_ia_conversas.cliente_id ainda não esteja preenchido).
+      const { data: clientesByPhone } = allVariants.length
+        ? await supabase
+            .from("ebd_clientes")
+            .select("id, telefone, vendedor_id, vendedores(id, nome), updated_at")
+            .not("telefone", "is", null)
+            .in("telefone", allVariants)
+            .order("updated_at", { ascending: false })
+        : { data: [] as any[] };
+      const clienteByVariant: Record<
+        string,
+        { clienteId: string; vendedorId: string | null; vendedorNome: string | null }
+      > = {};
+      (clientesByPhone || []).forEach((c: any) => {
+        if (!c.telefone) return;
+        phoneVariants(c.telefone).forEach((v) => {
+          if (clienteByVariant[v]) return; // primeiro = mais recente
+          clienteByVariant[v] = {
+            clienteId: c.id,
+            vendedorId: c.vendedor_id || null,
+            vendedorNome: c.vendedores?.nome || null,
+          };
+        });
+      });
+
       const contactList: Contact[] = phones.map((phone) => {
         const variants = phoneVariants(phone);
         const atrib = atribuicaoMap[phone];
@@ -835,18 +861,24 @@ export default function WhatsAppChat({ scope = "admin", vendedorId = null }: Wha
           (acc, v) => acc || leadVendedorByVariant[v] || null,
           null,
         );
+        const fallbackCliente = variants.reduce<
+          { clienteId: string; vendedorId: string | null; vendedorNome: string | null } | null
+        >((acc, v) => acc || clienteByVariant[v] || null, null);
 
         const vendedorAtribuidoId = atrib?.vendedorAtribuidoId || null;
         const vendedorAtribuidoNome = atrib?.vendedorAtribuidoNome || null;
-        const vendedorHistoricoId = atrib?.vendedorHistoricoId || fallbackLead?.id || null;
-        const vendedorHistoricoNome = atrib?.vendedorHistoricoNome || fallbackLead?.nome || null;
+        const vendedorHistoricoId =
+          atrib?.vendedorHistoricoId || fallbackCliente?.vendedorId || fallbackLead?.id || null;
+        const vendedorHistoricoNome =
+          atrib?.vendedorHistoricoNome || fallbackCliente?.vendedorNome || fallbackLead?.nome || null;
+        const clienteId = atrib?.clienteId || fallbackCliente?.clienteId || null;
 
         let tag: ContactTag;
         if (vendedorAtribuidoId) {
           tag = { type: "atendendo", vendedorNome: vendedorAtribuidoNome };
-        } else if (atrib?.clienteId && vendedorHistoricoNome) {
+        } else if (clienteId && vendedorHistoricoNome) {
           tag = { type: "vendedor_historico", vendedorNome: vendedorHistoricoNome };
-        } else if (atrib?.clienteId) {
+        } else if (clienteId) {
           tag = { type: "sem_vendedor" };
         } else {
           tag = { type: "novo_contato" };
@@ -860,7 +892,7 @@ export default function WhatsAppChat({ scope = "admin", vendedorId = null }: Wha
           ultimaData: phoneMap[phone].ultimaData,
           vendedorNome: vendedorAtribuidoNome || vendedorHistoricoNome,
           conversaId: atrib?.conversaId || null,
-          clienteId: atrib?.clienteId || null,
+          clienteId,
           vendedorAtribuidoId,
           vendedorAtribuidoNome,
           vendedorHistoricoId,
