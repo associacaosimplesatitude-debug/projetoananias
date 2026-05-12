@@ -500,6 +500,92 @@ async function provisionSuperintendente(
       console.error(`${LOG_PREFIX} WhatsApp comprador exception:`, waErr);
     }
 
+    // ─── Upsert ebd_leads_reativacao ───
+    try {
+      const phoneDigits = (telefone || "").replace(/\D/g, "");
+      const phoneVariants: string[] = [];
+      if (phoneDigits) {
+        phoneVariants.push(phoneDigits, "+" + phoneDigits);
+        // BR
+        if (phoneDigits.startsWith("55") && phoneDigits.length >= 12) {
+          const local = phoneDigits.slice(2);
+          phoneVariants.push(local, "+" + local);
+          if (local.length === 11 && local[2] === "9") {
+            const w = local.slice(0, 2) + local.slice(3);
+            phoneVariants.push(w, "+" + w, "55" + w, "+55" + w);
+          }
+        }
+        // US/CA
+        if (phoneDigits.startsWith("1") && phoneDigits.length === 11) {
+          const local = phoneDigits.slice(1);
+          phoneVariants.push(local, "+" + local);
+        }
+        // PT
+        if (phoneDigits.startsWith("351") && phoneDigits.length === 12) {
+          const local = phoneDigits.slice(3);
+          phoneVariants.push(local, "+" + local);
+        }
+      }
+
+      let existingLead: { id: string } | null = null;
+      if (phoneVariants.length > 0) {
+        const { data: byPhone } = await supabase
+          .from("ebd_leads_reativacao")
+          .select("id")
+          .in("telefone", phoneVariants)
+          .limit(1)
+          .maybeSingle();
+        if (byPhone) existingLead = byPhone as { id: string };
+      }
+      if (!existingLead && email) {
+        const { data: byEmail } = await supabase
+          .from("ebd_leads_reativacao")
+          .select("id")
+          .eq("email", email)
+          .limit(1)
+          .maybeSingle();
+        if (byEmail) existingLead = byEmail as { id: string };
+      }
+
+      const docDigits = (cpfDoc || "").replace(/\D/g, "");
+      const isCnpj = docDigits.length === 14;
+      const cnpjValue = isCnpj ? cpfDoc : null;
+
+      if (!existingLead) {
+        await supabase.from("ebd_leads_reativacao").insert({
+          nome_igreja: nome,
+          email: email || null,
+          telefone: telefone || null,
+          cnpj: cnpjValue,
+          tipo_lead: null,
+          origem_lead: "E-commerce",
+          created_via: "receive-order-from-store-cg",
+          status_lead: "Não Contatado",
+          status_kanban: "Cadastrou",
+        });
+      } else {
+        const { data: current } = await supabase
+          .from("ebd_leads_reativacao")
+          .select("email, telefone, cnpj")
+          .eq("id", existingLead.id)
+          .maybeSingle();
+
+        const updates: Record<string, any> = {};
+        if (current && !current.email && email) updates.email = email;
+        if (current && !current.telefone && telefone) updates.telefone = telefone;
+        if (current && !current.cnpj && cnpjValue) updates.cnpj = cnpjValue;
+
+        if (Object.keys(updates).length > 0) {
+          await supabase
+            .from("ebd_leads_reativacao")
+            .update(updates)
+            .eq("id", existingLead.id);
+        }
+      }
+    } catch (leadErr) {
+      console.error(`${LOG_PREFIX} Erro ao upsertar lead:`, leadErr);
+    }
+
     await supabase
       .from("ebd_loja_pedidos_cg")
       .update({
