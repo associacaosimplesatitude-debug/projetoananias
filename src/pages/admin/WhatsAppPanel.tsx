@@ -15,6 +15,8 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Switch } from "@/components/ui/switch";
 import { Send, Eye, EyeOff, Save, CheckCircle2, XCircle, Clock, MessageSquare, Settings, ChevronDown, ChevronRight, Webhook, Activity, Smartphone, Loader2, Filter, Users, Phone, MessagesSquare, FileText, Target } from "lucide-react";
 import WhatsAppChat from "@/components/admin/WhatsAppChat";
+import { useWhatsAppRole } from "@/hooks/useWhatsAppRole";
+import { Navigate } from "react-router-dom";
 import WhatsAppTemplatesList from "@/components/admin/WhatsAppTemplatesList";
 import WhatsAppCampaigns from "@/components/admin/WhatsAppCampaigns";
 import WhatsAppPublicos from "@/components/admin/WhatsAppPublicos";
@@ -976,11 +978,29 @@ function FunilTab() {
 }
 
 export default function WhatsAppPanel() {
+  const { isSuperAdmin, isGerente, isVendedor, loading } = useWhatsAppRole();
+
+  if (loading) {
+    return <div className="flex items-center justify-center p-8 text-muted-foreground">Carregando...</div>;
+  }
+
+  // Vendedor não tem acesso a este painel — redireciona
+  if (isVendedor && !isSuperAdmin && !isGerente) {
+    return <Navigate to="/vendedor/whatsapp" replace />;
+  }
+
+  // Gerente vê apenas a aba Conversas; Superadmin vê tudo
+  const showAllTabs = isSuperAdmin;
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">WhatsApp</h1>
-        <p className="text-muted-foreground">Envie mensagens via WhatsApp usando a API Oficial Meta.</p>
+        <p className="text-muted-foreground">
+          {showAllTabs
+            ? "Envie mensagens via WhatsApp usando a API Oficial Meta."
+            : "Acompanhe e encaminhe conversas para os vendedores."}
+        </p>
       </div>
 
       <Tabs defaultValue="conversas" className="w-full">
@@ -989,67 +1009,69 @@ export default function WhatsAppPanel() {
             <MessagesSquare className="h-4 w-4" />
             Conversas
           </TabsTrigger>
-          <TabsTrigger value="funil" className="gap-2">
-            <Filter className="h-4 w-4" />
-            Funil Primeira Compra
-          </TabsTrigger>
-          <TabsTrigger value="enviar" className="gap-2">
-            <MessageSquare className="h-4 w-4" />
-            Enviar Mensagem
-          </TabsTrigger>
-          <TabsTrigger value="templates" className="gap-2">
-            <FileText className="h-4 w-4" />
-            Templates
-          </TabsTrigger>
-          <TabsTrigger value="campanhas" className="gap-2">
-            <Target className="h-4 w-4" />
-            Campanhas
-          </TabsTrigger>
-          <TabsTrigger value="publicos" className="gap-2">
-            <Users className="h-4 w-4" />
-            Públicos
-          </TabsTrigger>
-          <TabsTrigger value="webhooks" className="gap-2">
-            <Webhook className="h-4 w-4" />
-            Webhooks
-          </TabsTrigger>
-          <TabsTrigger value="credenciais" className="gap-2">
-            <Settings className="h-4 w-4" />
-            Credenciais API
-          </TabsTrigger>
+          {showAllTabs && (
+            <>
+              <TabsTrigger value="funil" className="gap-2">
+                <Filter className="h-4 w-4" />
+                Funil Primeira Compra
+              </TabsTrigger>
+              <TabsTrigger value="enviar" className="gap-2">
+                <MessageSquare className="h-4 w-4" />
+                Enviar Mensagem
+              </TabsTrigger>
+              <TabsTrigger value="templates" className="gap-2">
+                <FileText className="h-4 w-4" />
+                Templates
+              </TabsTrigger>
+              <TabsTrigger value="campanhas" className="gap-2">
+                <Target className="h-4 w-4" />
+                Campanhas
+              </TabsTrigger>
+              <TabsTrigger value="publicos" className="gap-2">
+                <Users className="h-4 w-4" />
+                Públicos
+              </TabsTrigger>
+              <TabsTrigger value="webhooks" className="gap-2">
+                <Webhook className="h-4 w-4" />
+                Webhooks
+              </TabsTrigger>
+              <TabsTrigger value="credenciais" className="gap-2">
+                <Settings className="h-4 w-4" />
+                Credenciais API
+              </TabsTrigger>
+            </>
+          )}
         </TabsList>
 
         <TabsContent value="conversas">
-          <WhatsAppChat />
+          <WhatsAppChat scope="admin" />
         </TabsContent>
 
-        <TabsContent value="funil">
-          <FunilTab />
-        </TabsContent>
-
-        <TabsContent value="enviar">
-          <SendMessageTab />
-        </TabsContent>
-
-        <TabsContent value="templates">
-          <WhatsAppTemplatesList />
-        </TabsContent>
-
-        <TabsContent value="campanhas">
-          <WhatsAppCampaigns />
-        </TabsContent>
-
-        <TabsContent value="publicos">
-          <WhatsAppPublicos />
-        </TabsContent>
-
-        <TabsContent value="webhooks">
-          <WebhooksTab />
-        </TabsContent>
-
-        <TabsContent value="credenciais">
-          <CredentialsTab />
-        </TabsContent>
+        {showAllTabs && (
+          <>
+            <TabsContent value="funil">
+              <FunilTab />
+            </TabsContent>
+            <TabsContent value="enviar">
+              <SendMessageTab />
+            </TabsContent>
+            <TabsContent value="templates">
+              <WhatsAppTemplatesList />
+            </TabsContent>
+            <TabsContent value="campanhas">
+              <WhatsAppCampaigns />
+            </TabsContent>
+            <TabsContent value="publicos">
+              <WhatsAppPublicos />
+            </TabsContent>
+            <TabsContent value="webhooks">
+              <WebhooksTab />
+            </TabsContent>
+            <TabsContent value="credenciais">
+              <CredentialsTab />
+            </TabsContent>
+          </>
+        )}
       </Tabs>
     </div>
   );
