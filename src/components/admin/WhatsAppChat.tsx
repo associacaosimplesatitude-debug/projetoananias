@@ -919,19 +919,19 @@ export default function WhatsAppChat({ scope: scopeProp = "superadmin", vendedor
         };
       });
 
-      // Vendedor de leads de reativação como fallback
+      // Vendedor de leads de reativação como fallback (+ tipo_lead p/ tag tipoCliente)
       const { data: leads } = await supabase
         .from("ebd_leads_reativacao")
-        .select("telefone, vendedor_id")
-        .not("vendedor_id", "is", null)
+        .select("telefone, vendedor_id, tipo_lead")
         .not("telefone", "is", null);
       const leadVendedorByVariant: Record<string, { id: string }> = {};
+      const leadTipoByVariant: Record<string, string> = {};
       (leads || []).forEach((l: any) => {
-        if (l.telefone && l.vendedor_id) {
-          phoneVariants(l.telefone).forEach((v) => {
-            leadVendedorByVariant[v] = { id: l.vendedor_id };
-          });
-        }
+        if (!l.telefone) return;
+        phoneVariants(l.telefone).forEach((v) => {
+          if (l.vendedor_id) leadVendedorByVariant[v] = { id: l.vendedor_id };
+          if (l.tipo_lead && !leadTipoByVariant[v]) leadTipoByVariant[v] = l.tipo_lead;
+        });
       });
 
       // Fallback: cruzar com ebd_clientes diretamente pelo telefone (cliente já cadastrado
