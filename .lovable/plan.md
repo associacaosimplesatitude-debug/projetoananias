@@ -1,54 +1,113 @@
 
-## Diagnóstico
+# Plano — Roteamento de conversas WhatsApp (gerente → vendedor) + visibilidade por papel
 
-O agente continua respondendo com os dados antigos (Pr. Antonio / Igreja Batista Nova Vida / Pires de Castro / 86 9414-7951) **mesmo após o banco já estar 100% atualizado**. A causa é histórica, não de dados.
+## Decisões confirmadas
 
-Encontrei duas fontes de "memória contaminada" na conversa `41656f43-adfb-4ce6-838a-7f5c2b13b2a7` (telefone 5511947141878):
+- **Encaminhar = pausa total** do agente IA na conversa (só vendedor responde)
+- **Vendedor vê histórico completo** da conversa
+- **Sem auto-encaminhamento** — gerente sempre escolhe o vendedor manualmente
+- **Vendedor acessa via nova rota `/vendedor/whatsapp`**
+- **Visibilidade por papel** no `/admin/whatsapp`:
+  - **Superadmin (você):** vê TODAS as abas (Conversas, Funil Primeira Compra, Enviar Mensagem, Templates, Campanhas, Públicos, Webhooks, Credenciais API)
+  - **Gerente:** vê SOMENTE a aba "Conversas" (todas as conversas)
+  - **Vendedor:** vê SOMENTE a aba "Conversas" (filtrada para conversas atribuídas a ele) — via `/vendedor/whatsapp`
 
-1. **Snapshot congelado em `agente_ia_mensagens`** — quando a conversa começou em 08/05, foi gravada uma mensagem `role=system` com:
-   ```
-   [CONTEXTO AUTOMÁTICO] {"nome_igreja":"Igreja Batista Nova Vida","nome_superintendente":"Pr. Antonio",...}
-   ```
-   Esse JSON foi salvo no banco e nunca mais é refeito.
+## 1. Banco de dados
 
-2. **Respostas anteriores do próprio agente** (role=assistant) também estão no histórico repetindo "Pr. Antonio / Pires de Castro / 86 9414...". Como o agente recarrega TODA a conversa a cada nova mensagem, o Claude vê que ele mesmo já afirmou esses dados várias vezes e simplesmente repete.
+Migration adicionando em `agente_ia_conversas`:
 
-No código `supabase/functions/agente-loja-cg/index.ts` (linhas 110–207), o contexto rico só é montado **na primeira mensagem** (`if (!conversa.cliente_id)`). Nas mensagens seguintes só vai um contexto mínimo, então a "verdade" pro modelo passa a ser o que está no histórico antigo.
+| Coluna | Tipo | Uso |
+|---|---|---|
+| `vendedor_atribuido_id` | uuid → vendedores | Vendedor que está atendendo |
+| `atribuida_em` | timestamptz | Quando o gerente encaminhou |
+| `atribuida_por` | uuid → auth.users | Qual gerente encaminhou |
 
-## Plano de correção
+Índice parcial em `vendedor_atribuido_id` quando não nulo.
 
-### Parte 1 — Limpeza pontual desta conversa (dados)
+**RLS** em `agente_ia_conversas` e `agente_ia_mensagens`:
+- Vendedor faz SELECT apenas onde `vendedor_atribuido_id = get_vendedor_id_by_email(get_auth_email())`
+- Vendedor faz INSERT em `agente_ia_mensagens` apenas em conversas atribuídas a ele
+- Admin/superadmin/gerente mantêm acesso total (políticas atuais)
 
-- Sobrescrever a mensagem `system` `[CONTEXTO AUTOMÁTICO]` da conversa com o snapshot atualizado (Cleuton Soares / Assembleia Teste Sistema / Rua dos Coqueiros 1291 / Santo André-SP / 09080-010).
-- Inserir uma nova mensagem `role=system` no final do histórico do tipo `[CORREÇÃO DE CADASTRO]` instruindo o agente a **ignorar quaisquer dados anteriores** e usar apenas os atuais.
+**RPC `encaminhar_conversa_para_vendedor(conversa_id, vendedor_id)`** (SECURITY DEFINER):
+- Checa `has_role(auth.uid(),'admin')` ou role gerente
+- Seta `vendedor_atribuido_id`, `atribuida_em`, `atribuida_por`
+- Marca `agente_pausado=true`, `status='pausada_humano'`, `motivo_pausa='encaminhada_vendedor'`
+- Cria/atualiza registro em `agente_ia_escalations` (motivo `cliente_solicitou_humano`, `vendedor_alvo_id`, status `em_atendimento`)
 
-Isso resolve imediatamente esta conversa específica.
+**RPC `devolver_conversa_para_agente(conversa_id)`** (admin/gerente only):
+- Limpa `vendedor_atribuido_id`, reativa agente
 
-### Parte 2 — Correção estrutural no edge function `agente-loja-cg`
+## 2. Visibilidade por papel no `/admin/whatsapp`
 
-Alterar `supabase/functions/agente-loja-cg/index.ts` para que **toda mensagem** (não só a primeira) recarregue o contexto fresco do banco:
+Criar hook `useWhatsAppRole()` que determina:
+- `isSuperAdmin` (papel admin/superadmin)
+- `isGerente` (papel gerente)
+- `isVendedor` (existe em `vendedores`)
 
-- Mover o bloco `contexto_inicial_cliente` para fora do `if (!conversa.cliente_id)`.
-- Quando já existe `cliente_id`, buscar dados completos atualizados de `ebd_clientes` + `ebd_leads_reativacao` (nome, igreja, email, telefone, endereço completo, CEP) e injetar como **última** mensagem `system` do prompt (após o histórico), com header tipo `DADOS ATUAIS DO CLIENTE (fonte da verdade — sobrepõe qualquer informação anterior do histórico)`.
-- **Não** persistir mais snapshots `[CONTEXTO AUTOMÁTICO]` no banco — apenas montar em memória a cada turno. Os snapshots já existentes ficam, mas a mensagem viva no fim do prompt tem prioridade explícita.
-- Atualizar o `SYSTEM_PROMPT` (em `skill.ts`) com regra: "Se houver conflito entre o que você disse antes na conversa e o bloco DADOS ATUAIS DO CLIENTE, os DADOS ATUAIS são a verdade absoluta — nunca repita dados antigos."
+Em `WhatsAppPanel.tsx`:
+- Renderizar a lista de tabs dinamicamente conforme o papel
+- Superadmin: todas as 8 abas (mantém estado atual)
+- Gerente: apenas a aba "Conversas"
+- Vendedor que entrar acidentalmente em `/admin/whatsapp` é redirecionado para `/vendedor/whatsapp`
 
-### Parte 3 — Tool de auto-correção (opcional, recomendada)
+`ProtectedRoute` da rota `/admin/whatsapp` aceita admin **e** gerente.
 
-Adicionar uma tool `recarregar_dados_cliente` em `tools.ts` que faz `SELECT` fresco e retorna o cadastro atual. Útil quando o cliente diz "esses dados estão errados" — o agente chama a tool e responde com a fonte da verdade.
+## 3. Tag de vendedor responsável
+
+Na lista de conversas (gerente e vendedor), tag por linha:
+
+| Estado | Tag | Cor |
+|---|---|---|
+| `vendedor_atribuido_id` preenchido | `Em atendimento: {nome}` | azul |
+| Cliente cadastrado com `ebd_clientes.vendedor_id` mas conversa não atribuída | `Vendedor histórico: {nome}` | verde |
+| Cliente cadastrado sem vendedor | `Sem vendedor` | amarelo |
+| Telefone sem `cliente_id` | `Novo contato` | cinza |
+
+Lookup: join `agente_ia_conversas → ebd_clientes (cliente_id) → vendedores`.
+
+## 4. Painel do GERENTE (`WhatsAppChat.tsx`)
+
+- Filtros novos na lista: Todas / Aguardando humano / Atribuídas / Não atribuídas
+- No header da conversa aberta, botão **"Encaminhar para vendedor"**:
+  - Modal com busca por nome de vendedores ativos
+  - Mostra "vendedor histórico" como atalho clicável (se houver), mas sem auto-selecionar
+  - Confirmação chama RPC `encaminhar_conversa_para_vendedor`
+  - Toast + invalidar queries
+- Botão "Devolver para o agente" aparece quando a conversa já está atribuída
+
+## 5. Painel do VENDEDOR (nova rota `/vendedor/whatsapp`)
+
+- Item novo no menu de `VendedorLayout` (ícone MessageCircle)
+- Página `src/pages/vendedor/VendedorWhatsApp.tsx`:
+  - Reaproveita `WhatsAppChat` em modo "vendedor" (prop `scope="vendedor"`)
+  - Lista filtrada por `vendedor_atribuido_id = vendedor logado` (RLS já garante)
+  - Histórico completo carregado normalmente (mensagens do agente + cliente + vendedor)
+  - Vendedor envia mensagens com o mesmo fluxo Meta API que o gerente
+  - **Sem botão** de encaminhar/devolver (apenas gerente/admin)
+- Badge de novas atribuições no menu (poll 30s ou Realtime se já habilitado)
+- `VendedorProtectedRoute` (já existe) protege a rota
+
+## 6. Não muda
+
+- Edge functions do agente IA (`agente-loja-cg`) — já respeitam `agente_pausado`
+- `tools.ts`, `skill.ts`, `index.ts` do agente
+- Endpoint Meta API de envio (`whatsapp-meta-send`) — vendedor reutiliza
 
 ## Detalhes técnicos
 
-Arquivos a alterar:
-- `supabase/functions/agente-loja-cg/index.ts` — refazer build do `contextoCliente` em todo turno; remover insert do snapshot; adicionar bloco "DADOS ATUAIS" no fim do array de mensagens enviado pro Claude.
-- `supabase/functions/agente-loja-cg/skill.ts` — adicionar regra de prioridade ao SYSTEM_PROMPT.
-- `supabase/functions/agente-loja-cg/tools.ts` — (opcional) nova tool `recarregar_dados_cliente`.
+- Migration usa `IF NOT EXISTS` e idempotente
+- RPCs com `SECURITY DEFINER` + `SET search_path = public`
+- RLS de vendedor usa helper já existente `get_vendedor_id_by_email(get_auth_email())` (sem recursão)
+- `types.ts` regenerado pós-migration
+- Componente `WhatsAppChat` recebe prop opcional `scope: 'admin' | 'vendedor'` para esconder ações restritas
 
-Operações de dados (via insert tool):
-- UPDATE da mensagem `d4835586-98f5-4b34-8d00-0544c63ea96b` em `agente_ia_mensagens` com JSON atualizado.
-- INSERT de uma mensagem `system` `[CORREÇÃO DE CADASTRO]` na conversa `41656f43-adfb-4ce6-838a-7f5c2b13b2a7`.
+## Ordem de execução
 
-## Resultado esperado
-
-- A próxima mensagem que você mandar no WhatsApp vai ser respondida com **Cleuton Soares / Assembleia Teste Sistema / Rua dos Coqueiros 1291 / Santo André-SP / 09080-010**.
-- Daqui pra frente, qualquer atualização de cadastro feita no banco será refletida automaticamente na próxima resposta do agente, sem precisar limpar histórico nem recriar conversa.
+1. Migration (colunas + RLS + RPCs)
+2. Hook `useWhatsAppRole`
+3. `WhatsAppPanel.tsx`: filtragem de tabs por papel
+4. `WhatsAppChat.tsx`: tags + botão "Encaminhar" + filtros + prop `scope`
+5. Modal `EncaminharVendedorDialog.tsx`
+6. `VendedorWhatsApp.tsx` + rota em `App.tsx` + item no `VendedorLayout`
+7. QA: superadmin (vê tudo) → gerente (só Conversas) → encaminha → vendedor recebe em `/vendedor/whatsapp`
