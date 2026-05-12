@@ -553,7 +553,13 @@ function ChatWindow({
         vendedorHistoricoNome={contact?.vendedorHistoricoNome || null}
       />
 
-      {agentePausado && (
+      {scope === "gerente" && contact?.vendedorAtribuidoNome && (
+        <div className="px-4 py-2 bg-blue-50 dark:bg-blue-950/30 border-b border-blue-200 dark:border-blue-900 text-xs text-blue-900 dark:text-blue-200">
+          Conversa transferida para o vendedor <strong>{contact.vendedorAtribuidoNome}</strong>. Apenas leitura.
+        </div>
+      )}
+
+      {agentePausado && scope === "superadmin" && (
         <div className="px-4 py-2 bg-amber-50 dark:bg-amber-950/30 border-b border-amber-200 dark:border-amber-900 text-xs text-amber-900 dark:text-amber-200">
           Agente IA pausado nessa conversa. Você está atendendo manualmente.
         </div>
@@ -587,36 +593,59 @@ function ChatWindow({
         <div ref={messagesEndRef} />
       </ScrollArea>
 
-      {/* Banner janela 24h expirada */}
+      {/* Banner janela 24h expirada (apenas informativo para gerente/vendedor) */}
       {windowExpired && (
         <div className="px-4 py-2.5 border-t bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900 flex items-center gap-3">
           <Clock className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
           <p className="text-xs text-amber-900 dark:text-amber-200 flex-1">
             Janela de 24h expirou. Para continuar a conversa, envie uma mensagem de template aprovada pela Meta.
           </p>
-          <Button
-            size="sm"
-            variant="outline"
-            className="shrink-0 border-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900"
-            onClick={() => setShowTemplateDialog(true)}
-          >
-            <FileText className="h-3.5 w-3.5 mr-1.5" />
-            Selecionar Template
-          </Button>
+          {scope === "superadmin" && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="shrink-0 border-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900"
+              onClick={() => setShowTemplateDialog(true)}
+            >
+              <FileText className="h-3.5 w-3.5 mr-1.5" />
+              Selecionar Template
+            </Button>
+          )}
         </div>
       )}
 
       {/* Input area */}
       <div className="flex items-center gap-2 px-4 py-3 border-t bg-card">
         <Input
-          placeholder={windowExpired ? "Janela expirada — use um template" : "Digite uma mensagem..."}
-          value={inputMsg}
-          onChange={(e) => setInputMsg(e.target.value)}
-          onKeyDown={handleKeyDown}
+          placeholder={
+            scope !== "superadmin"
+              ? "Somente leitura — apenas o superadmin envia mensagens nesta etapa."
+              : windowExpired
+              ? "Janela expirada — use um template"
+              : "Digite uma mensagem..."
+          }
+          value={scope !== "superadmin" ? "" : inputMsg}
+          onChange={(e) => {
+            if (scope !== "superadmin") return;
+            setInputMsg(e.target.value);
+          }}
+          onKeyDown={(e) => {
+            if (scope !== "superadmin") {
+              e.preventDefault();
+              return;
+            }
+            handleKeyDown(e);
+          }}
+          onFocus={() => {
+            if (scope !== "superadmin") {
+              toast.info("Apenas o superadmin pode enviar mensagens. Você está em modo leitura.");
+            }
+          }}
+          readOnly={scope !== "superadmin"}
           disabled={sending}
           className="flex-1"
         />
-        {!windowExpired && (
+        {scope === "superadmin" && !windowExpired && (
           <Button
             variant="outline"
             size="icon"
@@ -629,7 +658,7 @@ function ChatWindow({
         )}
         <Button
           onClick={handleSend}
-          disabled={!inputMsg.trim() || sending}
+          disabled={scope !== "superadmin" || !inputMsg.trim() || sending}
           size="icon"
           className="shrink-0"
         >
