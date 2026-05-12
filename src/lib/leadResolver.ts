@@ -199,10 +199,11 @@ export async function resolveLeadsByPhones(phones: string[]): Promise<Map<string
   const pedidosByPhone = groupBy(pedidosRes.data as any[], (r: any) => r.customer_phone);
   const aicByPhone = groupBy(aicRes.data as any[], (r: any) => r.telefone);
 
-  // Collect vendedor ids needing name resolution (atribuído + shopify[0])
+  // Collect vendedor ids needing name resolution (atribuído + shopify + cliente.vendedor_id)
   const vendedorIds = new Set<string>();
   aicRes.data?.forEach((r: any) => r.vendedor_atribuido_id && vendedorIds.add(r.vendedor_atribuido_id));
   pedidosRes.data?.forEach((r: any) => r.vendedor_id && vendedorIds.add(r.vendedor_id));
+  clientesRes.data?.forEach((r: any) => r.vendedor_id && vendedorIds.add(r.vendedor_id));
 
   let vendedorById: Record<string, string> = {};
   if (vendedorIds.size > 0) {
