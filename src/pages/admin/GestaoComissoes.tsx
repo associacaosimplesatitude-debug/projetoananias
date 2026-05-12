@@ -798,7 +798,7 @@ export default function GestaoComissoes() {
     },
     onError: (error) => {
       console.error("Erro ao sincronizar pedidos Shopify:", error);
-      toast.error(error instanceof Error ? error.message : "Erro ao sincronizar pedidos Shopify");
+      toast.error(error instanceof Error ? error.message : "Erro ao sincronizar pedidos E-commerce");
     },
   });
 
