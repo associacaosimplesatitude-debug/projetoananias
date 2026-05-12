@@ -7,7 +7,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, User, Phone, Mail, Building, ShieldCheck, ShoppingCart, LogIn, Package, Truck } from "lucide-react";
+import { Loader2, User, Building, ShieldCheck, ShoppingCart, LogIn, Package, Truck, ExternalLink } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { resolveLeadByPhone } from "@/lib/leadResolver";
@@ -19,14 +19,12 @@ interface LeadDetailModalProps {
 }
 
 export default function LeadDetailModal({ open, onOpenChange, phone }: LeadDetailModalProps) {
-  // Fetch lead data via SHARED resolver (same authority used by the WhatsApp list)
   const { data, isLoading } = useQuery({
     queryKey: ["lead-detail", phone],
     enabled: open && !!phone,
     queryFn: async () => {
       const resolved = await resolveLeadByPhone(phone);
 
-      // Última proposta (modal-only extra)
       let ultimoPedido = null;
       if (resolved.clienteId) {
         const { data: propostas } = await supabase
@@ -43,21 +41,28 @@ export default function LeadDetailModal({ open, onOpenChange, phone }: LeadDetai
   });
 
   const resolved = data?.resolved;
-  const lead = resolved?.lead;
   const cliente = resolved?.cliente;
+  const lead = resolved?.lead;
   const pedidos = resolved?.pedidos || [];
   const ultimoPedido = data?.ultimoPedido;
-  const vendedorNome = resolved?.vendedorHistoricoNome || null;
 
-  // Merge info from all sources (display fields stay as before)
-  const shopifyOrder = pedidos[0] || null;
-  const tipoCliente = resolved?.tipoCliente || "—";
-  const nome = resolved?.nomeResolvido || "—";
-  const email = lead?.email || cliente?.email_superintendente || shopifyOrder?.customer_email || "—";
-  const cnpjCpf = lead?.cnpj || cliente?.cnpj || cliente?.cpf || shopifyOrder?.customer_document || "—";
-  const ultimoLogin = lead?.ultimo_login_ebd || cliente?.ultimo_login || null;
+  const nome = resolved?.nomeResolvido || null;
+  const email = resolved?.emailResolvido || null;
+  const documento = resolved?.documentoResolvido || null;
+  const tipoCliente = resolved?.tipoCliente || null;
+  const vendedor = resolved?.vendedorResolvido || null;
+  const ultimoLogin = resolved?.ultimoLogin || null;
+  const pedidoShopify = resolved?.pedidoShopify || null;
+  const fontes = resolved?.fontes || [];
 
-  const hasAnyData = lead || cliente || pedidos.length > 0;
+  const hasAnyData =
+    !!resolved &&
+    (resolved.nomeResolvido !== null ||
+      resolved.clienteId !== null ||
+      resolved.pedidoShopify !== null ||
+      resolved.fontes.length > 0);
+
+  const showFromLicencaShopifyBadge = hasAnyData && !fontes.includes("lead");
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -79,35 +84,50 @@ export default function LeadDetailModal({ open, onOpenChange, phone }: LeadDetai
           </div>
         ) : (
           <div className="space-y-4">
+            {showFromLicencaShopifyBadge && (
+              <Badge variant="secondary" className="text-xs">
+                Dados vindos de Licença/Shopify — ainda não há registro na base de Leads
+              </Badge>
+            )}
+
             {/* Basic Info */}
             <Section title="Informações Gerais" icon={<Building className="h-4 w-4" />}>
-              <InfoRow label="Nome" value={nome} />
+              {nome && <InfoRow label="Nome" value={nome} />}
               <InfoRow label="Telefone" value={phone} />
-              <InfoRow label="Email" value={email} />
-              <InfoRow label="CNPJ/CPF" value={cnpjCpf} />
-              <InfoRow label="Tipo de Cliente" value={
-                <Badge variant="outline" className="text-xs">{tipoCliente}</Badge>
-              } />
-              {vendedorNome && (
-                <InfoRow label="Vendedor" value={
-                  <Badge className="bg-primary/10 text-primary border-primary/20 text-xs">{vendedorNome}</Badge>
-                } />
+              {email && <InfoRow label="Email" value={email} />}
+              {documento && <InfoRow label="CNPJ/CPF" value={documento} />}
+              {tipoCliente && (
+                <InfoRow
+                  label="Tipo de Cliente"
+                  value={<Badge variant="outline" className="text-xs">{tipoCliente}</Badge>}
+                />
               )}
-              {lead?.status_lead && (
-                <InfoRow label="Status" value={
-                  <Badge variant="secondary" className="text-xs">{lead.status_lead}</Badge>
-                } />
+              {vendedor?.nome && (
+                <InfoRow
+                  label="Vendedor"
+                  value={
+                    <Badge className="bg-primary/10 text-primary border-primary/20 text-xs">
+                      {vendedor.nome}
+                    </Badge>
+                  }
+                />
+              )}
+              {resolved?.statusLead && (
+                <InfoRow
+                  label="Status"
+                  value={<Badge variant="secondary" className="text-xs">{resolved.statusLead}</Badge>}
+                />
               )}
             </Section>
 
-            {/* Shopify Orders */}
+            {/* Shopify Orders list */}
             {pedidos.length > 0 && (
               <Section title={`Pedidos Shopify (${pedidos.length})`} icon={<ShoppingCart className="h-4 w-4" />}>
                 {pedidos.map((p: any) => (
                   <div key={p.id} className="border rounded p-2 space-y-1 text-sm">
                     <div className="flex justify-between items-center">
                       <span className="font-medium">{p.order_number}</span>
-                      <Badge variant={p.status_pagamento === 'paid' ? 'default' : 'outline'} className="text-xs">
+                      <Badge variant={p.status_pagamento === "paid" ? "default" : "outline"} className="text-xs">
                         {p.status_pagamento}
                       </Badge>
                     </div>
@@ -126,37 +146,82 @@ export default function LeadDetailModal({ open, onOpenChange, phone }: LeadDetai
               </Section>
             )}
 
+            {/* Último Pedido Shopify (destaque) */}
+            {pedidoShopify && (
+              <Section title="Último Pedido Shopify" icon={<ShoppingCart className="h-4 w-4" />}>
+                <InfoRow label="Pedido" value={pedidoShopify.orderNumber} />
+                <InfoRow
+                  label="Valor"
+                  value={pedidoShopify.valorTotal.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                />
+                <InfoRow
+                  label="Status"
+                  value={
+                    <Badge variant={pedidoShopify.statusPagamento === "paid" ? "default" : "outline"} className="text-xs">
+                      {pedidoShopify.statusPagamento}
+                    </Badge>
+                  }
+                />
+                <InfoRow
+                  label="Data"
+                  value={format(new Date(pedidoShopify.createdAt), "dd/MM/yyyy", { locale: ptBR })}
+                />
+                {pedidoShopify.urlRastreio && (
+                  <InfoRow
+                    label="Rastreio"
+                    value={
+                      <a
+                        href={pedidoShopify.urlRastreio}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-primary hover:underline inline-flex items-center gap-1 text-xs"
+                      >
+                        Acompanhar <ExternalLink className="h-3 w-3" />
+                      </a>
+                    }
+                  />
+                )}
+              </Section>
+            )}
+
             {/* Access Data */}
-            <Section title="Acesso Painel Gestão EBD" icon={<ShieldCheck className="h-4 w-4" />}>
-              {cliente ? (
-                <>
-                  <InfoRow label="Email acesso" value={cliente.email_superintendente || "—"} />
-                  <InfoRow label="Conta criada" value={lead?.conta_criada ? "Sim ✅" : "Não ❌"} />
-                  <InfoRow label="Senha temporária" value={cliente.senha_temporaria || "—"} />
-                  <InfoRow label="Onboarding" value={cliente.onboarding_concluido ? "Concluído ✅" : "Pendente ⏳"} />
-                </>
-              ) : (
-                <p className="text-sm text-muted-foreground">Sem dados de acesso vinculados.</p>
-              )}
-            </Section>
+            {cliente && (
+              <Section title="Acesso Painel Gestão EBD" icon={<ShieldCheck className="h-4 w-4" />}>
+                {cliente.email_superintendente && (
+                  <InfoRow label="Email acesso" value={cliente.email_superintendente} />
+                )}
+                {resolved?.contaCriada !== null && (
+                  <InfoRow label="Conta criada" value={resolved.contaCriada ? "Sim ✅" : "Não ❌"} />
+                )}
+                {cliente.senha_temporaria && (
+                  <InfoRow label="Senha temporária" value={cliente.senha_temporaria} />
+                )}
+                <InfoRow label="Onboarding" value={cliente.onboarding_concluido ? "Concluído ✅" : "Pendente ⏳"} />
+              </Section>
+            )}
 
             {/* Last Login */}
-            <Section title="Último Login" icon={<LogIn className="h-4 w-4" />}>
-              <InfoRow label="Último login" value={
-                ultimoLogin
-                  ? format(new Date(ultimoLogin), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })
-                  : "Nunca acessou"
-              } />
-            </Section>
+            {ultimoLogin && (
+              <Section title="Último Login" icon={<LogIn className="h-4 w-4" />}>
+                <InfoRow
+                  label="Último login"
+                  value={format(new Date(ultimoLogin), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                />
+              </Section>
+            )}
 
             {/* Last Proposta */}
             {ultimoPedido && (
               <Section title="Última Proposta" icon={<Package className="h-4 w-4" />}>
-                <InfoRow label="Status" value={
-                  <Badge variant="outline" className="text-xs">{ultimoPedido.status}</Badge>
-                } />
+                <InfoRow
+                  label="Status"
+                  value={<Badge variant="outline" className="text-xs">{ultimoPedido.status}</Badge>}
+                />
                 <InfoRow label="Valor" value={`R$ ${Number(ultimoPedido.valor_total).toFixed(2)}`} />
-                <InfoRow label="Data" value={format(new Date(ultimoPedido.created_at), "dd/MM/yyyy", { locale: ptBR })} />
+                <InfoRow
+                  label="Data"
+                  value={format(new Date(ultimoPedido.created_at), "dd/MM/yyyy", { locale: ptBR })}
+                />
               </Section>
             )}
           </div>
