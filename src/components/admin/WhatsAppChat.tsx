@@ -184,11 +184,32 @@ function ContactList({
                       : ""}
                   </span>
                 </div>
-                {contact.vendedorNome && (
-                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 mt-0.5">
-                    {contact.vendedorNome}
-                  </Badge>
-                )}
+                {(() => {
+                  const t = contact.tag;
+                  if (t.type === "atendendo")
+                    return (
+                      <Badge className="text-[10px] px-1.5 py-0 h-4 mt-0.5 bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-100">
+                        Em atendimento: {t.vendedorNome}
+                      </Badge>
+                    );
+                  if (t.type === "vendedor_historico")
+                    return (
+                      <Badge className="text-[10px] px-1.5 py-0 h-4 mt-0.5 bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-100">
+                        Vendedor: {t.vendedorNome}
+                      </Badge>
+                    );
+                  if (t.type === "sem_vendedor")
+                    return (
+                      <Badge className="text-[10px] px-1.5 py-0 h-4 mt-0.5 bg-amber-100 text-amber-700 border-amber-200 hover:bg-amber-100">
+                        Sem vendedor
+                      </Badge>
+                    );
+                  return (
+                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 mt-0.5">
+                      Novo contato
+                    </Badge>
+                  );
+                })()}
                 <p className="text-xs text-muted-foreground truncate mt-0.5">
                   {contact.ultimaMensagem}
                 </p>
