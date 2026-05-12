@@ -125,7 +125,7 @@ function AdminSidebar() {
     { to: "/admin/curriculo-ebd", icon: BookOpen, label: "Catálogo" },
     { to: "/admin/orders", icon: Package, label: "Pedidos" },
     { to: "/admin/bling", icon: Link2, label: "Bling" },
-    { to: "/admin/shopify-pedidos", icon: ShoppingBag, label: "Shopify" },
+    { to: "/admin/shopify-pedidos", icon: ShoppingBag, label: "E-commerce" },
   ];
 
   const isActive = (path: string, end?: boolean) => {
