@@ -232,6 +232,7 @@ export async function resolveLeadsByPhones(phones: string[]): Promise<Map<string
       vendedorAtribuidoNome,
       conversaId: aic?.id || null,
       clienteId: aic?.cliente_id || cliente?.id || null,
+      nomeResolvido,
     });
   }
 
