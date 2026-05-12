@@ -76,6 +76,7 @@ function emptyResolved(phone: string): ResolvedLead {
     vendedorAtribuidoNome: null,
     conversaId: null,
     clienteId: null,
+    nomeResolvido: null,
   };
 }
 
