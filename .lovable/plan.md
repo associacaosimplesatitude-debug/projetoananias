@@ -1,59 +1,31 @@
-# Corrigir tag "Novo contato" no /admin/whatsapp
+# Fix: nome do vendedor sumindo (embed PostgREST retorna null)
 
-## Problema
+## Causa real
 
-A montagem da tag em `src/components/admin/WhatsAppChat.tsx` (linhas ~777-853) só considera vínculo cliente↔vendedor quando `agente_ia_conversas.cliente_id` está preenchido. Como muitas conversas vindas do webhook WhatsApp nunca têm esse `cliente_id` gravado, telefones de clientes antigos (inclusive de campanhas de retenção) caem no `else` final e aparecem como **"Novo contato"**, sem vendedor.
+A consulta `select("..., vendedores(id, nome)")` retorna **`vendedores: null`** mesmo quando `vendedor_id` está preenchido (confirmado via REST). O embed da tabela `vendedores` está sendo bloqueado, então `vendedorNome=null` e a tag continua como **"Novo contato"**.
 
-Exemplo verificado: `11981147165` → cliente "IGREJA EVANGELICA FILHOS DO REI" em `ebd_clientes`, vendedor `Daniel` (`5e04d9c1-…`). A tag deveria mostrar **"Vendedor: Daniel"**.
+## Solução (apenas leitura, sem mexer em comissões/cadastros)
 
-## Solução
+Substituir os embeds por uma única query extra em `vendedores` pelos IDs coletados.
 
-Adicionar uma 3ª fonte de fallback (além de `agente_ia_conversas` e `ebd_leads_reativacao`): consulta direta a `ebd_clientes` por todas as variantes de telefone.
+### Mudanças em `src/components/admin/WhatsAppChat.tsx`
 
-### Mudanças (somente frontend, em `src/components/admin/WhatsAppChat.tsx`)
+1. Remover `vendedores(id, nome)` dos selects:
+   - `ebd_leads_reativacao` → `select("telefone, vendedor_id")`
+   - `ebd_clientes` → `select("id, telefone, vendedor_id, updated_at")`
 
-1. Após o bloco que monta `leadVendedorByVariant` (linha ~822), adicionar uma nova consulta:
+2. Coletar todos `vendedor_id` (de `agente_ia_conversas.vendedor_atribuido_id`, `ebd_clientes.vendedor_id`, `ebd_leads_reativacao.vendedor_id`) e fazer:
    ```ts
-   const { data: clientesByPhone } = await supabase
-     .from("ebd_clientes")
-     .select("id, nome_igreja, telefone, vendedor_id, vendedores(id, nome), updated_at")
-     .not("telefone", "is", null)
-     .not("vendedor_id", "is", null)
-     .in("telefone", allVariants)
-     .order("updated_at", { ascending: false });
+   const { data: vendedoresRows } = await supabase
+     .from("vendedores").select("id, nome").in("id", vendedorIds);
+   const vendedorById: Record<string,string> = {};
    ```
 
-2. Construir um índice por variante normalizada (mais recente vence; se múltiplos clientes no mesmo telefone, mantém o primeiro = mais recente):
-   ```ts
-   const clienteByVariant: Record<string, { clienteId: string; vendedorId: string; vendedorNome: string }> = {};
-   ```
+3. Resolver os nomes via `vendedorById[id]` em vez dos embeds (`l.vendedores?.nome`, `c.vendedores?.nome`, `row.vendedor_atribuido?.nome`, `row.cliente?.vendedor?.nome`).
 
-3. No loop `phones.map(...)` (linha ~831), procurar nesse índice quando `atrib?.clienteId` estiver vazio:
-   ```ts
-   const fallbackCliente = variants.reduce<…>((acc, v) => acc || clienteByVariant[v] || null, null);
-   ```
+## Garantias
 
-4. Atualizar a regra da tag (linhas 844-853):
-   - `vendedorAtribuidoId` → `atendendo` (sem mudança)
-   - `atrib?.clienteId && vendedorHistoricoNome` → `vendedor_historico` (sem mudança)
-   - **Novo:** `fallbackCliente` (telefone bate em `ebd_clientes` com vendedor) → `vendedor_historico` com `vendedorNome = fallbackCliente.vendedorNome`
-   - `atrib?.clienteId` → `sem_vendedor`
-   - **Novo:** telefone existe em `ebd_clientes` sem vendedor → `sem_vendedor`
-   - resto → `novo_contato`
-
-5. Preencher também `clienteId`, `vendedorHistoricoId`, `vendedorHistoricoNome` no `Contact` quando vier do fallback de `ebd_clientes`, para que o botão "Encaminhar para vendedor" e o `LeadDetailModal` continuem funcionando corretamente.
-
-### Performance
-
-`allVariants` já é usado na consulta a `agente_ia_conversas`. A nova consulta usa o mesmo array com `.in()`, então é uma única query extra por carga da lista. Sem N+1.
-
-### Sem mudanças em
-
-- Banco de dados / migrations
-- Edge functions
-- Lógica de envio, encaminhamento, RPCs
-- Página `/vendedor/whatsapp` (continua filtrando por `vendedorAtribuidoId`)
-
-## Resultado esperado
-
-O telefone `11981147165` (e os outros marcados como "Novo contato" que já têm cadastro em `ebd_clientes`) passa a exibir o badge verde **"Vendedor: {nome}"** automaticamente, sem que o gerente precise encaminhar.
+- Apenas SELECT — nada de INSERT/UPDATE/DELETE.
+- **Sem migration**, sem mudar RLS, sem edge functions.
+- **Não toca** comissões, cadastros de cliente, vendas, leads.
+- 1 query extra (`vendedores`) por carga da lista.
