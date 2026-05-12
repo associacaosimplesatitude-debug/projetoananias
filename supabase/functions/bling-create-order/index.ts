@@ -1365,10 +1365,18 @@ serve(async (req) => {
           }
         }
         
-        // Se ainda não encontrou, lançar erro (CPF/CNPJ é obrigatório)
+        // Se ainda não encontrou, lançar erro com a mensagem REAL do Bling
         if (!contatoId) {
-          console.error('[CONTATO] ERRO CRÍTICO: Não foi possível criar contato no Bling');
-          throw new Error('Falha ao criar contato no Bling. Verifique os dados do cliente.');
+          const blingMsg =
+            createResult?.error?.description ||
+            createResult?.error?.message ||
+            (Array.isArray(createResult?.error?.fields)
+              ? createResult.error.fields.map((f: any) => `${f?.element || f?.field || '?'}: ${f?.msg || f?.message || ''}`).join(' | ')
+              : null) ||
+            JSON.stringify(createResult).slice(0, 800);
+          console.error('[CONTATO] ERRO CRÍTICO Bling:', blingMsg);
+          console.error('[CONTATO] Payload enviado:', JSON.stringify(contatoPayloadCompleto));
+          throw new Error(`Falha ao criar contato no Bling: ${blingMsg}`);
         }
       }
     }
