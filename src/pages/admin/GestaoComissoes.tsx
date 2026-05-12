@@ -789,7 +789,7 @@ export default function GestaoComissoes() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["shopify-pedidos-pendentes-bling"] });
       queryClient.invalidateQueries({ queryKey: ["admin-comissoes-parcelas"] });
-      toast.success(`${data.synced || 0} pedidos Shopify sincronizados com Bling!`);
+      toast.success(`${data.synced || 0} pedidos E-commerce sincronizados com Bling!`);
       
       // Após sincronizar pedidos, sincronizar NF/DANFE automaticamente
       setTimeout(() => {
