@@ -29,7 +29,7 @@ async function refreshBlingToken(supabase: any, config: any, tableName: string, 
   
   const credentials = btoa(`${clientId}:${clientSecret}`);
   
-  const tokenResponse = await fetch('https://www.bling.com.br/Api/v3/oauth/token', {
+  const tokenResponse = await fetch('https://api.bling.com.br/Api/v3/oauth/token', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
@@ -92,7 +92,7 @@ async function loadAllSituacoes(accessToken: string): Promise<void> {
   
   try {
     // ✅ ENDPOINT CORRETO API V3: /situacoes/modulo/{modulo}
-    const url = 'https://www.bling.com.br/Api/v3/situacoes/modulo/pedidos_venda';
+    const url = 'https://api.bling.com.br/Api/v3/situacoes/modulo/pedidos_venda';
     const resp = await fetch(url, {
       headers: {
         'Authorization': `Bearer ${accessToken}`,
@@ -361,7 +361,7 @@ async function loadAllUnidadesNegocio(accessToken: string): Promise<Map<string, 
 
   try {
     // ✅ ENDPOINT DIRETO: Listar unidades de negócio via API v3
-    const url = 'https://www.bling.com.br/Api/v3/empresas';
+    const url = 'https://api.bling.com.br/Api/v3/empresas';
     console.log(`[BLING] 🔍 Buscando unidades de negócio via endpoint /empresas...`);
     
     const resp = await fetch(url, {
@@ -400,7 +400,7 @@ async function loadAllUnidadesNegocio(accessToken: string): Promise<Map<string, 
     if (cachedUnidadesNegocioByName.size === 0) {
       console.log('[BLING] 🔄 Nenhuma empresa encontrada, tentando via lojas...');
       
-      const lojasUrl = 'https://www.bling.com.br/Api/v3/lojas';
+      const lojasUrl = 'https://api.bling.com.br/Api/v3/lojas';
       const lojasResp = await fetch(lojasUrl, {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
@@ -440,7 +440,7 @@ async function loadAllUnidadesNegocio(accessToken: string): Promise<Map<string, 
 // Fallback: extrair unidades de pedidos existentes
 async function loadUnidadesFromOrders(accessToken: string): Promise<Map<string, number>> {
   try {
-    const ordersUrl = 'https://www.bling.com.br/Api/v3/pedidos/vendas?pagina=1&limite=50';
+    const ordersUrl = 'https://api.bling.com.br/Api/v3/pedidos/vendas?pagina=1&limite=50';
     const ordersResp = await fetch(ordersUrl, {
       headers: {
         'Authorization': `Bearer ${accessToken}`,
@@ -463,7 +463,7 @@ async function loadUnidadesFromOrders(accessToken: string): Promise<Map<string, 
       if (!orderId) continue;
 
       try {
-        const detailUrl = `https://www.bling.com.br/Api/v3/pedidos/vendas/${orderId}`;
+        const detailUrl = `https://api.bling.com.br/Api/v3/pedidos/vendas/${orderId}`;
         const detailResp = await fetch(detailUrl, {
           headers: {
             'Authorization': `Bearer ${accessToken}`,
@@ -767,7 +767,7 @@ serve(async (req) => {
     
     try {
       // 1) Primeiro, listar todos os módulos que possuem situações
-      const urlModulos = 'https://www.bling.com.br/Api/v3/situacoes/modulos';
+      const urlModulos = 'https://api.bling.com.br/Api/v3/situacoes/modulos';
       console.log('[BLING] Buscando módulos em:', urlModulos);
       const respModulos = await fetch(urlModulos, {
         headers: {
@@ -793,7 +793,7 @@ serve(async (req) => {
 
       // 2) Se encontramos o módulo, buscar suas situações
       if (moduloIdVendas) {
-        const urlSituacoes = `https://www.bling.com.br/Api/v3/situacoes/modulos/${moduloIdVendas}`;
+        const urlSituacoes = `https://api.bling.com.br/Api/v3/situacoes/modulos/${moduloIdVendas}`;
         console.log('[BLING] Buscando situações do módulo em:', urlSituacoes);
         const respSituacoes = await fetch(urlSituacoes, {
           headers: {
@@ -812,7 +812,7 @@ serve(async (req) => {
       
       // 3) Se não funcionou, tentar endpoint alternativo direto
       if (todasSituacoes.length === 0) {
-        const urlAlt = 'https://www.bling.com.br/Api/v3/situacoes';
+        const urlAlt = 'https://api.bling.com.br/Api/v3/situacoes';
         console.log('[BLING] Tentando endpoint alternativo:', urlAlt);
         const respAlt = await fetch(urlAlt, {
           headers: {
@@ -1239,7 +1239,7 @@ serve(async (req) => {
     
     // Buscar por numeroDocumento no Bling
     console.log(`[CONTATO] Buscando contato existente por CPF/CNPJ: ${documento}`);
-    const searchUrl = `https://www.bling.com.br/Api/v3/contatos?numeroDocumento=${documento}`;
+    const searchUrl = `https://api.bling.com.br/Api/v3/contatos?numeroDocumento=${documento}`;
     
     const searchResponse = await fetch(searchUrl, {
       headers: {
@@ -1260,7 +1260,7 @@ serve(async (req) => {
       
       // Buscar detalhes completos do contato para verificar campos
       await delayContato(350);
-      const detailUrl = `https://www.bling.com.br/Api/v3/contatos/${contatoId}`;
+      const detailUrl = `https://api.bling.com.br/Api/v3/contatos/${contatoId}`;
       const detailResponse = await fetch(detailUrl, {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
@@ -1315,7 +1315,7 @@ serve(async (req) => {
       console.log('[CONTATO] Criando novo contato no Bling...');
       await delayContato(350);
       
-      const createResponse = await fetch('https://www.bling.com.br/Api/v3/contatos', {
+      const createResponse = await fetch('https://api.bling.com.br/Api/v3/contatos', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${accessToken}`,
@@ -1339,7 +1339,7 @@ serve(async (req) => {
           console.log('[CONTATO] Tentando busca alternativa por nome...');
           await delayContato(350);
           
-          const altSearchUrl = `https://www.bling.com.br/Api/v3/contatos?pesquisa=${encodeURIComponent(nomeCompleto.substring(0, 30))}`;
+          const altSearchUrl = `https://api.bling.com.br/Api/v3/contatos?pesquisa=${encodeURIComponent(nomeCompleto.substring(0, 30))}`;
           const altSearchResponse = await fetch(altSearchUrl, {
             headers: {
               'Authorization': `Bearer ${accessToken}`,
@@ -1378,7 +1378,7 @@ serve(async (req) => {
       console.log(`[CONTATO] Atualizando contato id=${contatoId} com dados completos...`);
       await delayContato(350);
       
-      const updateResponse = await fetch(`https://www.bling.com.br/Api/v3/contatos/${contatoId}`, {
+      const updateResponse = await fetch(`https://api.bling.com.br/Api/v3/contatos/${contatoId}`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${accessToken}`,
@@ -1644,7 +1644,7 @@ serve(async (req) => {
         
         // Buscar diretamente pelo código usando o endpoint de produtos
         const searchResponse = await blingFetchWithRetry(
-          `https://www.bling.com.br/Api/v3/produtos?codigo=${encodeURIComponent(sku)}`,
+          `https://api.bling.com.br/Api/v3/produtos?codigo=${encodeURIComponent(sku)}`,
           {
             headers: {
               'Authorization': `Bearer ${accessToken}`,
@@ -1823,7 +1823,7 @@ serve(async (req) => {
           await delay(350);
           
           const searchResponse = await blingFetchWithRetry(
-            `https://www.bling.com.br/Api/v3/produtos?pagina=1&limite=100&nome=${encodeURIComponent(searchTerms)}`,
+            `https://api.bling.com.br/Api/v3/produtos?pagina=1&limite=100&nome=${encodeURIComponent(searchTerms)}`,
             {
               headers: {
                 'Authorization': `Bearer ${accessToken}`,
@@ -1886,7 +1886,7 @@ serve(async (req) => {
           await delay(400);
 
           const listResponse = await blingFetchWithRetry(
-            `https://www.bling.com.br/Api/v3/produtos?pagina=${page}&limite=${LIMIT}`,
+            `https://api.bling.com.br/Api/v3/produtos?pagina=${page}&limite=${LIMIT}`,
             {
               headers: {
                 'Authorization': `Bearer ${accessToken}`,
@@ -1957,7 +1957,7 @@ serve(async (req) => {
         await delay(350);
 
         const depositFilter = depositoId ? `&idsDepositos[]=${encodeURIComponent(String(depositoId))}` : '';
-        const url = `https://www.bling.com.br/Api/v3/estoques/saldos?idsProdutos[]=${produtoId}${depositFilter}`;
+        const url = `https://api.bling.com.br/Api/v3/estoques/saldos?idsProdutos[]=${produtoId}${depositFilter}`;
         const resp = await blingFetchWithRetry(url, {
           headers: {
             'Authorization': `Bearer ${accessToken}`,
@@ -2586,8 +2586,8 @@ serve(async (req) => {
       if (!name) return null;
 
       const tryUrls = [
-        `https://www.bling.com.br/Api/v3/contatos?nome=${encodeURIComponent(name)}`,
-        `https://www.bling.com.br/Api/v3/contatos?pesquisa=${encodeURIComponent(name)}`,
+        `https://api.bling.com.br/Api/v3/contatos?nome=${encodeURIComponent(name)}`,
+        `https://api.bling.com.br/Api/v3/contatos?pesquisa=${encodeURIComponent(name)}`,
       ];
 
       for (const url of tryUrls) {
@@ -2647,7 +2647,7 @@ serve(async (req) => {
       // ✅ Log do payload FINAL COMPLETO que será enviado (por tentativa)
       console.log(`PAYLOAD BLING FINAL (PRE-SEND) [attempt ${attempt + 1}/3]:`, JSON.stringify(pedidoData, null, 2));
 
-      orderResponse = await fetch('https://www.bling.com.br/Api/v3/pedidos/vendas', {
+      orderResponse = await fetch('https://api.bling.com.br/Api/v3/pedidos/vendas', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${accessToken}`,
@@ -2734,7 +2734,7 @@ serve(async (req) => {
       
       try {
         const updateStatusResponse = await fetch(
-          `https://www.bling.com.br/Api/v3/pedidos/vendas/${createdOrderId}/situacoes/${situacaoEmAndamentoId}`,
+          `https://api.bling.com.br/Api/v3/pedidos/vendas/${createdOrderId}/situacoes/${situacaoEmAndamentoId}`,
           {
             method: 'PATCH',
             headers: {
@@ -2767,7 +2767,7 @@ serve(async (req) => {
       
       try {
         const updateStatusResponse = await fetch(
-          `https://www.bling.com.br/Api/v3/pedidos/vendas/${createdOrderId}/situacoes/${situacaoMercadoPago}`,
+          `https://api.bling.com.br/Api/v3/pedidos/vendas/${createdOrderId}/situacoes/${situacaoMercadoPago}`,
           {
             method: 'PATCH',
             headers: {
@@ -2796,7 +2796,7 @@ serve(async (req) => {
       
       try {
         const updateStatusResponse = await fetch(
-          `https://www.bling.com.br/Api/v3/pedidos/vendas/${createdOrderId}/situacoes/${situacaoAtendidoId}`,
+          `https://api.bling.com.br/Api/v3/pedidos/vendas/${createdOrderId}/situacoes/${situacaoAtendidoId}`,
           {
             method: 'PATCH',
             headers: {
@@ -2821,7 +2821,7 @@ serve(async (req) => {
     try {
       if (createdOrderId) {
         await sleep(350);
-        const detailResp = await fetch(`https://www.bling.com.br/Api/v3/pedidos/vendas/${createdOrderId}`, {
+        const detailResp = await fetch(`https://api.bling.com.br/Api/v3/pedidos/vendas/${createdOrderId}`, {
           headers: {
             'Authorization': `Bearer ${accessToken}`,
             'Accept': 'application/json',

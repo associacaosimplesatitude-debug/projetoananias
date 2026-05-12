@@ -16,7 +16,7 @@ async function refreshBlingToken(supabase: any, config: any): Promise<string> {
   
   const credentials = btoa(`${config.client_id}:${config.client_secret}`);
   
-  const tokenResponse = await fetch('https://www.bling.com.br/Api/v3/oauth/token', {
+  const tokenResponse = await fetch('https://api.bling.com.br/Api/v3/oauth/token', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
@@ -78,7 +78,7 @@ function delay(ms: number): Promise<void> {
 
 // Fetch product details from Bling
 async function fetchProductDetails(accessToken: string, productId: number): Promise<any | null> {
-  const url = `https://www.bling.com.br/Api/v3/produtos/${productId}`;
+  const url = `https://api.bling.com.br/Api/v3/produtos/${productId}`;
   console.log(`Buscando detalhes do produto: ${url}`);
 
   const resp = await fetch(url, {
@@ -110,7 +110,7 @@ async function searchProducts(accessToken: string, query: string): Promise<any[]
   
   // If query is numeric, search by code first
   if (isNumericCode(trimmedQuery)) {
-    const urlByCodigo = `https://www.bling.com.br/Api/v3/produtos?codigo=${encodedQuery}&limite=10`;
+    const urlByCodigo = `https://api.bling.com.br/Api/v3/produtos?codigo=${encodedQuery}&limite=10`;
     console.log(`Buscando por codigo (SKU): ${urlByCodigo}`);
     
     const respCodigo = await fetch(urlByCodigo, {
@@ -133,7 +133,7 @@ async function searchProducts(accessToken: string, query: string): Promise<any[]
   }
   
   // Search by name (default or fallback)
-  const urlByNome = `https://www.bling.com.br/Api/v3/produtos?nome=${encodedQuery}&limite=10`;
+  const urlByNome = `https://api.bling.com.br/Api/v3/produtos?nome=${encodedQuery}&limite=10`;
   console.log(`Buscando por nome: ${urlByNome}`);
 
   const resp = await fetch(urlByNome, {

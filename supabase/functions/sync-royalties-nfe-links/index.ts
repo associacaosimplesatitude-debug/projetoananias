@@ -17,7 +17,7 @@ async function refreshBlingToken(supabase: any, config: any): Promise<string> {
   console.log('[refreshBlingToken] Refreshing token...');
   
   const credentials = btoa(`${config.client_id}:${config.client_secret}`);
-  const response = await fetch('https://www.bling.com.br/Api/v3/oauth/token', {
+  const response = await fetch('https://api.bling.com.br/Api/v3/oauth/token', {
     method: 'POST',
     headers: {
       'Authorization': `Basic ${credentials}`,
@@ -156,7 +156,7 @@ Deno.serve(async (req) => {
         console.log(`[sync-royalties-nfe-links] Processing venda ${venda.id} with bling_order_id ${venda.bling_order_id}`);
         
         // The bling_order_id in royalties_vendas is actually the NFe ID (from the sync)
-        const nfeUrl = `https://www.bling.com.br/Api/v3/nfe/${venda.bling_order_id}`;
+        const nfeUrl = `https://api.bling.com.br/Api/v3/nfe/${venda.bling_order_id}`;
         const nfeResult = await blingApiCall(nfeUrl, accessToken);
 
         if (nfeResult.notFound) {

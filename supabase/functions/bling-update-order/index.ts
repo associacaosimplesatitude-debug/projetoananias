@@ -13,7 +13,7 @@ const cachedSituacaoIdsByName = new Map<string, number>();
 async function loadAllSituacoes(accessToken: string): Promise<void> {
   try {
     // 1) Buscar módulos
-    const urlModulos = 'https://www.bling.com.br/Api/v3/situacoes/modulos';
+    const urlModulos = 'https://api.bling.com.br/Api/v3/situacoes/modulos';
     const respModulos = await fetch(urlModulos, {
       headers: {
         'Authorization': `Bearer ${accessToken}`,
@@ -39,7 +39,7 @@ async function loadAllSituacoes(accessToken: string): Promise<void> {
     }
     
     // 2) Buscar situações do módulo
-    const urlSituacoes = `https://www.bling.com.br/Api/v3/situacoes?idModulo=${moduloIdVendas}`;
+    const urlSituacoes = `https://api.bling.com.br/Api/v3/situacoes?idModulo=${moduloIdVendas}`;
     const respSituacoes = await fetch(urlSituacoes, {
       headers: {
         'Authorization': `Bearer ${accessToken}`,
@@ -132,7 +132,7 @@ serve(async (req) => {
     // Atualizar status do pedido no Bling usando endpoint PATCH de situações
     // Ref: https://developer.bling.com.br/referencia#/Pedidos%20-%20Vendas/patch_pedidos_vendas__idPedidoVenda__situacoes__idSituacao_
     const updateResponse = await fetch(
-      `https://www.bling.com.br/Api/v3/pedidos/vendas/${bling_order_id}/situacoes/${situacaoId}`,
+      `https://api.bling.com.br/Api/v3/pedidos/vendas/${bling_order_id}/situacoes/${situacaoId}`,
       {
         method: 'PATCH',
         headers: {

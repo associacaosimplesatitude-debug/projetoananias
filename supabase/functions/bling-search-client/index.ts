@@ -17,7 +17,7 @@ async function refreshBlingToken(supabase: any, config: any): Promise<string> {
   
   const credentials = btoa(`${config.client_id}:${config.client_secret}`);
   
-  const tokenResponse = await fetch('https://www.bling.com.br/Api/v3/oauth/token', {
+  const tokenResponse = await fetch('https://api.bling.com.br/Api/v3/oauth/token', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
@@ -94,7 +94,7 @@ function extractEmailFromBlingContato(contato: any): string {
 }
 
 async function fetchBlingContatoDetalhado(accessToken: string, contatoId: number): Promise<any | null> {
-  const detailUrl = `https://www.bling.com.br/Api/v3/contatos/${contatoId}`;
+  const detailUrl = `https://api.bling.com.br/Api/v3/contatos/${contatoId}`;
   console.log(`Buscando detalhes do contato no Bling: ${detailUrl}`);
 
   const resp = await fetch(detailUrl, {
@@ -160,7 +160,7 @@ serve(async (req) => {
     // Buscar cliente no Bling por CPF/CNPJ
     // Observação: o endpoint de lista (/contatos) pode vir com dados reduzidos.
     // Quando encontrar, buscamos os detalhes em /contatos/{id} para trazer email/endereço.
-    const searchUrl = `https://www.bling.com.br/Api/v3/contatos?pesquisa=${documentoLimpo}&criterio=1`;
+    const searchUrl = `https://api.bling.com.br/Api/v3/contatos?pesquisa=${documentoLimpo}&criterio=1`;
 
     console.log(`Chamando API do Bling: ${searchUrl}`);
 

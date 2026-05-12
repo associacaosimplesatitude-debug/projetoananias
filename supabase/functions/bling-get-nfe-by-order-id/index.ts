@@ -25,7 +25,7 @@ async function refreshBlingToken(supabase: any, config: any): Promise<string> {
   console.log("[GET-NFE] Refreshing Bling token...");
   
   const credentials = btoa(`${config.client_id}:${config.client_secret}`);
-  const response = await fetch("https://www.bling.com.br/Api/v3/oauth/token", {
+  const response = await fetch("https://api.bling.com.br/Api/v3/oauth/token", {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded",
@@ -173,7 +173,7 @@ Deno.serve(async (req) => {
     // PASSO 1: Buscar detalhes do pedido no Bling
     // ============================================================
     console.log("\n[GET-NFE] ========== PASSO 1: Buscar Pedido ==========");
-    const orderUrl = `https://www.bling.com.br/Api/v3/pedidos/vendas/${blingOrderId}`;
+    const orderUrl = `https://api.bling.com.br/Api/v3/pedidos/vendas/${blingOrderId}`;
     
     const { data: orderResponse, newToken: token1 } = await blingApiCall(
       orderUrl, 
@@ -253,7 +253,7 @@ Deno.serve(async (req) => {
       
       await delay(400); // Rate limit
       
-      const nfeUrl = `https://www.bling.com.br/Api/v3/nfe/${nfeIdFromOrder}`;
+      const nfeUrl = `https://api.bling.com.br/Api/v3/nfe/${nfeIdFromOrder}`;
       const { data: nfeResponse, newToken: token2 } = await blingApiCall(
         nfeUrl, 
         accessToken, 

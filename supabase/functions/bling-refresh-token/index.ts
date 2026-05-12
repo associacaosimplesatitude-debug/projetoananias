@@ -33,7 +33,7 @@ serve(async (req) => {
     // Renovar token
     const credentials = btoa(`${config.client_id}:${config.client_secret}`);
     
-    const tokenResponse = await fetch('https://www.bling.com.br/Api/v3/oauth/token', {
+    const tokenResponse = await fetch('https://api.bling.com.br/Api/v3/oauth/token', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',

@@ -141,7 +141,7 @@ Deno.serve(async (req) => {
 
     // Exchange code for tokens
     const credentials = btoa(`${clientId}:${clientSecret}`);
-    const tokenResponse = await fetch("https://www.bling.com.br/Api/v3/oauth/token", {
+    const tokenResponse = await fetch("https://api.bling.com.br/Api/v3/oauth/token", {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",

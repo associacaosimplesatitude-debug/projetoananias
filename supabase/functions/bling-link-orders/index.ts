@@ -25,7 +25,7 @@ async function refreshBlingToken(supabase: any, config: any): Promise<string> {
   console.log("[LINK-ORDERS] Refreshing Bling token...");
   
   const credentials = btoa(`${config.client_id}:${config.client_secret}`);
-  const response = await fetch("https://www.bling.com.br/Api/v3/oauth/token", {
+  const response = await fetch("https://api.bling.com.br/Api/v3/oauth/token", {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded",
@@ -129,7 +129,7 @@ async function fetchNfeDetails(
   console.log(`[LINK-ORDERS] Fetching NF-e for Bling Order ID: ${blingOrderId}`);
   
   // Step 1: Fetch order details
-  const orderUrl = `https://www.bling.com.br/Api/v3/pedidos/vendas/${blingOrderId}`;
+  const orderUrl = `https://api.bling.com.br/Api/v3/pedidos/vendas/${blingOrderId}`;
   const { data: orderResponse, newToken: token1 } = await blingApiCall(orderUrl, accessToken, supabase, config);
   if (token1) accessToken = token1;
 
@@ -162,7 +162,7 @@ async function fetchNfeDetails(
 
   // Step 3: Fetch NF-e details
   await delay(400);
-  const nfeUrl = `https://www.bling.com.br/Api/v3/nfe/${nfeIdFromOrder}`;
+  const nfeUrl = `https://api.bling.com.br/Api/v3/nfe/${nfeIdFromOrder}`;
   const { data: nfeResponse } = await blingApiCall(nfeUrl, accessToken, supabase, config);
 
   const nfeDetail = nfeResponse?.data;

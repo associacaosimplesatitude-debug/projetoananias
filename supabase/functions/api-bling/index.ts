@@ -80,7 +80,7 @@ async function refreshBlingToken(supabase: any, config: any, tableName: string, 
   
   const credentials = btoa(`${clientId}:${clientSecret}`);
   
-  const tokenResponse = await fetch('https://www.bling.com.br/Api/v3/oauth/token', {
+  const tokenResponse = await fetch('https://api.bling.com.br/Api/v3/oauth/token', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
@@ -310,7 +310,7 @@ async function handleCreateOrder_Customer(
   
   await delay(350); // Rate limit
   
-  const searchByDocUrl = `https://www.bling.com.br/Api/v3/contatos?numeroDocumento=${documento}`;
+  const searchByDocUrl = `https://api.bling.com.br/Api/v3/contatos?numeroDocumento=${documento}`;
   const searchByDocResp = await fetch(searchByDocUrl, {
     headers: {
       'Authorization': `Bearer ${accessToken}`,
@@ -336,7 +336,7 @@ async function handleCreateOrder_Customer(
   if (email) {
     await delay(350);
     
-    const searchByEmailUrl = `https://www.bling.com.br/Api/v3/contatos?pesquisa=${encodeURIComponent(email)}`;
+    const searchByEmailUrl = `https://api.bling.com.br/Api/v3/contatos?pesquisa=${encodeURIComponent(email)}`;
     const searchByEmailResp = await fetch(searchByEmailUrl, {
       headers: {
         'Authorization': `Bearer ${accessToken}`,
@@ -413,7 +413,7 @@ async function handleCheckStock(payload: any, supabase: any): Promise<Response> 
       console.log(`[API-BLING] Verificando estoque do produto ID: ${produtoId}`);
       
       const productResponse = await fetch(
-        `https://www.bling.com.br/Api/v3/produtos/${produtoId}`,
+        `https://api.bling.com.br/Api/v3/produtos/${produtoId}`,
         {
           headers: {
             'Authorization': `Bearer ${accessToken}`,
@@ -439,7 +439,7 @@ async function handleCheckStock(payload: any, supabase: any): Promise<Response> 
       console.log(`[API-BLING] Produto encontrado: ${productData.data?.nome || 'sem nome'}`);
       
       const stockResponse = await fetch(
-        `https://www.bling.com.br/Api/v3/estoques/saldos?idsProdutos[]=${produtoId}`,
+        `https://api.bling.com.br/Api/v3/estoques/saldos?idsProdutos[]=${produtoId}`,
         {
           headers: {
             'Authorization': `Bearer ${accessToken}`,
@@ -559,7 +559,7 @@ async function handleSyncOrderStatus(payload: any, supabase: any): Promise<Respo
         const blingOrderId = proposta.bling_order_id as number;
         console.log(`[API-BLING] Sincronizando proposta ${proposta.id} (Bling #${blingOrderId})`);
 
-        const url = `https://www.bling.com.br/Api/v3/pedidos/vendas/${blingOrderId}`;
+        const url = `https://api.bling.com.br/Api/v3/pedidos/vendas/${blingOrderId}`;
         const response = await fetch(url, {
           method: 'GET',
           headers: {

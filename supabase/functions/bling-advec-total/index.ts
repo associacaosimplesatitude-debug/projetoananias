@@ -23,7 +23,7 @@ async function refreshBlingToken(supabase: any, config: any): Promise<string> {
   if (!config.refresh_token) throw new Error("Refresh token não disponível");
 
   const credentials = btoa(`${config.client_id}:${config.client_secret}`);
-  const tokenResponse = await fetch("https://www.bling.com.br/Api/v3/oauth/token", {
+  const tokenResponse = await fetch("https://api.bling.com.br/Api/v3/oauth/token", {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded",
@@ -189,7 +189,7 @@ serve(async (req) => {
         break;
       }
 
-      const url = `https://www.bling.com.br/Api/v3/contatos?pagina=${page}&limite=${limit}`;
+      const url = `https://api.bling.com.br/Api/v3/contatos?pagina=${page}&limite=${limit}`;
 
       if (page > 1) await delay(250);
 

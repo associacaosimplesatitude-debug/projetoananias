@@ -38,7 +38,7 @@ async function refreshBlingToken(
   
   const credentials = btoa(`${clientId}:${clientSecret}`);
   
-  const tokenResponse = await fetch('https://www.bling.com.br/Api/v3/oauth/token', {
+  const tokenResponse = await fetch('https://api.bling.com.br/Api/v3/oauth/token', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
@@ -83,7 +83,7 @@ function isTokenExpired(tokenExpiresAt: string | null): boolean {
 
 // Buscar pedido no Bling por ID
 async function fetchBlingOrder(accessToken: string, blingOrderId: number): Promise<Record<string, unknown> | null> {
-  const url = `https://www.bling.com.br/Api/v3/pedidos/vendas/${blingOrderId}`;
+  const url = `https://api.bling.com.br/Api/v3/pedidos/vendas/${blingOrderId}`;
   
   const response = await fetch(url, {
     method: 'GET',

@@ -19,7 +19,7 @@ async function refreshBlingToken(supabase: any, config: any): Promise<string> {
 
   const credentials = btoa(`${config.client_id}:${config.client_secret}`);
 
-  const tokenResponse = await fetch("https://www.bling.com.br/Api/v3/oauth/token", {
+  const tokenResponse = await fetch("https://api.bling.com.br/Api/v3/oauth/token", {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded",
@@ -74,7 +74,7 @@ serve(async (req) => {
     }
 
     // Buscar pedidos recentes para extrair unidadeNegocio IDs
-    const ordersUrl = "https://www.bling.com.br/Api/v3/pedidos/vendas?pagina=1&limite=10";
+    const ordersUrl = "https://api.bling.com.br/Api/v3/pedidos/vendas?pagina=1&limite=10";
     const ordersResp = await fetch(ordersUrl, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -92,7 +92,7 @@ serve(async (req) => {
       // Buscar detalhes de até 5 pedidos para encontrar diferentes unidades
       for (let i = 0; i < Math.min(5, ordersData.data.length); i++) {
         const orderId = ordersData.data[i].id;
-        const detailUrl = `https://www.bling.com.br/Api/v3/pedidos/vendas/${orderId}`;
+        const detailUrl = `https://api.bling.com.br/Api/v3/pedidos/vendas/${orderId}`;
         const detailResp = await fetch(detailUrl, {
           headers: {
             Authorization: `Bearer ${accessToken}`,
@@ -117,7 +117,7 @@ serve(async (req) => {
     }
 
     // Também buscar depósitos
-    const depositosUrl = "https://www.bling.com.br/Api/v3/depositos?pagina=1&limite=100";
+    const depositosUrl = "https://api.bling.com.br/Api/v3/depositos?pagina=1&limite=100";
     const depositosResp = await fetch(depositosUrl, {
       headers: {
         Authorization: `Bearer ${accessToken}`,

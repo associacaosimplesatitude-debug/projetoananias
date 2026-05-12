@@ -18,7 +18,7 @@ async function refreshBlingToken(supabase: any, config: any): Promise<string> {
   
   const credentials = btoa(`${config.client_id}:${config.client_secret}`);
   
-  const tokenResponse = await fetch('https://www.bling.com.br/Api/v3/oauth/token', {
+  const tokenResponse = await fetch('https://api.bling.com.br/Api/v3/oauth/token', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
@@ -101,7 +101,7 @@ async function findBlingOrderId(
     
     console.log('[backfill-bling] Strategy 1: Searching by numeroLoja:', cleanNumero);
     
-    const searchUrl = `https://www.bling.com.br/Api/v3/pedidos/vendas?numeroLoja=${encodeURIComponent(cleanNumero)}&limite=20`;
+    const searchUrl = `https://api.bling.com.br/Api/v3/pedidos/vendas?numeroLoja=${encodeURIComponent(cleanNumero)}&limite=20`;
     const { data: searchResult, newToken } = await blingApiCall(searchUrl, currentToken, supabase, blingConfig);
     
     if (newToken) currentToken = newToken;
@@ -130,7 +130,7 @@ async function findBlingOrderId(
     const endDate = new Date(date);
     endDate.setDate(endDate.getDate() + 5);
     
-    const searchUrl = `https://www.bling.com.br/Api/v3/pedidos/vendas?dataInicial=${startDate.toISOString().split('T')[0]}&dataFinal=${endDate.toISOString().split('T')[0]}&limite=100`;
+    const searchUrl = `https://api.bling.com.br/Api/v3/pedidos/vendas?dataInicial=${startDate.toISOString().split('T')[0]}&dataFinal=${endDate.toISOString().split('T')[0]}&limite=100`;
     const { data: searchResult, newToken } = await blingApiCall(searchUrl, currentToken, supabase, blingConfig);
     
     if (newToken) currentToken = newToken;

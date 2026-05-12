@@ -1,61 +1,44 @@
-## Problemas
+## Causa raiz
 
-### 1) Gerente clica em "Encaminhar" e nada acontece
+O erro "Erro ao criar pedido no Bling" ao aprovar faturamento vem da Edge Function `bling-create-order`. Os logs mostram a resposta literal da API do Bling:
 
-Causa raiz: o botão "Encaminhar" abre o `EncaminharVendedorDialog` mesmo quando o contato **ainda não tem linha em `agente_ia_conversas`** (campo `conversaId = null` em `WhatsAppChat.tsx`). Ao clicar em "Encaminhar" no rodapé do dialog, a função `handleConfirm` faz:
-
-```ts
-if (!conversaId || !selected) return;
+```
+{"type":"FORBIDDEN","message":"Acesso negado",
+ "description":"A URL 'www.bling.com.br' está bloqueada para requisições de API.
+               Por favor, utilize o endpoint oficial: 'api.bling.com.br'."}
 ```
 
-…e sai em silêncio. Nenhum toast, nenhum erro, nenhuma chamada RPC. Por isso "nada acontece".
+Ou seja, o Bling deixou de aceitar chamadas em `https://www.bling.com.br/Api/v3/...` e agora exige `https://api.bling.com.br/Api/v3/...`. Hoje o projeto usa o domínio antigo em **30 Edge Functions** (≈110 ocorrências), incluindo criação de pedido, contato, NF-e, estoque, situações, OAuth, etc. Tudo que toca o Bling está exposto a esse mesmo erro — só não estourou ainda em outras telas porque a chamada bloqueada apareceu primeiro no fluxo de aprovação.
 
-A RPC `encaminhar_conversa_para_vendedor(_conversa_id, _vendedor_id)` exige um id existente em `agente_ia_conversas`. Para conversas que vieram só via webhooks/templates (sem registro no agente), esse id não existe ainda.
+## Plano
 
-### 2) Vendedor está vendo todas as conversas "Sem vendedor"
+Substituir, em todas as Edge Functions Bling, o host `https://www.bling.com.br` por `https://api.bling.com.br` (mantendo o restante do path `/Api/v3/...` intacto). Sem mudar lógica, payloads ou nomes de função.
 
-Causa raiz: a lista de contatos do `WhatsAppChat` é construída a partir de `whatsapp_conversas` e `whatsapp_mensagens` (que não têm RLS restritiva por vendedor) e só depois é filtrada **no cliente** com:
+### Arquivos afetados (30)
 
-```ts
-if (scope === "vendedor" && vendedorId) {
-  scoped = contactList.filter((c) => c.vendedorAtribuidoId === vendedorId);
-}
-```
+OAuth/refresh:
+- `bling-refresh-token`, `bling-callback`, `bling-callback-penha`, `bling-callback-pe`
 
-Esse filtro é frágil: depende de `scope` e `vendedorId` chegarem corretamente ao componente e de o cliente carregar a lista inteira primeiro. Como a tela do vendedor mostra hoje vários contatos com a tag "Sem vendedor", o filtro está sendo ignorado/contornado, e o vendedor passa a enxergar a fila inteira.
+Núcleo do pedido (causa imediata do bug):
+- `bling-create-order` (25 ocorrências)
+- `bling-update-order`, `bling-get-order-details`, `bling-find-order-id`, `bling-list-my-orders`, `bling-sync-order-status`, `bling-link-orders`, `backfill-bling-order-ids`
 
-A regra correta é: **o vendedor só pode ver conversas onde `agente_ia_conversas.vendedor_atribuido_id = vendedor_logado.id`** (que já é exatamente o que a RLS `vendedor_le_conversas_atribuidas` permite). Tudo o que não estiver atribuído a ele não pode aparecer na lista.
+NF-e / royalties / comissões:
+- `bling-generate-nfe`, `bling-get-nfe-by-order-id`, `sync-nf-danfe-batch`, `sync-comissoes-nfe`, `sync-royalties-nfe-links`, `bling-sync-royalties-sales`, `backfill-royalties-bling-skus`
 
-## Solução
+Produtos / contatos / estoque / outros:
+- `bling-sync-products`, `bling-search-product`, `bling-search-client`, `bling-check-stock`, `bling-list-empresas`, `bling-sync-marketplace-orders`, `bling-search-campaign-audience`, `bling-backfill-documents`, `bling-advec-total`, `api-bling`, `gemini-assistente-gestao`
 
-### A) Corrigir encaminhamento do gerente
+### Execução
 
-1. Atualizar a RPC `encaminhar_conversa_para_vendedor` para aceitar **conversa_id OU telefone**:
-   - Nova assinatura: `encaminhar_conversa_para_vendedor(_vendedor_id uuid, _conversa_id uuid DEFAULT NULL, _telefone text DEFAULT NULL)`.
-   - Se `_conversa_id` for nulo, faz upsert em `agente_ia_conversas` pelo telefone (cria a linha se não existir, com `status='pausada_humano'`, `agente_pausado=true`).
-   - Em seguida aplica a mesma lógica de atribuição (atualiza atribuição e cria registro em `agente_ia_escalations`).
-   - Mantém checagem de role (`admin`/`superadmin`/`gerente_ebd`).
-2. Atualizar `EncaminharVendedorDialog` para receber também `telefone` e enviar ambos (conversaId quando existir, senão telefone). Remover o `return` silencioso quando não houver conversaId.
-3. Em `WhatsAppChat.tsx`, passar `telefone={contact?.telefone}` para o dialog e exibir `toast.error` se a RPC retornar erro.
-
-### B) Restringir o que o vendedor vê
-
-No `WhatsAppChat.tsx`, quando `scope === "vendedor"`:
-1. Buscar primeiro **somente** `agente_ia_conversas` onde `vendedor_atribuido_id = vendedorId`.
-2. Derivar a lista de telefones a partir dessas conversas (usando `phoneVariants`).
-3. Restringir as queries seguintes (`whatsapp_conversas`, `whatsapp_mensagens`, `whatsapp_webhooks`, `ebd_clientes`, `ebd_shopify_pedidos`, `ebd_leads_reativacao`) a esses telefones via `.in("telefone", ...)` / `.in("telefone_destino", ...)` / `.in("customer_phone", ...)`.
-4. Se `vendedorId` for nulo, retornar lista vazia em vez de cair no caminho de admin.
-
-Resultado: o vendedor só enxerga conversas que o gerente encaminhou para ele, mesmo que a RLS de `whatsapp_conversas` seja permissiva.
-
-### Arquivos alterados
-
-- `supabase/migrations/<nova>.sql` — nova versão da RPC `encaminhar_conversa_para_vendedor` com `telefone` opcional e upsert em `agente_ia_conversas`.
-- `src/components/admin/whatsapp/EncaminharVendedorDialog.tsx` — aceitar `telefone`, deixar de abortar em silêncio, enviar conversa_id ou telefone para a RPC, mostrar toast em qualquer falha.
-- `src/components/admin/WhatsAppChat.tsx` — passar `telefone` para o dialog; quando `scope === "vendedor"`, montar a lista de contatos a partir de `agente_ia_conversas` filtrada por `vendedor_atribuido_id`.
+1. Rodar substituição automatizada em `supabase/functions/**/index.ts`:
+   `https://www.bling.com.br/Api/v3` → `https://api.bling.com.br/Api/v3`
+2. Validar com `rg "www.bling.com.br" supabase/functions/` (deve retornar zero).
+3. Deploy das 30 functions.
+4. Reaprovar a proposta `a978cfdc-…` em `/admin/ebd/aprovacao-faturamento` para confirmar.
 
 ### Fora do escopo
 
-- Não mexer em rotas, em `ProtectedRoute`, no botão "Atendimento" da sidebar, nem na lógica de pausa do agente.
-- Não alterar políticas RLS existentes (a nova fonte de dados do vendedor já respeita a RLS atual).
-- Não tocar no fluxo do superadmin/admin além de exibir toast de erro do encaminhamento.
+- Não alterar nomes, parâmetros, RLS, schema, frontend, ou config.toml.
+- Não atualizar a lib oficial nem refatorar `bling-create-order` (apenas o host).
+- O domínio `www.bling.com.br` no documento OAuth (`/Api/v3/oauth/token`) também é trocado — a Bling aceita o endpoint OAuth no mesmo host `api.bling.com.br`, conforme orientação do erro retornado.

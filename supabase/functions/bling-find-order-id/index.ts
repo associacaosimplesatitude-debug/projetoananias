@@ -18,7 +18,7 @@ async function refreshBlingToken(supabase: any, config: any): Promise<string> {
   
   const credentials = btoa(`${config.client_id}:${config.client_secret}`);
   
-  const tokenResponse = await fetch('https://www.bling.com.br/Api/v3/oauth/token', {
+  const tokenResponse = await fetch('https://api.bling.com.br/Api/v3/oauth/token', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
@@ -128,7 +128,7 @@ Deno.serve(async (req) => {
       console.log('[bling-find-order-id] Strategy 1: Searching by numeroLoja:', numeroLoja);
       const cleanNumero = numeroLoja.replace('#', '').toUpperCase().trim();
       
-      const searchUrl = `https://www.bling.com.br/Api/v3/pedidos/vendas?numeroLoja=${encodeURIComponent(cleanNumero)}&limite=20`;
+      const searchUrl = `https://api.bling.com.br/Api/v3/pedidos/vendas?numeroLoja=${encodeURIComponent(cleanNumero)}&limite=20`;
       const { data: searchResult, newToken } = await blingApiCall(searchUrl, accessToken, supabase, blingConfig);
       
       if (newToken) accessToken = newToken;
@@ -168,7 +168,7 @@ Deno.serve(async (req) => {
       console.log('[bling-find-order-id] Strategy 2: Searching by email:', customerEmail);
       
       // Find contact by email
-      const contactUrl = `https://www.bling.com.br/Api/v3/contatos?pesquisa=${encodeURIComponent(customerEmail)}`;
+      const contactUrl = `https://api.bling.com.br/Api/v3/contatos?pesquisa=${encodeURIComponent(customerEmail)}`;
       const { data: contactResult, newToken: ct1 } = await blingApiCall(contactUrl, accessToken, supabase, blingConfig);
       
       if (ct1) accessToken = ct1;
@@ -189,7 +189,7 @@ Deno.serve(async (req) => {
           console.log('[bling-find-order-id] Found exact contact match. ID:', contactId, 'Email:', exactContact.email);
           
           // Search orders by contact
-          let ordersUrl = `https://www.bling.com.br/Api/v3/pedidos/vendas?idContato=${contactId}&limite=20`;
+          let ordersUrl = `https://api.bling.com.br/Api/v3/pedidos/vendas?idContato=${contactId}&limite=20`;
           
           if (orderDate) {
             const date = new Date(orderDate);
@@ -251,7 +251,7 @@ Deno.serve(async (req) => {
       const endDate = new Date(date);
       endDate.setDate(endDate.getDate() + 3);
       
-      const searchUrl = `https://www.bling.com.br/Api/v3/pedidos/vendas?dataInicial=${startDate.toISOString().split('T')[0]}&dataFinal=${endDate.toISOString().split('T')[0]}&limite=50`;
+      const searchUrl = `https://api.bling.com.br/Api/v3/pedidos/vendas?dataInicial=${startDate.toISOString().split('T')[0]}&dataFinal=${endDate.toISOString().split('T')[0]}&limite=50`;
       const { data: searchResult } = await blingApiCall(searchUrl, accessToken, supabase, blingConfig);
 
       if (searchResult?.data && searchResult.data.length > 0) {

@@ -16,7 +16,7 @@ async function refreshBlingToken(supabase: any, config: any): Promise<string> {
   
   const credentials = btoa(`${config.client_id}:${config.client_secret}`);
   
-  const tokenResponse = await fetch('https://www.bling.com.br/Api/v3/oauth/token', {
+  const tokenResponse = await fetch('https://api.bling.com.br/Api/v3/oauth/token', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
@@ -135,7 +135,7 @@ serve(async (req) => {
       
       // Primeiro, buscar informações do produto para confirmar que existe
       const productResponse = await fetch(
-        `https://www.bling.com.br/Api/v3/produtos/${produtoId}`,
+        `https://api.bling.com.br/Api/v3/produtos/${produtoId}`,
         {
           headers: {
             'Authorization': `Bearer ${accessToken}`,
@@ -162,7 +162,7 @@ serve(async (req) => {
       
       // Agora buscar o estoque do produto
       const stockResponse = await fetch(
-        `https://www.bling.com.br/Api/v3/estoques/saldos?idsProdutos[]=${produtoId}`,
+        `https://api.bling.com.br/Api/v3/estoques/saldos?idsProdutos[]=${produtoId}`,
         {
           headers: {
             'Authorization': `Bearer ${accessToken}`,
