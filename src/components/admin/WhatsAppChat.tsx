@@ -849,6 +849,26 @@ export default function WhatsAppChat({ scope = "admin", vendedorId = null }: Wha
         });
       });
 
+      // Fallback adicional (mesma fonte usada no LeadDetailModal):
+      // pedidos Shopify com vendedor_id vinculado pelo telefone do cliente.
+      const { data: pedidosByPhone } = allVariants.length
+        ? await supabase
+            .from("ebd_shopify_pedidos")
+            .select("customer_phone, vendedor_id, created_at")
+            .not("vendedor_id", "is", null)
+            .not("customer_phone", "is", null)
+            .in("customer_phone", allVariants)
+            .order("created_at", { ascending: false })
+        : { data: [] as any[] };
+      const pedidoVendedorByVariant: Record<string, { id: string }> = {};
+      (pedidosByPhone || []).forEach((p: any) => {
+        if (!p.customer_phone || !p.vendedor_id) return;
+        phoneVariants(p.customer_phone).forEach((v) => {
+          if (pedidoVendedorByVariant[v]) return; // primeiro = mais recente
+          pedidoVendedorByVariant[v] = { id: p.vendedor_id };
+        });
+      });
+
       // Resolver nomes de vendedores via uma única query (embed PostgREST retorna null)
       const vendedorIds = Array.from(
         new Set(
@@ -859,6 +879,7 @@ export default function WhatsAppChat({ scope = "admin", vendedorId = null }: Wha
             ]),
             ...Object.values(leadVendedorByVariant).map((l) => l.id),
             ...Object.values(clienteByVariant).map((c) => c.vendedorId),
+            ...Object.values(pedidoVendedorByVariant).map((p) => p.id),
           ].filter((id): id is string => !!id),
         ),
       );
@@ -880,13 +901,21 @@ export default function WhatsAppChat({ scope = "admin", vendedorId = null }: Wha
         const fallbackCliente = variants.reduce<
           { clienteId: string; vendedorId: string | null } | null
         >((acc, v) => acc || clienteByVariant[v] || null, null);
+        const fallbackPedido = variants.reduce<{ id: string } | null>(
+          (acc, v) => acc || pedidoVendedorByVariant[v] || null,
+          null,
+        );
 
         const vendedorAtribuidoId = atrib?.vendedorAtribuidoId || null;
         const vendedorAtribuidoNome = vendedorAtribuidoId
           ? vendedorById[vendedorAtribuidoId] || null
           : null;
         const vendedorHistoricoId =
-          atrib?.vendedorHistoricoId || fallbackCliente?.vendedorId || fallbackLead?.id || null;
+          atrib?.vendedorHistoricoId ||
+          fallbackCliente?.vendedorId ||
+          fallbackLead?.id ||
+          fallbackPedido?.id ||
+          null;
         const vendedorHistoricoNome = vendedorHistoricoId
           ? vendedorById[vendedorHistoricoId] || null
           : null;
