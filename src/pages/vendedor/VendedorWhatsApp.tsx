@@ -28,6 +28,8 @@ export default function VendedorWhatsApp() {
     );
   }
 
+  console.log("[DIAG-VendedorWhatsApp] vendedorId resolvido:", vendedorId, "| scope:", "vendedor", "| isVendedor:", isVendedor, "| isSuperAdmin:", isSuperAdmin, "| isGerente:", isGerente);
+
   return (
     <div className="space-y-4">
       <div>
