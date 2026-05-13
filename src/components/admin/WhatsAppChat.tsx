@@ -671,6 +671,8 @@ function ChatWindow({
           )}
         </Button>
       </div>
+        );
+      })()}
 
       <LeadDetailModal
         open={showLeadModal}
