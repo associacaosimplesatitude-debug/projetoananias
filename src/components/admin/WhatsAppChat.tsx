@@ -776,7 +776,6 @@ export default function WhatsAppChat({ scope: scopeProp = "superadmin", vendedor
   const [selectedPhone, setSelectedPhone] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
 
-  console.log("[DIAG-WhatsAppChat] props recebidos:", { scope, vendedorId });
   const { data: contacts = [], isLoading: loadingContacts } = useQuery({
     queryKey: ["whatsapp-chat-contacts", scope, vendedorId],
     queryFn: async () => {
@@ -940,7 +939,6 @@ export default function WhatsAppChat({ scope: scopeProp = "superadmin", vendedor
           new Date(b.ultimaData).getTime() - new Date(a.ultimaData).getTime()
       );
 
-      console.log("[DIAG-WhatsAppChat] query result:", { scope, vendedorId, contactListCount: contactList.length, scopedCount: scoped.length, sampleScoped: scoped.slice(0, 3), sampleContactList: contactList.slice(0, 3) });
       return scoped;
     },
     refetchInterval: 15000,
