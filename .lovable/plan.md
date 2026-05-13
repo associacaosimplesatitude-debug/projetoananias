@@ -1,88 +1,62 @@
-## Diagnóstico — não é coincidência
+## Objetivo
+Corrigir de forma definitiva o acesso do vendedor em `/vendedor/atendimento` e permitir que gerentes respondam mensagens no módulo de WhatsApp, sem reabrir o problema de RLS.
 
-Comparei os pedidos de hoje (12/05) com os anteriores. Padrão muito claro:
+## O que vou implementar
 
-| Dia | Total pagos | Foram p/ Bling | Falharam |
-|---|---|---|---|
-| 04/05 | 11 | 5 | 0 |
-| 05/05 | 15 | 7 | 0 |
-| 06/05 | 12 | 3 | 0 |
-| 08/05 | 21 | 11 | 0 |
-| **11/05** | **12** | **4** | **0** |
-| **12/05** | **8** | **0** | **4** |
+### 1. Corrigir o backend que ainda está filtrando errado a timeline do vendedor
+- Atualizar as policies de `whatsapp_conversas`, `whatsapp_mensagens` e `whatsapp_webhooks` que ainda usam a lógica antiga com `get_auth_email()` + `get_vendedor_id_by_email(...)`.
+- Reescrever essas policies para usar `current_vendedor_id()` diretamente, igual ao ajuste correto já feito em `agente_ia_conversas`.
+- Garantir reload de schema no backend após a migration.
 
-**Hoje começou a falhar em massa. Antes, nunca.**
+### 2. Eliminar a causa do “entra mas não vê conversa”
+- Ajustar a leitura do chat do vendedor para depender do mesmo critério seguro usado nas policies atuais.
+- Verificar e, se necessário, alinhar a busca por telefones/variantes para não perder conversa por diferença entre `55...`, `11...` e `+55...`.
+- Proteger explicitamente a rota `/vendedor/atendimento` com `VendedorProtectedRoute` para evitar montagem da tela em estado inconsistente.
 
-Olhando os pedidos que você citou (todos OK ontem):
+### 3. Liberar gerente para responder mensagens
+- Remover o bloqueio de “somente leitura” para `scope="gerente"` no `WhatsAppChat`.
+- Permitir digitação, envio manual e uso do mesmo fluxo de `send-whatsapp-message` para gerente.
+- Manter as restrições de negócio que já existem para encaminhamento/devolução, sem abrir poderes de superadmin para gerente.
 
-| Cliente | CPF/CNPJ | Tel | Bling |
-|---|---|---|---|
-| Cibelle Stirling 11/05 19:15 | 70283234474 | 35192221139 | ✅ 25786441801 |
-| Pedro Moraes 11/05 16:38 | 00332019780 | 21986539638 | ✅ 25784063132 |
-| Júlio da Silva 11/05 15:34 | 10236231707 | 21969973651 | ✅ 25783388239 |
+### 4. Validar o envio do gerente no backend
+- Confirmar que o envio pela Edge Function aceita gerente autenticado.
+- Se houver bloqueio implícito no banco para registrar a mensagem enviada em `whatsapp_mensagens` ou espelhar em `whatsapp_conversas`, ajustar as regras no backend para `admin` e `gerente_ebd`.
+- Preservar vendedor em modo restrito ao escopo que você definiu: ver apenas suas conversas atribuídas.
 
-E os de hoje (todos falhando com a mesma mensagem genérica):
+### 5. Verificação final
+- Testar o cenário do vendedor: abrir `/vendedor/atendimento` e confirmar que as conversas atribuídas aparecem.
+- Testar o cenário do gerente: abrir o atendimento, digitar e enviar mensagem.
+- Confirmar por rede/logs que o erro deixou de ser 403 e que a lista não volta vazia indevidamente.
 
-| Cliente | CPF/CNPJ | Tel | Bling |
-|---|---|---|---|
-| Symone 12/05 12:56 | 26074656215 | 9180664383 | ❌ |
-| Marcelo Alves 12/05 11:05 | 29996296806 | 11995966225 | ❌ |
-| IGREJA AD 12/05 09:31 | 02665390000144 | 21984137421 | ❌ |
-| IGREJA AD 12/05 09:28 | 02665390000144 | 21984137421 | ❌ |
+## Evidência encontrada
+- O backend está saudável.
+- A query de `agente_ia_conversas` já aparece como `200`, então o problema principal não parece mais estar nela.
+- As policies de `whatsapp_conversas` e `whatsapp_mensagens` ainda estão antigas e continuam usando `get_auth_email()`/`get_vendedor_id_by_email(...)`.
+- Isso explica por que o vendedor pode até passar da primeira filtragem, mas a timeline ainda falha ou some.
+- O gerente hoje está bloqueado no próprio componente por condição de UI (`scope !== "superadmin"`), então mesmo autenticado não consegue responder.
 
-Os dados (telefone, CPF, endereço) **não são piores que os de ontem**. Marcelo e IGREJA têm telefones perfeitamente válidos. Symone tem 10 dígitos (só 1 dígito a menos), mas comprou várias vezes antes (último pedido OK em 05/05 com o mesmo telefone).
+## Detalhes técnicos
+```text
+Vendedor
+  auth user
+    -> current_vendedor_id()
+      -> agente_ia_conversas (conversas atribuídas)
+        -> whatsapp_conversas / whatsapp_mensagens / whatsapp_webhooks
 
-## Causa raiz provável
-
-Hoje cedo deployamos a troca de host em todas as 30 funções Bling: `https://www.bling.com.br` → `https://api.bling.com.br`. **O timing bate exatamente com o início das falhas.**
-
-A mensagem `"Falha ao criar contato no Bling. Verifique os dados do cliente."` é uma string **nossa** (linha 1371 de `bling-create-order/index.ts`) — o erro real do Bling foi descartado com `console.log` e não está em lugar nenhum.
-
-Hipótese mais provável: o endpoint `api.bling.com.br/Api/v3/contatos` está mais estrito que o `www.bling.com.br` — provavelmente exige algum campo no payload (ex: `tiposContato`, validação de DDD, ou algo no `endereco.geral`) que o host antigo aceitava com fallback. Sem o corpo bruto da resposta do Bling, é só especulação.
-
-## Plano
-
-### 1. Capturar o erro REAL do Bling (sem isso, vamos chutar)
-
-Em `supabase/functions/bling-create-order/index.ts`, no bloco de criação de contato (~linhas 1313-1373), trocar o `throw` genérico por um que inclua o corpo da resposta do Bling:
-
-```ts
-// no fallback final do passo 5
-if (!contatoId) {
-  const blingMsg =
-    createResult?.error?.description ||
-    createResult?.error?.message ||
-    JSON.stringify(createResult);
-  console.error('[CONTATO] ERRO CRÍTICO:', blingMsg);
-  throw new Error(`Falha ao criar contato no Bling: ${blingMsg}`);
-}
+Gerente
+  role gerente_ebd
+    -> pode listar conversas
+    -> pode enviar via send-whatsapp-message
+    -> não recebe poderes extras de superadmin
 ```
 
-E em `mp-sync-payment-status/index.ts` linha 222, aumentar o `slice(0, 200)` para `slice(0, 1500)` para que o `sync_error` salvo já contenha a mensagem detalhada.
+### Arquivos mais prováveis
+- `supabase/migrations/...` (nova migration de RLS)
+- `src/components/admin/WhatsAppChat.tsx`
+- `src/App.tsx`
+- `supabase/functions/send-whatsapp-message/index.ts` (somente se a validação mostrar necessidade)
 
-### 2. Reprocessar 1 pedido pra ver a mensagem real
-
-Depois do deploy de (1), invocar `mp-sync-payment-status` para o pedido da Symone (`d1cd8bab-…`). O `sync_error` resultante vai conter o motivo exato do Bling. Aí decidimos a correção definitiva (campo extra no payload, sanitização, etc.) com base em fato, não em palpite.
-
-### 3. Botão "Reprocessar Bling" no admin
-
-Em `src/components/admin/AdminPedidosTab.tsx`, na aba **Mercado Pago**, na coluna `Bling`:
-- Quando `bling_order_id` está vazio: trocar/complementar o badge "Erro" por um botão pequeno **"Reprocessar"** que invoca `mp-sync-payment-status` com `{ pedido_id }`.
-- Em sucesso: invalidar `["admin-mercadopago-pedidos"]` e toast verde.
-- Em falha: toast com o `sync_error` retornado (agora detalhado, graças ao passo 1).
-- Tooltip no badge "Erro" mostrando o `sync_error` completo.
-
-### 4. Botão "Reprocessar todos com erro" no header da aba
-
-Itera sobre todos os pedidos `payment_status='approved' AND bling_order_id IS NULL` (com delay 1s entre chamadas, padrão `admin-bulk-processing-pattern`).
-
-### 5. Atualizar memória
-
-Atualizar `mem://integrations/bling-contact-validation-constraints` com a aprendizagem: "Se HTTP 500 em `/contatos`, capturar `error.description` do Bling — a mensagem genérica nossa esconde o motivo real."
-
-## Fora do escopo neste plano
-
-- **Não vou reverter o `api.bling.com.br`** — o `www.bling.com.br` está bloqueado pelo Bling oficialmente. A solução é descobrir o que o novo endpoint exige a mais e ajustar o payload.
-- Sem o passo (1) qualquer alteração no payload do contato é chute. Por isso (1) e (2) vêm primeiro, e só depois ajustamos.
-
-Posso executar (1), (2), (3), (4) e (5) em sequência?
+### Resultado esperado
+- Vendedor volta a ver suas conversas atribuídas.
+- Gerente consegue responder mensagens normalmente.
+- O acesso continua seguro, sem consulta direta vulnerável a `auth.users` dentro das policies erradas.
