@@ -9148,6 +9148,7 @@ export type Database = {
         Returns: Json
       }
       contexto_inicial_cliente: { Args: { p_telefone: string }; Returns: Json }
+      current_vendedor_id: { Args: never; Returns: string }
       devolver_conversa_para_agente: {
         Args: { _conversa_id: string }
         Returns: Json
