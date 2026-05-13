@@ -671,8 +671,16 @@ const App = () => (
                           <VendedorFunil />
                         </VendedorProtectedRoute>
                       } />
-                      <Route path="atendimento" element={<VendedorWhatsApp />} />
-                      <Route path="whatsapp" element={<VendedorWhatsApp />} />
+                      <Route path="atendimento" element={
+                        <VendedorProtectedRoute>
+                          <VendedorWhatsApp />
+                        </VendedorProtectedRoute>
+                      } />
+                      <Route path="whatsapp" element={
+                        <VendedorProtectedRoute>
+                          <VendedorWhatsApp />
+                        </VendedorProtectedRoute>
+                      } />
                       <Route path="tutoriais" element={<Tutoriais />} />
                     </Route>
                     <Route path="/vendedor/catalogo" element={<VendedorCatalogo />} />

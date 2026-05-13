@@ -616,37 +616,38 @@ function ChatWindow({
       )}
 
       {/* Input area */}
+      {(() => {
+        // Vendedor só envia se a conversa está atribuída a ele (lista já filtra, então liberamos).
+        // Gerente sempre pode responder.
+        const canSend = scope === "superadmin" || scope === "gerente" || scope === "vendedor";
+        const readOnly = !canSend;
+        return (
       <div className="flex items-center gap-2 px-4 py-3 border-t bg-card">
         <Input
           placeholder={
-            scope !== "superadmin"
-              ? "Somente leitura — apenas o superadmin envia mensagens nesta etapa."
+            readOnly
+              ? "Somente leitura."
               : windowExpired
               ? "Janela expirada — use um template"
               : "Digite uma mensagem..."
           }
-          value={scope !== "superadmin" ? "" : inputMsg}
+          value={readOnly ? "" : inputMsg}
           onChange={(e) => {
-            if (scope !== "superadmin") return;
+            if (readOnly) return;
             setInputMsg(e.target.value);
           }}
           onKeyDown={(e) => {
-            if (scope !== "superadmin") {
+            if (readOnly) {
               e.preventDefault();
               return;
             }
             handleKeyDown(e);
           }}
-          onFocus={() => {
-            if (scope !== "superadmin") {
-              toast.info("Apenas o superadmin pode enviar mensagens. Você está em modo leitura.");
-            }
-          }}
-          readOnly={scope !== "superadmin"}
+          readOnly={readOnly}
           disabled={sending}
           className="flex-1"
         />
-        {scope === "superadmin" && !windowExpired && (
+        {canSend && !windowExpired && scope !== "vendedor" && (
           <Button
             variant="outline"
             size="icon"
@@ -659,7 +660,7 @@ function ChatWindow({
         )}
         <Button
           onClick={handleSend}
-          disabled={scope !== "superadmin" || !inputMsg.trim() || sending}
+          disabled={!canSend || !inputMsg.trim() || sending}
           size="icon"
           className="shrink-0"
         >
@@ -670,6 +671,8 @@ function ChatWindow({
           )}
         </Button>
       </div>
+        );
+      })()}
 
       <LeadDetailModal
         open={showLeadModal}
