@@ -112,9 +112,26 @@ function iniciais(nome: string) {
     .join("");
 }
 
+function maskPhone(tel: string): string {
+  const d = (tel || "").replace(/\D/g, "");
+  if (d.length < 4) return tel;
+  return `${tel.slice(0, tel.length - 6)}••••${tel.slice(-2)}`;
+}
+
+interface EnvioLog {
+  id: string;
+  telefone: string;
+  status: "sucesso" | "falha";
+  disparo_tipo: "manual" | "cron";
+  created_at: string;
+  erro_mensagem: string | null;
+}
+
 export default function ResumoDiario() {
   const [date, setDate] = useState<Date>(() => startOfDay(new Date()));
   const dataRef = format(date, "yyyy-MM-dd");
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const queryClient = useQueryClient();
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["resumo-diario", dataRef],
@@ -127,6 +144,66 @@ export default function ResumoDiario() {
       return data as unknown as ResumoData;
     },
   });
+
+  const { data: ativosCount } = useQuery({
+    queryKey: ["resumo-destinatarios-ativos-count"],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("resumo_diario_destinatarios")
+        .select("id", { count: "exact", head: true })
+        .eq("ativo", true);
+      if (error) throw error;
+      return count ?? 0;
+    },
+  });
+
+  const { data: enviosLog } = useQuery({
+    queryKey: ["resumo-envios-log", dataRef],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("resumo_diario_envios_log")
+        .select("id, telefone, status, disparo_tipo, created_at, erro_mensagem")
+        .eq("data_ref", dataRef)
+        .order("created_at", { ascending: false })
+        .limit(5);
+      if (error) throw error;
+      return (data ?? []) as EnvioLog[];
+    },
+  });
+
+  const enviarMutation = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke(
+        "enviar-resumo-diario-whatsapp",
+        { body: { data_ref: dataRef, disparo_tipo: "manual" } }
+      );
+      if (error) throw error;
+      return data as { sucesso: number; falhas: number; total_destinatarios: number; detalhes?: any[] };
+    },
+    onSuccess: (res) => {
+      queryClient.invalidateQueries({ queryKey: ["resumo-envios-log", dataRef] });
+      const { sucesso = 0, falhas = 0 } = res || ({} as any);
+      if (falhas === 0 && sucesso > 0) {
+        toast.success(`Resumo enviado para ${sucesso} ${sucesso === 1 ? "destinatário" : "destinatários"}`);
+      } else if (sucesso > 0 && falhas > 0) {
+        toast.warning(`${sucesso} enviado(s), ${falhas} com falha`);
+      } else {
+        toast.error("Falha ao enviar", {
+          description: res?.detalhes?.[0]?.erro || "Nenhum envio bem-sucedido",
+        });
+      }
+    },
+    onError: (err: any) => {
+      toast.error("Falha ao enviar", { description: err?.message || "Erro desconhecido" });
+    },
+  });
+
+  const handleClickEnviar = () => setConfirmOpen(true);
+  const handleConfirmar = async () => {
+    setConfirmOpen(false);
+    await enviarMutation.mutateAsync();
+  };
+
 
   const variacao = data?.totais.variacao_pct ?? 0;
   const variacaoCor =
