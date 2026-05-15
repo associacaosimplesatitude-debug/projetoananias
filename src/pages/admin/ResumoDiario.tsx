@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { format, subDays, startOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   CalendarIcon,
   MessageCircle,
@@ -15,6 +15,9 @@ import {
   TrendingUp,
   TrendingDown,
   Inbox,
+  CheckCircle2,
+  XCircle,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -28,6 +31,16 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const brl = (v: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v || 0);
@@ -99,9 +112,26 @@ function iniciais(nome: string) {
     .join("");
 }
 
+function maskPhone(tel: string): string {
+  const d = (tel || "").replace(/\D/g, "");
+  if (d.length < 4) return tel;
+  return `${tel.slice(0, tel.length - 6)}••••${tel.slice(-2)}`;
+}
+
+interface EnvioLog {
+  id: string;
+  telefone: string;
+  status: "sucesso" | "falha";
+  disparo_tipo: "manual" | "cron";
+  created_at: string;
+  erro_mensagem: string | null;
+}
+
 export default function ResumoDiario() {
   const [date, setDate] = useState<Date>(() => startOfDay(new Date()));
   const dataRef = format(date, "yyyy-MM-dd");
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const queryClient = useQueryClient();
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["resumo-diario", dataRef],
@@ -114,6 +144,66 @@ export default function ResumoDiario() {
       return data as unknown as ResumoData;
     },
   });
+
+  const { data: ativosCount } = useQuery({
+    queryKey: ["resumo-destinatarios-ativos-count"],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("resumo_diario_destinatarios")
+        .select("id", { count: "exact", head: true })
+        .eq("ativo", true);
+      if (error) throw error;
+      return count ?? 0;
+    },
+  });
+
+  const { data: enviosLog } = useQuery({
+    queryKey: ["resumo-envios-log", dataRef],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("resumo_diario_envios_log")
+        .select("id, telefone, status, disparo_tipo, created_at, erro_mensagem")
+        .eq("data_ref", dataRef)
+        .order("created_at", { ascending: false })
+        .limit(5);
+      if (error) throw error;
+      return (data ?? []) as EnvioLog[];
+    },
+  });
+
+  const enviarMutation = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke(
+        "enviar-resumo-diario-whatsapp",
+        { body: { data_ref: dataRef, disparo_tipo: "manual" } }
+      );
+      if (error) throw error;
+      return data as { sucesso: number; falhas: number; total_destinatarios: number; detalhes?: any[] };
+    },
+    onSuccess: (res) => {
+      queryClient.invalidateQueries({ queryKey: ["resumo-envios-log", dataRef] });
+      const { sucesso = 0, falhas = 0 } = res || ({} as any);
+      if (falhas === 0 && sucesso > 0) {
+        toast.success(`Resumo enviado para ${sucesso} ${sucesso === 1 ? "destinatário" : "destinatários"}`);
+      } else if (sucesso > 0 && falhas > 0) {
+        toast.warning(`${sucesso} enviado(s), ${falhas} com falha`);
+      } else {
+        toast.error("Falha ao enviar", {
+          description: res?.detalhes?.[0]?.erro || "Nenhum envio bem-sucedido",
+        });
+      }
+    },
+    onError: (err: any) => {
+      toast.error("Falha ao enviar", { description: err?.message || "Erro desconhecido" });
+    },
+  });
+
+  const handleClickEnviar = () => setConfirmOpen(true);
+  const handleConfirmar = async () => {
+    setConfirmOpen(false);
+    await enviarMutation.mutateAsync();
+  };
+
 
   const variacao = data?.totais.variacao_pct ?? 0;
   const variacaoCor =
@@ -175,12 +265,15 @@ export default function ResumoDiario() {
             </Popover>
             <Button
               size="sm"
-              onClick={() =>
-                toast("Em breve", { description: "Disparo será habilitado em seguida." })
-              }
+              onClick={handleClickEnviar}
+              disabled={enviarMutation.isPending}
               className="gap-2"
             >
-              <MessageCircle className="h-4 w-4" />
+              {enviarMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <MessageCircle className="h-4 w-4" />
+              )}
               Enviar diretoria
             </Button>
           </div>
@@ -386,6 +479,41 @@ export default function ResumoDiario() {
             </Card>
           )}
 
+          {/* Últimos envios */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Últimos envios
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {!enviosLog || enviosLog.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Ainda não enviado hoje</p>
+              ) : (
+                <ul className="divide-y">
+                  {enviosLog.map((log) => (
+                    <li key={log.id} className="flex items-center justify-between py-2 text-sm">
+                      <div className="flex items-center gap-2 min-w-0">
+                        {log.status === "sucesso" ? (
+                          <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
+                        ) : (
+                          <XCircle className="h-4 w-4 text-red-600 shrink-0" />
+                        )}
+                        <span className="font-mono text-xs">{maskPhone(log.telefone)}</span>
+                        <Badge variant="outline" className="text-[10px] capitalize">
+                          {log.disparo_tipo}
+                        </Badge>
+                      </div>
+                      <span className="text-xs text-muted-foreground tabular-nums">
+                        {format(new Date(log.created_at), "HH:mm:ss")}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
+
           {/* Footer */}
           <div className="pt-2">
             <Button variant="outline" asChild>
@@ -397,6 +525,44 @@ export default function ResumoDiario() {
           </div>
         </>
       ) : null}
+
+      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <AlertDialogContent>
+          {ativosCount === 0 ? (
+            <>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Nenhum destinatário ativo</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Cadastre destinatários para enviar o resumo diário via WhatsApp.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Fechar</AlertDialogCancel>
+                <AlertDialogAction asChild>
+                  <Link to="/admin/resumo-diario/destinatarios">Cadastrar destinatários</Link>
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </>
+          ) : (
+            <>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Enviar resumo do dia?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  O resumo de <strong>{format(date, "dd/MM/yyyy")}</strong> será enviado para{" "}
+                  <strong>
+                    {ativosCount ?? 0} {ativosCount === 1 ? "destinatário ativo" : "destinatários ativos"}
+                  </strong>{" "}
+                  via WhatsApp.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction onClick={handleConfirmar}>Confirmar envio</AlertDialogAction>
+              </AlertDialogFooter>
+            </>
+          )}
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
