@@ -1,67 +1,44 @@
+# Resumo Diário — 6 canais oficiais
+
 ## Objetivo
 
-1. Garantir que números dos EUA sempre apareçam como `+1 (XXX) XXX-XXXX` e PT como `+351 XXX XXX XXX`, sem regressões para BR.
-2. Criar testes automatizados cobrindo BR, EUA e Portugal para `detectWhatsappCountry` e `formatWhatsappDisplay`.
+Em `/admin/resumo-diario`, exibir em "Vendas por canal" apenas estes 6 cards, e fazer os KPIs do topo somarem somente eles:
+
+1. **Faturados** — duas fontes mantidas:
+   - `ebd_shopify_pedidos` com `status_pagamento = 'Faturado'` no `order_date` do dia
+   - `vendedor_propostas` com `status IN ('FATURADO','APROVADA_FATURAMENTO','PAGO')` no `confirmado_em` (com fallback para `updated_at` quando `confirmado_em` for nulo) do dia
+2. **Mercado Pago** — `ebd_shopify_pedidos_mercadopago` com `payment_status IN ('approved','PAGO')` ou `status='PAGO'`, no `created_at` do dia
+3. **E-commerce** — `ebd_shopify_pedidos` com `status_pagamento = 'paid'` no `order_date` do dia
+4. **Balcão Penha** — `vendas_balcao` com `status = 'finalizada'` no `created_at` do dia (canal **novo**, não existe hoje na função)
+5. **Shopee** — `bling_marketplace_pedidos` com `marketplace = 'SHOPEE'` e `status_pagamento IN ('paid','Pago')` no `order_date` do dia
+6. **Mercado Livre** — idem, `marketplace = 'MERCADO_LIVRE'`
+
+Canais removidos da UI e dos totais: Faturamento Direto (separado), Nova Loja CG, Amazon, Atacado, ADVECS.
 
 ## Mudanças
 
-### 1. Extrair util reutilizável e testável
+### 1. Migration SQL — recriar `get_resumo_diario(date)`
+- Substituir CTE `fat_direto` (atual) por `faturados_propostas` com os 3 status e usar `COALESCE(confirmado_em, updated_at)`.
+- Adicionar CTE `balcao` lendo `vendas_balcao` (status `finalizada`).
+- Filtrar `mkt` apenas para `SHOPEE` e `MERCADO_LIVRE` com status pago; quebrar em duas CTEs `mkt_shopee` e `mkt_ml`.
+- Remover `nova_loja` e marketplaces não-marketplace dos totais.
+- `totais_hoje.faturamento` e `pedidos` = soma somente das 6 CTEs acima.
+- `totais_ontem` reescrito com a mesma lógica (mesmas 6 fontes).
+- Saída `canais` (array) com exatamente 6 entradas:
+  - `Faturados`, `Mercado Pago`, `E-commerce`, `Balcão Penha`, `Shopee`, `Mercado Livre`
+- `vendedores_top5` e `mix_produtos` continuam considerando as fontes presentes (sem nova_loja). Balcão entra no ranking de vendedores via `vendas_balcao.vendedor_id`.
+- Mantém `SECURITY DEFINER`, `STABLE`, checagem `has_role(auth.uid(),'admin')`.
 
-Criar `src/lib/whatsappFormat.ts` com:
+### 2. Frontend — `src/pages/admin/ResumoDiario.tsx`
+- Reduzir o array `CANAIS` para 6 entradas e renomear keys/labels para casar com os novos nomes do backend:
+  - `faturados`, `mercado_pago`, `ecommerce`, `balcao_penha`, `shopee`, `mercado_livre`
+- Atualizar `canalKeyMap` para os novos labels.
+- Trocar grid para `lg:grid-cols-3` (6 cards ficam em 2 linhas de 3).
+- Tipo `CanalKey` ajustado.
 
-- `detectWhatsappCountry(digits): "BR" | "PT" | "US"`
-- `formatWhatsappDisplay(raw): { country, formatted }`
+## Detalhes técnicos
 
-Manter regras atuais e reforçar a detecção dos EUA:
-- PT: 12 dígitos iniciando com `351`.
-- US: 11 dígitos iniciando com `1` e 3º dígito ≠ `9` (evita colidir com celular BR `DDD+9+8`). Também aceitar 10 dígitos cujo 1º dígito (código de área) seja `2-9` **e** que não sejam um DDD brasileiro válido — manteremos conservador: só promove a US quando começa com `1` (11 dígitos), pois é o formato armazenado pelos pedidos Shopify dos EUA na base.
-- BR: demais casos.
-
-Formatação:
-- US: `+1 (XXX) XXX-XXXX` sempre que `country === "US"`, mesmo com dígitos parciais (preencher só o que existe, sem deixar parênteses vazios).
-- PT: `+351 XXX XXX XXX`.
-- BR: mantém `+55 (DD) XXXXX-XXXX` / `+55 (DD) XXXX-XXXX`.
-
-### 2. Atualizar `RevistaLicencasAdmin.tsx`
-
-Remover as definições locais de `detectWhatsappCountry` / `formatWhatsappDisplay` e importar de `@/lib/whatsappFormat`. Sem mudanças de UI.
-
-### 3. Setup de testes (se ainda não existir)
-
-Conferir se o projeto já tem Vitest configurado. Caso não:
-- Adicionar `vitest`, `@testing-library/jest-dom`, `@testing-library/react`, `jsdom` como devDeps.
-- Criar `vitest.config.ts` e `src/test/setup.ts` conforme guia padrão.
-
-(Nesta task só precisamos do runner — não há render de componente.)
-
-### 4. Testes — `src/lib/whatsappFormat.test.ts`
-
-Casos cobertos:
-
-**detectWhatsappCountry**
-- `"351922211394"` → `PT`
-- `"17815586729"`, `"13057265041"`, `"16174617575"` → `US`
-- `"15991616340"` (DDD 15, celular SP) → `BR` (3º dígito = 9)
-- `"16981648852"` → `BR`
-- `"1133334444"` (10 dígitos, fixo SP) → `BR`
-- `"5511999998888"` (com DDI) → `BR` (fallback)
-- string vazia / curta → `BR` (fallback de segurança)
-
-**formatWhatsappDisplay**
-- `"17815586729"` → `+1 (781) 558-6729`, country `US`
-- `"13057265041"` → `+1 (305) 726-5041`
-- `"351922211394"` → `+351 922 211 394`, country `PT`
-- `"15991616340"` → `+55 (15) 99161-6340`, country `BR`
-- `"1133334444"` → `+55 (11) 3333-4444`
-- `""` → `{ country: null, formatted: "—" }`
-
-## Arquivos
-
-- novo: `src/lib/whatsappFormat.ts`
-- novo: `src/lib/whatsappFormat.test.ts`
-- editar: `src/pages/admin/RevistaLicencasAdmin.tsx` (remover funções locais, importar do util)
-- (condicional) novo: `vitest.config.ts`, `src/test/setup.ts`, devDeps de teste
-
-## Validação
-
-Rodar `vitest run src/lib/whatsappFormat.test.ts` e conferir que todos os casos passam. Abrir `/admin/ebd/revista-licencas` e confirmar que números US aparecem com `+1 (...)` e PT com `+351 ...`.
+- Os totais do topo (Faturamento, Pedidos, Ticket médio, Produtos vendidos) já vêm de `totais_hoje` na função SQL, então a mudança de CTEs já refaz tudo.
+- Variação vs ontem usa `totais_ontem`, também refeito com as mesmas 6 fontes para consistência.
+- `vendas_balcao.itens` (jsonb) é incluído no mix de produtos com a mesma lógica defensiva (`jsonb_typeof = 'array'`) já usada para `vendedor_propostas.itens` e `mp.items`.
+- Nada muda em RLS, edge functions, cron de WhatsApp ou tabela de destinatários.
