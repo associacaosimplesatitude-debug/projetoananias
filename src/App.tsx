@@ -304,6 +304,8 @@ const App = () => (
               <Route path="/leitor/acesso" element={<LeitorAcesso />} />
               <Route path="/leitor/leitura" element={<LeitorLeitura />} />
               <Route path="/escolha" element={<EscolhaVersao />} />
+              {/* Resumo diário acessível publicamente via link do WhatsApp (?d=YYYY-MM-DD) */}
+              <Route path="/admin/resumo-diario" element={<ResumoDiario />} />
 
               {/* Portal Multi-Licença (antigo Superintendente) */}
               <Route
