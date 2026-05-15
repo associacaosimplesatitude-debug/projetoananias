@@ -117,11 +117,24 @@ Deno.serve(async (req) => {
     }
     const r: any = resumo || {};
 
-    // ---- Destinatários ativos
-    const { data: destinatarios, error: destErr } = await admin
-      .from("resumo_diario_destinatarios")
-      .select("id, nome, telefone, ativo")
-      .eq("ativo", true);
+    // ---- Destinatários ativos (ou override por telefones)
+    let destinatarios: any[] | null = null;
+    let destErr: any = null;
+    if (Array.isArray(body?.telefones_override) && body.telefones_override.length > 0) {
+      destinatarios = body.telefones_override.map((tel: string, i: number) => ({
+        id: `override-${i}`,
+        nome: `Override ${i + 1}`,
+        telefone: tel,
+        ativo: true,
+      }));
+    } else {
+      const res = await admin
+        .from("resumo_diario_destinatarios")
+        .select("id, nome, telefone, ativo")
+        .eq("ativo", true);
+      destinatarios = res.data;
+      destErr = res.error;
+    }
     if (destErr) {
       return jsonResponse({ error: "Falha ao carregar destinatários", detalhe: destErr.message }, 500);
     }
