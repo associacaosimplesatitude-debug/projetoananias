@@ -68,14 +68,26 @@ Deno.serve(async (req) => {
   try {
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const WHATSAPP_TOKEN = Deno.env.get("WHATSAPP_ACCESS_TOKEN")!;
-    const PHONE_NUMBER_ID = Deno.env.get("WHATSAPP_PHONE_NUMBER_ID")!;
+
+    const admin = createClient(SUPABASE_URL, SERVICE_KEY);
+
+    // Resolve credenciais: env primeiro, fallback para system_settings
+    let WHATSAPP_TOKEN = Deno.env.get("WHATSAPP_ACCESS_TOKEN") || Deno.env.get("META_WHATSAPP_TOKEN") || "";
+    let PHONE_NUMBER_ID = Deno.env.get("WHATSAPP_PHONE_NUMBER_ID") || "";
+    if (!WHATSAPP_TOKEN || !PHONE_NUMBER_ID) {
+      const { data: settings } = await admin
+        .from("system_settings")
+        .select("key, value")
+        .in("key", ["whatsapp_phone_number_id", "whatsapp_access_token"]);
+      const sm: Record<string, string> = {};
+      (settings || []).forEach((s: any) => { sm[s.key] = s.value; });
+      WHATSAPP_TOKEN = WHATSAPP_TOKEN || sm["whatsapp_access_token"] || "";
+      PHONE_NUMBER_ID = PHONE_NUMBER_ID || sm["whatsapp_phone_number_id"] || "";
+    }
 
     if (!WHATSAPP_TOKEN || !PHONE_NUMBER_ID) {
       return jsonResponse({ error: "Credenciais WhatsApp não configuradas" }, 500);
     }
-
-    const admin = createClient(SUPABASE_URL, SERVICE_KEY);
 
     // ---- Parse body
     let body: any = {};
@@ -89,6 +101,7 @@ Deno.serve(async (req) => {
 
     // ---- Auth
     let disparadoPor: string | null = null;
+    let userToken: string | null = null;
     if (disparoTipo === "manual") {
       const auth = req.headers.get("Authorization") || "";
       const token = auth.replace("Bearer ", "").trim();
@@ -106,10 +119,16 @@ Deno.serve(async (req) => {
       });
       if (!roleOk) return jsonResponse({ error: "Permissão negada" }, 403);
       disparadoPor = userData.user.id;
+      userToken = token;
     }
 
-    // ---- Carrega resumo
-    const { data: resumo, error: resumoErr } = await admin.rpc("get_resumo_diario", {
+    // ---- Carrega resumo (usa client autenticado pq RPC exige admin via auth.uid)
+    const rpcClient = userToken
+      ? createClient(SUPABASE_URL, Deno.env.get("SUPABASE_ANON_KEY")!, {
+          global: { headers: { Authorization: `Bearer ${userToken}` } },
+        })
+      : admin;
+    const { data: resumo, error: resumoErr } = await rpcClient.rpc("get_resumo_diario", {
       data_ref: dataRef,
     });
     if (resumoErr) {
@@ -117,11 +136,24 @@ Deno.serve(async (req) => {
     }
     const r: any = resumo || {};
 
-    // ---- Destinatários ativos
-    const { data: destinatarios, error: destErr } = await admin
-      .from("resumo_diario_destinatarios")
-      .select("id, nome, telefone, ativo")
-      .eq("ativo", true);
+    // ---- Destinatários ativos (ou override por telefones)
+    let destinatarios: any[] | null = null;
+    let destErr: any = null;
+    if (Array.isArray(body?.telefones_override) && body.telefones_override.length > 0) {
+      destinatarios = body.telefones_override.map((tel: string, i: number) => ({
+        id: `override-${i}`,
+        nome: `Override ${i + 1}`,
+        telefone: tel,
+        ativo: true,
+      }));
+    } else {
+      const res = await admin
+        .from("resumo_diario_destinatarios")
+        .select("id, nome, telefone, ativo")
+        .eq("ativo", true);
+      destinatarios = res.data;
+      destErr = res.error;
+    }
     if (destErr) {
       return jsonResponse({ error: "Falha ao carregar destinatários", detalhe: destErr.message }, 500);
     }
@@ -230,7 +262,7 @@ Deno.serve(async (req) => {
       // Log
       await admin.from("resumo_diario_envios_log").insert({
         data_ref: dataRef,
-        destinatario_id: dest.id,
+        destinatario_id: typeof dest.id === "string" && dest.id.startsWith("override-") ? null : dest.id,
         telefone: dest.telefone,
         whatsapp_message_id: messageId,
         status,
