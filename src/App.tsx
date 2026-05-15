@@ -304,6 +304,8 @@ const App = () => (
               <Route path="/leitor/acesso" element={<LeitorAcesso />} />
               <Route path="/leitor/leitura" element={<LeitorLeitura />} />
               <Route path="/escolha" element={<EscolhaVersao />} />
+              {/* Resumo diário acessível publicamente via link do WhatsApp (?d=YYYY-MM-DD) */}
+              <Route path="/admin/resumo-diario" element={<ResumoDiario />} />
 
               {/* Portal Multi-Licença (antigo Superintendente) */}
               <Route
@@ -568,7 +570,6 @@ const App = () => (
                         <Route path="escalations" element={<AgenteIAEscalations />} />
                         <Route path="metricas" element={<AgenteIAMetricas />} />
                       </Route>
-                      <Route path="resumo-diario" element={<ResumoDiario />} />
                       <Route path="resumo-diario/destinatarios" element={<ResumoDiarioDestinatarios />} />
                     </Route>
                     <Route
