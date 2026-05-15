@@ -1,62 +1,39 @@
-## Objetivo
-Corrigir de forma definitiva o acesso do vendedor em `/vendedor/atendimento` e permitir que gerentes respondam mensagens no módulo de WhatsApp, sem reabrir o problema de RLS.
+# Corrigir detecção de números EUA em /admin/ebd/revista-licencas
 
-## O que vou implementar
+## Problema
 
-### 1. Corrigir o backend que ainda está filtrando errado a timeline do vendedor
-- Atualizar as policies de `whatsapp_conversas`, `whatsapp_mensagens` e `whatsapp_webhooks` que ainda usam a lógica antiga com `get_auth_email()` + `get_vendedor_id_by_email(...)`.
-- Reescrever essas policies para usar `current_vendedor_id()` diretamente, igual ao ajuste correto já feito em `agente_ia_conversas`.
-- Garantir reload de schema no backend após a migration.
+Em `src/pages/admin/RevistaLicencasAdmin.tsx`, a função `detectWhatsappCountry` (linha 370) só classifica como EUA números de 11 dígitos começando com `"10"`. Mas códigos de área dos EUA nunca começam com 0 ou 1 — começam com 2-9 (ex.: 305 Miami, 617 Boston, 781 Boston, 813 Tampa, 857 Boston).
 
-### 2. Eliminar a causa do “entra mas não vê conversa”
-- Ajustar a leitura do chat do vendedor para depender do mesmo critério seguro usado nas policies atuais.
-- Verificar e, se necessário, alinhar a busca por telefones/variantes para não perder conversa por diferença entre `55...`, `11...` e `+55...`.
-- Proteger explicitamente a rota `/vendedor/atendimento` com `VendedorProtectedRoute` para evitar montagem da tela em estado inconsistente.
+Resultado: clientes reais como `17815586729`, `13057265041`, `16174617575`, `18132155420` etc. estão sendo exibidos com bandeira do Brasil e formato `+55 (17) 8155-86729`.
 
-### 3. Liberar gerente para responder mensagens
-- Remover o bloqueio de “somente leitura” para `scope="gerente"` no `WhatsAppChat`.
-- Permitir digitação, envio manual e uso do mesmo fluxo de `send-whatsapp-message` para gerente.
-- Manter as restrições de negócio que já existem para encaminhamento/devolução, sem abrir poderes de superadmin para gerente.
+## Causa da ambiguidade
 
-### 4. Validar o envio do gerente no backend
-- Confirmar que o envio pela Edge Function aceita gerente autenticado.
-- Se houver bloqueio implícito no banco para registrar a mensagem enviada em `whatsapp_mensagens` ou espelhar em `whatsapp_conversas`, ajustar as regras no backend para `admin` e `gerente_ebd`.
-- Preservar vendedor em modo restrito ao escopo que você definiu: ver apenas suas conversas atribuídas.
+Tanto BR (11 dígitos, DDDs 11–19) quanto EUA (11 dígitos, prefixo `1` + área 2-9) começam com `1`. A regra discriminante é: **um celular brasileiro de 11 dígitos sempre tem o 3º dígito igual a `9`** (DDD + `9` + 8 dígitos). Se o 3º dígito não é `9`, não pode ser BR mobile — é EUA.
 
-### 5. Verificação final
-- Testar o cenário do vendedor: abrir `/vendedor/atendimento` e confirmar que as conversas atribuídas aparecem.
-- Testar o cenário do gerente: abrir o atendimento, digitar e enviar mensagem.
-- Confirmar por rede/logs que o erro deixou de ser 403 e que a lista não volta vazia indevidamente.
+Exemplos validados na base:
+- `15991616340` (DDD 15, 9...) → BR ✓
+- `16981648852` (DDD 16, 9...) → BR ✓
+- `17815586729` (3º dígito = 8) → EUA (área 781) ✓
+- `13057265041` (3º dígito = 0) → EUA (área 305) ✓
+- `16174617575` (3º dígito = 7) → EUA (área 617) ✓
 
-## Evidência encontrada
-- O backend está saudável.
-- A query de `agente_ia_conversas` já aparece como `200`, então o problema principal não parece mais estar nela.
-- As policies de `whatsapp_conversas` e `whatsapp_mensagens` ainda estão antigas e continuam usando `get_auth_email()`/`get_vendedor_id_by_email(...)`.
-- Isso explica por que o vendedor pode até passar da primeira filtragem, mas a timeline ainda falha ou some.
-- O gerente hoje está bloqueado no próprio componente por condição de UI (`scope !== "superadmin"`), então mesmo autenticado não consegue responder.
+## Mudança
 
-## Detalhes técnicos
-```text
-Vendedor
-  auth user
-    -> current_vendedor_id()
-      -> agente_ia_conversas (conversas atribuídas)
-        -> whatsapp_conversas / whatsapp_mensagens / whatsapp_webhooks
+Atualizar **apenas** `detectWhatsappCountry` em `src/pages/admin/RevistaLicencasAdmin.tsx` (linhas 370–374):
 
-Gerente
-  role gerente_ebd
-    -> pode listar conversas
-    -> pode enviar via send-whatsapp-message
-    -> não recebe poderes extras de superadmin
+```ts
+function detectWhatsappCountry(digits: string): "BR" | "PT" | "US" {
+  if (digits.startsWith("351") && digits.length === 12) return "PT";
+  // EUA: 11 dígitos começando com "1". Diferenciamos de BR mobile (que sempre
+  // tem o 3º dígito = "9", pois é DDD + 9 + 8 dígitos).
+  if (digits.length === 11 && digits.startsWith("1") && digits[2] !== "9") return "US";
+  return "BR";
+}
 ```
 
-### Arquivos mais prováveis
-- `supabase/migrations/...` (nova migration de RLS)
-- `src/components/admin/WhatsAppChat.tsx`
-- `src/App.tsx`
-- `supabase/functions/send-whatsapp-message/index.ts` (somente se a validação mostrar necessidade)
+`formatWhatsappDisplay` já trata o caso US corretamente (`+1 (XXX) XXX-XXXX`), então nenhuma outra alteração é necessária.
 
-### Resultado esperado
-- Vendedor volta a ver suas conversas atribuídas.
-- Gerente consegue responder mensagens normalmente.
-- O acesso continua seguro, sem consulta direta vulnerável a `auth.users` dentro das policies erradas.
+## Escopo
+
+- 1 arquivo, 1 função, ~3 linhas alteradas.
+- Sem migração de banco, sem mudança de UI/layout, sem alteração no valor armazenado.
