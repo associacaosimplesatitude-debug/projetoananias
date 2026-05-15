@@ -265,12 +265,15 @@ export default function ResumoDiario() {
             </Popover>
             <Button
               size="sm"
-              onClick={() =>
-                toast("Em breve", { description: "Disparo será habilitado em seguida." })
-              }
+              onClick={handleClickEnviar}
+              disabled={enviarMutation.isPending}
               className="gap-2"
             >
-              <MessageCircle className="h-4 w-4" />
+              {enviarMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <MessageCircle className="h-4 w-4" />
+              )}
               Enviar diretoria
             </Button>
           </div>
