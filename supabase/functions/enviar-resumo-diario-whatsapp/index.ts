@@ -68,14 +68,26 @@ Deno.serve(async (req) => {
   try {
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const WHATSAPP_TOKEN = Deno.env.get("WHATSAPP_ACCESS_TOKEN")!;
-    const PHONE_NUMBER_ID = Deno.env.get("WHATSAPP_PHONE_NUMBER_ID")!;
+
+    const admin = createClient(SUPABASE_URL, SERVICE_KEY);
+
+    // Resolve credenciais: env primeiro, fallback para system_settings
+    let WHATSAPP_TOKEN = Deno.env.get("WHATSAPP_ACCESS_TOKEN") || Deno.env.get("META_WHATSAPP_TOKEN") || "";
+    let PHONE_NUMBER_ID = Deno.env.get("WHATSAPP_PHONE_NUMBER_ID") || "";
+    if (!WHATSAPP_TOKEN || !PHONE_NUMBER_ID) {
+      const { data: settings } = await admin
+        .from("system_settings")
+        .select("key, value")
+        .in("key", ["whatsapp_phone_number_id", "whatsapp_access_token"]);
+      const sm: Record<string, string> = {};
+      (settings || []).forEach((s: any) => { sm[s.key] = s.value; });
+      WHATSAPP_TOKEN = WHATSAPP_TOKEN || sm["whatsapp_access_token"] || "";
+      PHONE_NUMBER_ID = PHONE_NUMBER_ID || sm["whatsapp_phone_number_id"] || "";
+    }
 
     if (!WHATSAPP_TOKEN || !PHONE_NUMBER_ID) {
       return jsonResponse({ error: "Credenciais WhatsApp não configuradas" }, 500);
     }
-
-    const admin = createClient(SUPABASE_URL, SERVICE_KEY);
 
     // ---- Parse body
     let body: any = {};
