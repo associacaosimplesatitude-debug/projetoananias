@@ -171,19 +171,25 @@ Deno.serve(async (req) => {
     const totais = r.totais || {};
     const top = (r.vendedores_top5 || [])[0] || null;
     const destaque = r.destaque_produto || null;
+    const variacaoPct = Number(totais.variacao_percentual ?? totais.variacao_pct ?? 0) || 0;
+    const produtosVendidos = Number(totais.produtos_vendidos ?? totais.produtos ?? 0) || 0;
+    const topValor = Number(top?.valor ?? top?.total ?? 0) || 0;
+    const destaqueTexto = destaque?.titulo
+      ? `${destaque.titulo} (${fmtInt(destaque.quantidade || 0)} un)`
+      : produtosVendidos > 0
+        ? `${fmtInt(produtosVendidos)} produtos vendidos`
+        : "Sem destaque";
 
     const vars: string[] = [
       fmtDataBR(dataRef),                                                // {{1}}
       fmtBRL(totais.faturamento || 0),                                   // {{2}}
-      buildVariacaoTexto(totais.faturamento_ontem || 0, totais.variacao_pct || 0), // {{3}}
+      buildVariacaoTexto(totais.faturamento_ontem || 0, variacaoPct),    // {{3}}
       fmtInt(totais.pedidos || 0),                                       // {{4}}
       fmtBRL(totais.ticket_medio || 0),                                  // {{5}}
       top?.nome || "Sem vendas",                                         // {{6}}
-      fmtBRL(top?.total || 0),                                           // {{7}}
-      destaque?.titulo
-        ? `${destaque.titulo} (${fmtInt(destaque.quantidade || 0)} un)`
-        : "Sem destaque",                                                // {{8}}
-      fmtInt(totais.produtos || 0),                                      // {{9}}
+      fmtBRL(topValor),                                                   // {{7}}
+      destaqueTexto,                                                      // {{8}}
+      fmtInt(produtosVendidos),                                           // {{9}}
     ];
 
     // ---- Loop de envio (sequencial)
