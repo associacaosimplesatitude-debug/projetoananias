@@ -408,7 +408,7 @@ export default function ResumoDiario() {
           {/* Canais */}
           <div className="space-y-3">
             <h2 className="text-lg font-semibold">Vendas por canal</h2>
-            <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
+            <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-3">
               {CANAIS.map((c) => {
                 const stat = data.canais[c.key] ?? { total: 0, pedidos: 0 };
                 const isZero = stat.total === 0 && stat.pedidos === 0;
