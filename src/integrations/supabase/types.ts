@@ -9295,6 +9295,7 @@ export type Database = {
       }
       get_publicos_revistas_por_mes: { Args: never; Returns: Json }
       get_resumo_diario: { Args: { data_ref: string }; Returns: Json }
+      get_resumo_diario_publico: { Args: { data_ref: string }; Returns: Json }
       get_retencao_dashboard: {
         Args: { p_vendedor_id?: string }
         Returns: Json
