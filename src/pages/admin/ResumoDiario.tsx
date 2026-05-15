@@ -141,7 +141,63 @@ export default function ResumoDiario() {
         toast.error("Erro ao carregar resumo", { description: error.message });
         throw error;
       }
-      return data as unknown as ResumoData;
+      const raw = data as any;
+      const canalKeyMap: Record<string, CanalKey> = {
+        "E-commerce": "ecommerce",
+        "B2B Faturado": "b2b_faturado",
+        "Faturamento Direto": "faturamento_direto",
+        "Mercado Pago Link": "mercado_pago_link",
+        "Nova Loja CG": "nova_loja_cg",
+        "Mercado Livre": "mercado_livre",
+        "Shopee": "shopee",
+        "Amazon": "amazon",
+        "Atacado": "atacado",
+        "ADVECS": "advecs",
+      };
+      const canais = {} as Record<CanalKey, CanalStat>;
+      (CANAIS).forEach((c) => { canais[c.key] = { total: 0, pedidos: 0 }; });
+      for (const row of (raw?.canais ?? []) as Array<{ canal: string; valor: number; pedidos: number }>) {
+        const k = canalKeyMap[row.canal];
+        if (k) canais[k] = { total: Number(row.valor) || 0, pedidos: Number(row.pedidos) || 0 };
+      }
+      const mapMix = (m: any): MixItem => ({
+        unidades: Number(m?.quantidade) || 0,
+        total: Number(m?.valor) || 0,
+      });
+      const t = raw?.totais ?? {};
+      const shaped: ResumoData = {
+        totais: {
+          faturamento: Number(t.faturamento) || 0,
+          pedidos: Number(t.pedidos) || 0,
+          ticket_medio: Number(t.ticket_medio) || 0,
+          produtos: Number(t.produtos_vendidos ?? t.produtos) || 0,
+          variacao_pct: t.variacao_percentual == null ? 0 : Number(t.variacao_percentual),
+          pedidos_ontem: Number(t.pedidos_ontem) || 0,
+          faturamento_ontem: Number(t.faturamento_ontem) || 0,
+        },
+        canais,
+        vendedores_top5: ((raw?.vendedores_top5 ?? []) as any[]).map((v) => ({
+          id: v.vendedor_id ?? v.id,
+          nome: v.nome,
+          foto_url: v.foto_url,
+          pedidos: Number(v.pedidos) || 0,
+          total: Number(v.valor ?? v.total) || 0,
+        })),
+        mix_produtos: {
+          revistas: mapMix(raw?.mix_produtos?.revistas),
+          livros_fisicos: mapMix(raw?.mix_produtos?.livros_fisicos),
+          digitais: mapMix(raw?.mix_produtos?.digitais),
+          outros: mapMix(raw?.mix_produtos?.outros),
+        },
+        multi_licenca: {
+          pacotes: Number(raw?.multi_licenca?.pacotes) || 0,
+          total: Number(raw?.multi_licenca?.valor ?? raw?.multi_licenca?.total) || 0,
+        },
+        destaque_produto: raw?.destaque_produto
+          ? { titulo: raw.destaque_produto.titulo, quantidade: Number(raw.destaque_produto.quantidade) || 0 }
+          : null,
+      };
+      return shaped;
     },
   });
 
