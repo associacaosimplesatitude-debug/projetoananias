@@ -135,16 +135,12 @@ export default function ResumoDiario() {
       }
       const raw = data as any;
       const canalKeyMap: Record<string, CanalKey> = {
+        "Faturados": "faturados",
+        "Mercado Pago": "mercado_pago",
         "E-commerce": "ecommerce",
-        "B2B Faturado": "b2b_faturado",
-        "Faturamento Direto": "faturamento_direto",
-        "Mercado Pago Link": "mercado_pago_link",
-        "Nova Loja CG": "nova_loja_cg",
-        "Mercado Livre": "mercado_livre",
+        "Balcão Penha": "balcao_penha",
         "Shopee": "shopee",
-        "Amazon": "amazon",
-        "Atacado": "atacado",
-        "ADVECS": "advecs",
+        "Mercado Livre": "mercado_livre",
       };
       const canais = {} as Record<CanalKey, CanalStat>;
       (CANAIS).forEach((c) => { canais[c.key] = { total: 0, pedidos: 0 }; });
