@@ -324,29 +324,33 @@ export default function ResumoDiario() {
                 />
               </PopoverContent>
             </Popover>
-            <Button
-              size="sm"
-              onClick={handleClickEnviar}
-              disabled={enviarMutation.isPending}
-              className="gap-2"
-            >
-              {enviarMutation.isPending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <MessageCircle className="h-4 w-4" />
-              )}
-              Enviar diretoria
-            </Button>
+            {isAdmin && (
+              <Button
+                size="sm"
+                onClick={handleClickEnviar}
+                disabled={enviarMutation.isPending}
+                className="gap-2"
+              >
+                {enviarMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <MessageCircle className="h-4 w-4" />
+                )}
+                Enviar diretoria
+              </Button>
+            )}
           </div>
         </div>
-        <div className="mt-2">
-          <Link
-            to="/admin/resumo-diario/destinatarios"
-            className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
-          >
-            Gerenciar destinatários
-          </Link>
-        </div>
+        {isAdmin && (
+          <div className="mt-2">
+            <Link
+              to="/admin/resumo-diario/destinatarios"
+              className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
+            >
+              Gerenciar destinatários
+            </Link>
+          </div>
+        )}
       </div>
 
       {isError && (
