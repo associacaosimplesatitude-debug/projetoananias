@@ -101,6 +101,7 @@ Deno.serve(async (req) => {
 
     // ---- Auth
     let disparadoPor: string | null = null;
+    let userToken: string | null = null;
     if (disparoTipo === "manual") {
       const auth = req.headers.get("Authorization") || "";
       const token = auth.replace("Bearer ", "").trim();
@@ -118,10 +119,16 @@ Deno.serve(async (req) => {
       });
       if (!roleOk) return jsonResponse({ error: "Permissão negada" }, 403);
       disparadoPor = userData.user.id;
+      userToken = token;
     }
 
-    // ---- Carrega resumo
-    const { data: resumo, error: resumoErr } = await admin.rpc("get_resumo_diario", {
+    // ---- Carrega resumo (usa client autenticado pq RPC exige admin via auth.uid)
+    const rpcClient = userToken
+      ? createClient(SUPABASE_URL, Deno.env.get("SUPABASE_ANON_KEY")!, {
+          global: { headers: { Authorization: `Bearer ${userToken}` } },
+        })
+      : admin;
+    const { data: resumo, error: resumoErr } = await rpcClient.rpc("get_resumo_diario", {
       data_ref: dataRef,
     });
     if (resumoErr) {
