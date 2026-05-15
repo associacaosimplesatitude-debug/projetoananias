@@ -1,39 +1,67 @@
-# Corrigir detecção de números EUA em /admin/ebd/revista-licencas
+## Objetivo
 
-## Problema
+1. Garantir que números dos EUA sempre apareçam como `+1 (XXX) XXX-XXXX` e PT como `+351 XXX XXX XXX`, sem regressões para BR.
+2. Criar testes automatizados cobrindo BR, EUA e Portugal para `detectWhatsappCountry` e `formatWhatsappDisplay`.
 
-Em `src/pages/admin/RevistaLicencasAdmin.tsx`, a função `detectWhatsappCountry` (linha 370) só classifica como EUA números de 11 dígitos começando com `"10"`. Mas códigos de área dos EUA nunca começam com 0 ou 1 — começam com 2-9 (ex.: 305 Miami, 617 Boston, 781 Boston, 813 Tampa, 857 Boston).
+## Mudanças
 
-Resultado: clientes reais como `17815586729`, `13057265041`, `16174617575`, `18132155420` etc. estão sendo exibidos com bandeira do Brasil e formato `+55 (17) 8155-86729`.
+### 1. Extrair util reutilizável e testável
 
-## Causa da ambiguidade
+Criar `src/lib/whatsappFormat.ts` com:
 
-Tanto BR (11 dígitos, DDDs 11–19) quanto EUA (11 dígitos, prefixo `1` + área 2-9) começam com `1`. A regra discriminante é: **um celular brasileiro de 11 dígitos sempre tem o 3º dígito igual a `9`** (DDD + `9` + 8 dígitos). Se o 3º dígito não é `9`, não pode ser BR mobile — é EUA.
+- `detectWhatsappCountry(digits): "BR" | "PT" | "US"`
+- `formatWhatsappDisplay(raw): { country, formatted }`
 
-Exemplos validados na base:
-- `15991616340` (DDD 15, 9...) → BR ✓
-- `16981648852` (DDD 16, 9...) → BR ✓
-- `17815586729` (3º dígito = 8) → EUA (área 781) ✓
-- `13057265041` (3º dígito = 0) → EUA (área 305) ✓
-- `16174617575` (3º dígito = 7) → EUA (área 617) ✓
+Manter regras atuais e reforçar a detecção dos EUA:
+- PT: 12 dígitos iniciando com `351`.
+- US: 11 dígitos iniciando com `1` e 3º dígito ≠ `9` (evita colidir com celular BR `DDD+9+8`). Também aceitar 10 dígitos cujo 1º dígito (código de área) seja `2-9` **e** que não sejam um DDD brasileiro válido — manteremos conservador: só promove a US quando começa com `1` (11 dígitos), pois é o formato armazenado pelos pedidos Shopify dos EUA na base.
+- BR: demais casos.
 
-## Mudança
+Formatação:
+- US: `+1 (XXX) XXX-XXXX` sempre que `country === "US"`, mesmo com dígitos parciais (preencher só o que existe, sem deixar parênteses vazios).
+- PT: `+351 XXX XXX XXX`.
+- BR: mantém `+55 (DD) XXXXX-XXXX` / `+55 (DD) XXXX-XXXX`.
 
-Atualizar **apenas** `detectWhatsappCountry` em `src/pages/admin/RevistaLicencasAdmin.tsx` (linhas 370–374):
+### 2. Atualizar `RevistaLicencasAdmin.tsx`
 
-```ts
-function detectWhatsappCountry(digits: string): "BR" | "PT" | "US" {
-  if (digits.startsWith("351") && digits.length === 12) return "PT";
-  // EUA: 11 dígitos começando com "1". Diferenciamos de BR mobile (que sempre
-  // tem o 3º dígito = "9", pois é DDD + 9 + 8 dígitos).
-  if (digits.length === 11 && digits.startsWith("1") && digits[2] !== "9") return "US";
-  return "BR";
-}
-```
+Remover as definições locais de `detectWhatsappCountry` / `formatWhatsappDisplay` e importar de `@/lib/whatsappFormat`. Sem mudanças de UI.
 
-`formatWhatsappDisplay` já trata o caso US corretamente (`+1 (XXX) XXX-XXXX`), então nenhuma outra alteração é necessária.
+### 3. Setup de testes (se ainda não existir)
 
-## Escopo
+Conferir se o projeto já tem Vitest configurado. Caso não:
+- Adicionar `vitest`, `@testing-library/jest-dom`, `@testing-library/react`, `jsdom` como devDeps.
+- Criar `vitest.config.ts` e `src/test/setup.ts` conforme guia padrão.
 
-- 1 arquivo, 1 função, ~3 linhas alteradas.
-- Sem migração de banco, sem mudança de UI/layout, sem alteração no valor armazenado.
+(Nesta task só precisamos do runner — não há render de componente.)
+
+### 4. Testes — `src/lib/whatsappFormat.test.ts`
+
+Casos cobertos:
+
+**detectWhatsappCountry**
+- `"351922211394"` → `PT`
+- `"17815586729"`, `"13057265041"`, `"16174617575"` → `US`
+- `"15991616340"` (DDD 15, celular SP) → `BR` (3º dígito = 9)
+- `"16981648852"` → `BR`
+- `"1133334444"` (10 dígitos, fixo SP) → `BR`
+- `"5511999998888"` (com DDI) → `BR` (fallback)
+- string vazia / curta → `BR` (fallback de segurança)
+
+**formatWhatsappDisplay**
+- `"17815586729"` → `+1 (781) 558-6729`, country `US`
+- `"13057265041"` → `+1 (305) 726-5041`
+- `"351922211394"` → `+351 922 211 394`, country `PT`
+- `"15991616340"` → `+55 (15) 99161-6340`, country `BR`
+- `"1133334444"` → `+55 (11) 3333-4444`
+- `""` → `{ country: null, formatted: "—" }`
+
+## Arquivos
+
+- novo: `src/lib/whatsappFormat.ts`
+- novo: `src/lib/whatsappFormat.test.ts`
+- editar: `src/pages/admin/RevistaLicencasAdmin.tsx` (remover funções locais, importar do util)
+- (condicional) novo: `vitest.config.ts`, `src/test/setup.ts`, devDeps de teste
+
+## Validação
+
+Rodar `vitest run src/lib/whatsappFormat.test.ts` e conferir que todos os casos passam. Abrir `/admin/ebd/revista-licencas` e confirmar que números US aparecem com `+1 (...)` e PT com `+351 ...`.
