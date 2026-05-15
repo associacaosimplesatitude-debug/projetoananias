@@ -48,16 +48,12 @@ const brl = (v: number) =>
 const fmtNum = (v: number) => new Intl.NumberFormat("pt-BR").format(v || 0);
 
 type CanalKey =
+  | "faturados"
+  | "mercado_pago"
   | "ecommerce"
-  | "b2b_faturado"
-  | "faturamento_direto"
-  | "mercado_pago_link"
-  | "nova_loja_cg"
-  | "mercado_livre"
+  | "balcao_penha"
   | "shopee"
-  | "amazon"
-  | "atacado"
-  | "advecs";
+  | "mercado_livre";
 
 const CANAIS: {
   key: CanalKey;
@@ -66,16 +62,12 @@ const CANAIS: {
   text: string;
   value: string;
 }[] = [
+  { key: "faturados", label: "Faturados", bg: "bg-teal-50", text: "text-teal-800", value: "text-teal-900" },
+  { key: "mercado_pago", label: "Mercado Pago", bg: "bg-purple-50", text: "text-purple-800", value: "text-purple-900" },
   { key: "ecommerce", label: "E-commerce", bg: "bg-blue-50", text: "text-blue-800", value: "text-blue-900" },
-  { key: "b2b_faturado", label: "B2B Faturado", bg: "bg-teal-50", text: "text-teal-800", value: "text-teal-900" },
-  { key: "faturamento_direto", label: "Faturamento Direto", bg: "bg-green-50", text: "text-green-800", value: "text-green-900" },
-  { key: "mercado_pago_link", label: "Mercado Pago Link", bg: "bg-purple-50", text: "text-purple-800", value: "text-purple-900" },
-  { key: "nova_loja_cg", label: "Nova Loja CG", bg: "bg-indigo-50", text: "text-indigo-800", value: "text-indigo-900" },
-  { key: "mercado_livre", label: "Mercado Livre", bg: "bg-amber-50", text: "text-amber-800", value: "text-amber-900" },
+  { key: "balcao_penha", label: "Balcão Penha", bg: "bg-emerald-50", text: "text-emerald-800", value: "text-emerald-900" },
   { key: "shopee", label: "Shopee", bg: "bg-orange-50", text: "text-orange-800", value: "text-orange-900" },
-  { key: "amazon", label: "Amazon", bg: "bg-gray-100", text: "text-gray-800", value: "text-gray-900" },
-  { key: "atacado", label: "Atacado", bg: "bg-rose-50", text: "text-rose-800", value: "text-rose-900" },
-  { key: "advecs", label: "ADVECS", bg: "bg-pink-50", text: "text-pink-800", value: "text-pink-900" },
+  { key: "mercado_livre", label: "Mercado Livre", bg: "bg-amber-50", text: "text-amber-800", value: "text-amber-900" },
 ];
 
 interface CanalStat { total: number; pedidos: number }
