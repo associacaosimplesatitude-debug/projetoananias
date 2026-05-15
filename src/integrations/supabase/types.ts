@@ -5870,6 +5870,39 @@ export type Database = {
           },
         ]
       }
+      resumo_diario_destinatarios: {
+        Row: {
+          ativo: boolean
+          cargo: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          nome: string
+          telefone: string
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          cargo?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          nome: string
+          telefone: string
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          cargo?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          nome?: string
+          telefone?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       retencao_campanhas: {
         Row: {
           concluida_em: string | null
@@ -9211,6 +9244,7 @@ export type Database = {
         Returns: Json
       }
       get_publicos_revistas_por_mes: { Args: never; Returns: Json }
+      get_resumo_diario: { Args: { data_ref: string }; Returns: Json }
       get_retencao_dashboard: {
         Args: { p_vendedor_id?: string }
         Returns: Json
