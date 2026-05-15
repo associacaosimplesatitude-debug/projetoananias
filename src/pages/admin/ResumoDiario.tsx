@@ -544,50 +544,54 @@ export default function ResumoDiario() {
             </Card>
           )}
 
-          {/* Últimos envios */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Últimos envios
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {!enviosLog || enviosLog.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Ainda não enviado hoje</p>
-              ) : (
-                <ul className="divide-y">
-                  {enviosLog.map((log) => (
-                    <li key={log.id} className="flex items-center justify-between py-2 text-sm">
-                      <div className="flex items-center gap-2 min-w-0">
-                        {log.status === "sucesso" ? (
-                          <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
-                        ) : (
-                          <XCircle className="h-4 w-4 text-red-600 shrink-0" />
-                        )}
-                        <span className="font-mono text-xs">{maskPhone(log.telefone)}</span>
-                        <Badge variant="outline" className="text-[10px] capitalize">
-                          {log.disparo_tipo}
-                        </Badge>
-                      </div>
-                      <span className="text-xs text-muted-foreground tabular-nums">
-                        {format(new Date(log.created_at), "HH:mm:ss")}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </CardContent>
-          </Card>
+          {/* Últimos envios (admin) */}
+          {isAdmin && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  Últimos envios
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {!enviosLog || enviosLog.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Ainda não enviado hoje</p>
+                ) : (
+                  <ul className="divide-y">
+                    {enviosLog.map((log) => (
+                      <li key={log.id} className="flex items-center justify-between py-2 text-sm">
+                        <div className="flex items-center gap-2 min-w-0">
+                          {log.status === "sucesso" ? (
+                            <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
+                          ) : (
+                            <XCircle className="h-4 w-4 text-red-600 shrink-0" />
+                          )}
+                          <span className="font-mono text-xs">{maskPhone(log.telefone)}</span>
+                          <Badge variant="outline" className="text-[10px] capitalize">
+                            {log.disparo_tipo}
+                          </Badge>
+                        </div>
+                        <span className="text-xs text-muted-foreground tabular-nums">
+                          {format(new Date(log.created_at), "HH:mm:ss")}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
-          {/* Footer */}
-          <div className="pt-2">
-            <Button variant="outline" asChild>
-              <Link to={`/admin/orders?data_inicio=${dataInicio}&data_fim=${dataFim}`}>
-                Ver pedidos detalhados
-                <ArrowRight className="h-4 w-4 ml-1" />
-              </Link>
-            </Button>
-          </div>
+          {/* Footer (admin) */}
+          {isAdmin && (
+            <div className="pt-2">
+              <Button variant="outline" asChild>
+                <Link to={`/admin/orders?data_inicio=${dataInicio}&data_fim=${dataFim}`}>
+                  Ver pedidos detalhados
+                  <ArrowRight className="h-4 w-4 ml-1" />
+                </Link>
+              </Button>
+            </div>
+          )}
         </>
       ) : null}
 
