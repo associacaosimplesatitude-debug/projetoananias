@@ -378,3 +378,6 @@ verify_jwt = true
 [functions.licao-tts-preview]
 verify_jwt = true
 
+
+[functions.enviar-resumo-diario-whatsapp]
+verify_jwt = false
