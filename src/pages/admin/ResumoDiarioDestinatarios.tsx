@@ -354,10 +354,8 @@ export default function ResumoDiarioDestinatarios() {
                     <FormControl>
                       <Input
                         placeholder="+55 (11) 99999-9999"
-                        value={field.value ? formatTelefoneDisplay(field.value) || maskPhoneInput(field.value) : ""}
-                        onChange={(e) => {
-                          field.onChange(inputToE164(e.target.value));
-                        }}
+                        value={maskPhoneInput(field.value || "")}
+                        onChange={(e) => field.onChange(inputToE164(e.target.value))}
                       />
                     </FormControl>
                     <FormMessage />
