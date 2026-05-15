@@ -1,0 +1,402 @@
+import { useState, useMemo } from "react";
+import { Link } from "react-router-dom";
+import { format, subDays, startOfDay } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { useQuery } from "@tanstack/react-query";
+import {
+  CalendarIcon,
+  MessageCircle,
+  BookOpen,
+  Library,
+  Smartphone,
+  Package,
+  ArrowRight,
+  Users,
+  TrendingUp,
+  TrendingDown,
+  Inbox,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Progress } from "@/components/ui/progress";
+
+const brl = (v: number) =>
+  new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v || 0);
+
+const fmtNum = (v: number) => new Intl.NumberFormat("pt-BR").format(v || 0);
+
+type CanalKey =
+  | "ecommerce"
+  | "b2b_faturado"
+  | "faturamento_direto"
+  | "mercado_pago_link"
+  | "nova_loja_cg"
+  | "mercado_livre"
+  | "shopee"
+  | "amazon"
+  | "atacado"
+  | "advecs";
+
+const CANAIS: {
+  key: CanalKey;
+  label: string;
+  bg: string;
+  text: string;
+  value: string;
+}[] = [
+  { key: "ecommerce", label: "E-commerce", bg: "bg-blue-50", text: "text-blue-800", value: "text-blue-900" },
+  { key: "b2b_faturado", label: "B2B Faturado", bg: "bg-teal-50", text: "text-teal-800", value: "text-teal-900" },
+  { key: "faturamento_direto", label: "Faturamento Direto", bg: "bg-green-50", text: "text-green-800", value: "text-green-900" },
+  { key: "mercado_pago_link", label: "Mercado Pago Link", bg: "bg-purple-50", text: "text-purple-800", value: "text-purple-900" },
+  { key: "nova_loja_cg", label: "Nova Loja CG", bg: "bg-indigo-50", text: "text-indigo-800", value: "text-indigo-900" },
+  { key: "mercado_livre", label: "Mercado Livre", bg: "bg-amber-50", text: "text-amber-800", value: "text-amber-900" },
+  { key: "shopee", label: "Shopee", bg: "bg-orange-50", text: "text-orange-800", value: "text-orange-900" },
+  { key: "amazon", label: "Amazon", bg: "bg-gray-100", text: "text-gray-800", value: "text-gray-900" },
+  { key: "atacado", label: "Atacado", bg: "bg-rose-50", text: "text-rose-800", value: "text-rose-900" },
+  { key: "advecs", label: "ADVECS", bg: "bg-pink-50", text: "text-pink-800", value: "text-pink-900" },
+];
+
+interface CanalStat { total: number; pedidos: number }
+interface VendedorTop { id?: string; nome: string; foto_url?: string | null; pedidos: number; total: number }
+interface MixItem { unidades: number; total: number }
+interface ResumoData {
+  totais: {
+    faturamento: number;
+    pedidos: number;
+    ticket_medio: number;
+    produtos: number;
+    variacao_pct: number;
+    pedidos_ontem: number;
+    faturamento_ontem: number;
+  };
+  canais: Record<CanalKey, CanalStat>;
+  vendedores_top5: VendedorTop[];
+  mix_produtos: {
+    revistas: MixItem;
+    livros_fisicos: MixItem;
+    digitais: MixItem;
+    outros: MixItem;
+  };
+  multi_licenca: { pacotes: number; total: number };
+  destaque_produto?: { titulo: string; quantidade: number } | null;
+}
+
+function iniciais(nome: string) {
+  return nome
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((s) => s[0]?.toUpperCase() ?? "")
+    .join("");
+}
+
+export default function ResumoDiario() {
+  const [date, setDate] = useState<Date>(() => startOfDay(new Date()));
+  const dataRef = format(date, "yyyy-MM-dd");
+
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["resumo-diario", dataRef],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_resumo_diario", { data_ref: dataRef });
+      if (error) {
+        toast.error("Erro ao carregar resumo", { description: error.message });
+        throw error;
+      }
+      return data as unknown as ResumoData;
+    },
+  });
+
+  const variacao = data?.totais.variacao_pct ?? 0;
+  const variacaoCor =
+    variacao > 0 ? "bg-green-100 text-green-800" : variacao < 0 ? "bg-red-100 text-red-800" : "bg-gray-100 text-gray-700";
+  const variacaoTexto =
+    data?.totais.faturamento_ontem === 0
+      ? "—"
+      : `${variacao > 0 ? "↑" : variacao < 0 ? "↓" : "—"} ${Math.abs(variacao).toFixed(1).replace(".", ",")}% vs ontem`;
+
+  const diffPedidos = (data?.totais.pedidos ?? 0) - (data?.totais.pedidos_ontem ?? 0);
+
+  const mixMax = useMemo(() => {
+    if (!data) return 1;
+    const m = data.mix_produtos;
+    return Math.max(m.revistas.total, m.livros_fisicos.total, m.digitais.total, m.outros.total, 1);
+  }, [data]);
+
+  const isEmpty = !isLoading && data && data.totais.pedidos === 0;
+
+  const dataInicio = dataRef;
+  const dataFim = dataRef;
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="sticky top-0 z-10 -mx-6 -mt-6 px-6 pt-6 pb-4 bg-background border-b">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">Resumo diário</h1>
+            <p className="text-sm text-muted-foreground capitalize">
+              {format(date, "EEEE, dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => setDate(startOfDay(new Date()))}>
+              Hoje
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setDate(startOfDay(subDays(new Date(), 1)))}>
+              Ontem
+            </Button>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-2">
+                  <CalendarIcon className="h-4 w-4" />
+                  {format(date, "dd/MM/yyyy")}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="end">
+                <Calendar
+                  mode="single"
+                  selected={date}
+                  onSelect={(d) => d && setDate(startOfDay(d))}
+                  disabled={(d) => d > new Date() || d < subDays(new Date(), 90)}
+                  initialFocus
+                  className={cn("p-3 pointer-events-auto")}
+                />
+              </PopoverContent>
+            </Popover>
+            <Button
+              size="sm"
+              onClick={() =>
+                toast("Em breve", { description: "Disparo será habilitado em seguida." })
+              }
+              className="gap-2"
+            >
+              <MessageCircle className="h-4 w-4" />
+              Enviar diretoria
+            </Button>
+          </div>
+        </div>
+        <div className="mt-2">
+          <Link
+            to="/admin/resumo-diario/destinatarios"
+            className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
+          >
+            Gerenciar destinatários
+          </Link>
+        </div>
+      </div>
+
+      {isError && (
+        <Card>
+          <CardContent className="py-8 text-center text-sm text-destructive">
+            Não foi possível carregar o resumo. Tente novamente.
+          </CardContent>
+        </Card>
+      )}
+
+      {isLoading ? (
+        <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-32" />
+          ))}
+        </div>
+      ) : isEmpty ? (
+        <Card>
+          <CardContent className="py-16 flex flex-col items-center text-center gap-3">
+            <Inbox className="h-12 w-12 text-muted-foreground/60" />
+            <p className="text-sm text-muted-foreground">
+              Nenhuma venda registrada em {format(date, "dd/MM/yyyy")}
+            </p>
+          </CardContent>
+        </Card>
+      ) : data ? (
+        <>
+          {/* KPIs */}
+          <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Faturamento</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <div className="text-3xl font-bold">{brl(data.totais.faturamento)}</div>
+                <Badge variant="secondary" className={cn("font-normal", variacaoCor)}>
+                  {variacao > 0 ? <TrendingUp className="h-3 w-3 mr-1" /> : variacao < 0 ? <TrendingDown className="h-3 w-3 mr-1" /> : null}
+                  {variacaoTexto}
+                </Badge>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Pedidos</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <div className="text-3xl font-bold">{fmtNum(data.totais.pedidos)}</div>
+                <p className="text-xs text-muted-foreground">
+                  {diffPedidos > 0 ? "+" : ""}
+                  {fmtNum(diffPedidos)} vs ontem
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Ticket médio</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold">{brl(data.totais.ticket_medio)}</div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Produtos vendidos</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <div className="text-3xl font-bold">{fmtNum(data.totais.produtos)}</div>
+                <p className="text-xs text-muted-foreground">unidades</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Canais */}
+          <div className="space-y-3">
+            <h2 className="text-lg font-semibold">Vendas por canal</h2>
+            <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
+              {CANAIS.map((c) => {
+                const stat = data.canais[c.key] ?? { total: 0, pedidos: 0 };
+                const isZero = stat.total === 0 && stat.pedidos === 0;
+                return (
+                  <div
+                    key={c.key}
+                    className={cn(
+                      "rounded-lg p-3 border",
+                      c.bg,
+                      isZero && "opacity-60"
+                    )}
+                  >
+                    <div className={cn("text-xs font-medium", c.text)}>{c.label}</div>
+                    <div className={cn("text-base font-semibold mt-1", c.value)}>{brl(stat.total)}</div>
+                    <div className="text-xs text-muted-foreground mt-0.5">
+                      {fmtNum(stat.pedidos)} {stat.pedidos === 1 ? "pedido" : "pedidos"}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Top vendedores + Mix */}
+          <div className="grid gap-4 md:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Users className="h-4 w-4" />
+                  Top vendedores
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {data.vendedores_top5.length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-6 text-center">
+                    Sem vendedores com vendas no dia
+                  </p>
+                ) : (
+                  <ul className="space-y-3">
+                    {data.vendedores_top5.map((v, i) => (
+                      <li key={v.id ?? `${v.nome}-${i}`} className="flex items-center gap-3">
+                        <Avatar className="h-9 w-9">
+                          {v.foto_url ? <AvatarImage src={v.foto_url} alt={v.nome} /> : null}
+                          <AvatarFallback className="text-xs bg-primary/10 text-primary">
+                            {iniciais(v.nome) || "?"}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{v.nome}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {fmtNum(v.pedidos)} {v.pedidos === 1 ? "pedido" : "pedidos"}
+                          </p>
+                        </div>
+                        <div className="text-sm font-semibold tabular-nums">{brl(v.total)}</div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Mix de produtos</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {[
+                  { key: "revistas", label: "Revistas", icon: BookOpen, color: "bg-blue-500", item: data.mix_produtos.revistas },
+                  { key: "livros_fisicos", label: "Livros físicos", icon: Library, color: "bg-green-500", item: data.mix_produtos.livros_fisicos },
+                  { key: "digitais", label: "Digitais", icon: Smartphone, color: "bg-purple-500", item: data.mix_produtos.digitais },
+                  { key: "outros", label: "Outros", icon: Package, color: "bg-gray-500", item: data.mix_produtos.outros },
+                ].map((row) => {
+                  const pct = (row.item.total / mixMax) * 100;
+                  const Icon = row.icon;
+                  return (
+                    <div key={row.key} className="space-y-1.5">
+                      <div className="flex items-center justify-between text-sm">
+                        <div className="flex items-center gap-2">
+                          <Icon className="h-4 w-4 text-muted-foreground" />
+                          <span>{row.label}</span>
+                        </div>
+                        <span className="font-medium tabular-nums">
+                          {fmtNum(row.item.unidades)} un · {brl(row.item.total)}
+                        </span>
+                      </div>
+                      <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
+                        <div
+                          className={cn("h-full rounded-full transition-all", row.color)}
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Multi-Licença */}
+          {data.multi_licenca.pacotes > 0 && (
+            <Card className="border-indigo-200 bg-indigo-50/40">
+              <CardContent className="py-4 flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <div className="text-xs font-medium text-indigo-800">Multi-Licença (Nova Loja)</div>
+                  <div className="text-sm mt-1">
+                    <span className="font-semibold">{fmtNum(data.multi_licenca.pacotes)}</span>{" "}
+                    {data.multi_licenca.pacotes === 1 ? "pacote vendido" : "pacotes vendidos"} ·{" "}
+                    <span className="font-semibold">{brl(data.multi_licenca.total)}</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Footer */}
+          <div className="pt-2">
+            <Button variant="outline" asChild>
+              <Link to={`/admin/orders?data_inicio=${dataInicio}&data_fim=${dataFim}`}>
+                Ver pedidos detalhados
+                <ArrowRight className="h-4 w-4 ml-1" />
+              </Link>
+            </Button>
+          </div>
+        </>
+      ) : null}
+    </div>
+  );
+}
