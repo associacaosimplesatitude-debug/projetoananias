@@ -121,15 +121,29 @@ interface EnvioLog {
 }
 
 export default function ResumoDiario() {
-  const [date, setDate] = useState<Date>(() => startOfDay(new Date()));
+  const { user, role } = useAuth();
+  const isAdmin = role === 'admin';
+  const [searchParams] = useSearchParams();
+
+  const initialDate = (() => {
+    const d = searchParams.get('d');
+    if (d) {
+      const parsed = parseISO(d);
+      if (isValid(parsed)) return startOfDay(parsed);
+    }
+    return startOfDay(new Date());
+  })();
+
+  const [date, setDate] = useState<Date>(initialDate);
   const dataRef = format(date, "yyyy-MM-dd");
   const [confirmOpen, setConfirmOpen] = useState(false);
   const queryClient = useQueryClient();
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["resumo-diario", dataRef],
+    queryKey: ["resumo-diario", dataRef, isAdmin],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc("get_resumo_diario", { data_ref: dataRef });
+      // Usa a função pública (acessível para anônimos e admins) — mesmos dados em ambos os casos
+      const { data, error } = await supabase.rpc("get_resumo_diario_publico", { data_ref: dataRef });
       if (error) {
         toast.error("Erro ao carregar resumo", { description: error.message });
         throw error;
