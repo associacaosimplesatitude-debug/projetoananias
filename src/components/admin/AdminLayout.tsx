@@ -166,6 +166,14 @@ function AdminSidebar() {
                   </RouterNavLink>
                 </SidebarMenuButton>
               </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={isActive('/admin/resumo-diario')}>
+                  <RouterNavLink to="/admin/resumo-diario">
+                    <BarChart3 className="h-4 w-4" />
+                    <span>Resumo Diário</span>
+                  </RouterNavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
               {isSuperadmin && (
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={isActive('/admin/agente-ia')}>
