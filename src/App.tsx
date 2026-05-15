@@ -570,7 +570,6 @@ const App = () => (
                         <Route path="escalations" element={<AgenteIAEscalations />} />
                         <Route path="metricas" element={<AgenteIAMetricas />} />
                       </Route>
-                      <Route path="resumo-diario" element={<ResumoDiario />} />
                       <Route path="resumo-diario/destinatarios" element={<ResumoDiarioDestinatarios />} />
                     </Route>
                     <Route
