@@ -1,42 +1,53 @@
-## Problema
+## Problema confirmado
 
-Os cards de E-commerce, Shopee e Mercado Livre aparecem com **R$ 0,00** quando filtramos "Ontem", mas em `/admin/ebd/propostas` mostra 6 pedidos E-commerce (R$ 789,95), 2 Mercado Livre e 5 Shopee no mesmo dia.
+Os dois cards estão errados pelas seguintes causas:
 
-**Causa raiz:** a função `get_resumo_diario` filtra essas tabelas por `order_date`, mas as abas em `/admin/ebd/propostas` (`AdminPedidosTab.tsx`) filtram por `created_at`. Quando `order_date` é nulo, antigo, ou está em fuso diferente, o pedido não entra no resumo do dia.
+### 1. Faturados duplicados (Elaine R$ 28.958,86 = 2× R$ 14.479,38)
 
-Também há divergência de filtro de status: a aba "E-commerce" do painel inclui status `Faturado` por padrão (filtro "Todos os status"), enquanto o card "E-commerce" do resumo só conta `paid` — isso pode duplicar/subtrair contagens conforme a regra desejada.
+A venda da PLENITUDE (Elaine) existe nas **duas tabelas** com o mesmo `bling_order_id`:
+- `ebd_shopify_pedidos` — status `Faturado`, R$ 14.479,48
+- `vendedor_propostas` — status `FATURADO`, R$ 14.479,38
+
+A função `get_resumo_diario` soma as duas, dobrando o valor (e duplicando no Top vendedores).
+
+### 2. Shopee e Mercado Livre zerados
+
+Os pedidos de hoje em `bling_marketplace_pedidos` estão com `status_pagamento = 'Desconhecido'` (não `paid`/`Pago`). A função filtra por `paid/Pago` e zera tudo. O dashboard "Resumo de Vendas" (que o usuário pediu como fonte) **não filtra por status** — mostra Shopee R$ 317,20 e ML R$ 76,65 mesmo assim.
 
 ## Plano
 
-### Migration: recriar `get_resumo_diario(data_ref date)`
+Migration recriando `get_resumo_diario(data_ref)` com dois ajustes:
 
-Alinhar 100% com a lógica de `AdminPedidosTab.tsx`:
+### A) Dedupe Faturados por `bling_order_id`
 
-1. **E-commerce** (`ebd_shopify_pedidos`)
-   - Filtrar por `(created_at AT TIME ZONE 'America/Sao_Paulo')::date = data_ref`
-   - Status: `status_pagamento = 'paid'`
+```text
+faturados = UNION das duas fontes, mas:
+  - se o mesmo bling_order_id aparece nos dois lados, manter apenas
+    o registro de vendedor_propostas (preferir, pois tem itens estruturados
+    e vendedor garantido)
+  - registros sem bling_order_id entram normalmente
+```
 
-2. **Faturados** (manter as duas fontes, conforme decidido antes)
-   - `ebd_shopify_pedidos` com `status_pagamento = 'Faturado'` → filtrar por `created_at`
-   - `vendedor_propostas` com `status IN ('FATURADO','APROVADA_FATURAMENTO','PAGO')` → manter `COALESCE(confirmado_em, updated_at)`
+Implementação: CTE `faturados_unificados` que faz `FULL OUTER JOIN` por `bling_order_id` quando ambos têm valor, ou `LEFT ANTI JOIN` para incluir os órfãos. Substitui `faturados_shopify` + `faturados_propostas` em todos os agregados (KPIs, vendedores_top5, mix_produtos).
 
-3. **Mercado Pago** (`ebd_shopify_pedidos_mercadopago`)
-   - Manter `created_at` + `payment_status IN ('approved','PAGO','paid')`
+### B) Shopee/ML sem filtro de status
 
-4. **Balcão Penha** (`vendas_balcao`)
-   - Manter `created_at` + `status = 'finalizada'`
+Remover `AND status_pagamento IN ('paid','Pago')` das CTEs `mkt_shopee` e `mkt_ml`. Manter apenas:
+- `marketplace = 'SHOPEE'` / `'MERCADO_LIVRE'`
+- `(created_at AT TIME ZONE 'America/Sao_Paulo')::date = data_ref`
 
-5. **Shopee / Mercado Livre** (`bling_marketplace_pedidos`)
-   - Trocar `order_date` por `created_at`
-   - Manter `marketplace = 'SHOPEE'` / `'MERCADO_LIVRE'` e `status_pagamento IN ('paid','Pago')`
-
-KPIs do topo (faturamento, pedidos, ticket médio, produtos) continuam somando apenas esses 6 canais.
-
-`vendedores_top5` e `mix_produtos` também passam a usar `created_at` para `ebd_shopify_pedidos` e `bling_marketplace_pedidos`, mantendo `confirmado_em/updated_at` para `vendedor_propostas`.
+Aplicar a mesma mudança em `totais_ontem`.
 
 ### Não muda
-- Frontend `ResumoDiario.tsx` (já está com os 6 cards corretos)
-- Edge function de WhatsApp
-- Tabelas, RLS, cron
+- Frontend (`ResumoDiario.tsx`)
+- E-commerce, Mercado Pago, Balcão Penha (já corretos)
+- RLS, edge functions, cron
 
-Após a migration os números do resumo passam a bater com o painel `/admin/ebd/propostas` no mesmo dia.
+### Resultado esperado para 15/05
+
+| Card | Antes | Depois |
+|---|---|---|
+| Faturados | R$ 28.958,86 (2 pedidos) | R$ 14.479,38 (1 pedido) |
+| Shopee | R$ 0,00 | R$ 317,20 (5 pedidos) |
+| Mercado Livre | R$ 0,00 | R$ 76,65 (2 pedidos) |
+| Top vendedor Elaine | R$ 28.958,86 | R$ 14.479,38 |
