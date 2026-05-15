@@ -243,7 +243,7 @@ Deno.serve(async (req) => {
       // Log
       await admin.from("resumo_diario_envios_log").insert({
         data_ref: dataRef,
-        destinatario_id: dest.id,
+        destinatario_id: typeof dest.id === "string" && dest.id.startsWith("override-") ? null : dest.id,
         telefone: dest.telefone,
         whatsapp_message_id: messageId,
         status,
