@@ -5903,6 +5903,56 @@ export type Database = {
         }
         Relationships: []
       }
+      resumo_diario_envios_log: {
+        Row: {
+          created_at: string
+          data_ref: string
+          destinatario_id: string | null
+          disparado_por: string | null
+          disparo_tipo: string
+          erro_mensagem: string | null
+          id: string
+          payload_enviado: Json | null
+          status: string
+          telefone: string
+          whatsapp_message_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          data_ref: string
+          destinatario_id?: string | null
+          disparado_por?: string | null
+          disparo_tipo: string
+          erro_mensagem?: string | null
+          id?: string
+          payload_enviado?: Json | null
+          status: string
+          telefone: string
+          whatsapp_message_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          data_ref?: string
+          destinatario_id?: string | null
+          disparado_por?: string | null
+          disparo_tipo?: string
+          erro_mensagem?: string | null
+          id?: string
+          payload_enviado?: Json | null
+          status?: string
+          telefone?: string
+          whatsapp_message_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resumo_diario_envios_log_destinatario_id_fkey"
+            columns: ["destinatario_id"]
+            isOneToOne: false
+            referencedRelation: "resumo_diario_destinatarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       retencao_campanhas: {
         Row: {
           concluida_em: string | null
