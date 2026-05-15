@@ -48,6 +48,8 @@ import AdminEBDConteudoBiblico from "./pages/admin/EBDConteudoBiblico";
 import AdminOrders from "./pages/admin/Orders";
 import StripeTeste from "./pages/admin/StripeTeste";
 import AdminEBD from "./pages/admin/AdminEBD";
+import ResumoDiario from "./pages/admin/ResumoDiario";
+import ResumoDiarioDestinatarios from "./pages/admin/ResumoDiarioDestinatarios";
 import AdminEBDPropostasPage from "./pages/admin/AdminEBDPropostasPage";
 import AprovacaoFaturamento from "./pages/admin/AprovacaoFaturamento";
 import GestaoComissoes from "./pages/admin/GestaoComissoes";
