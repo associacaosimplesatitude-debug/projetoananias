@@ -362,42 +362,7 @@ function SuperintendentTab() {
 }
 
 // === EDIT DRAWER ===
-// Detecta país a partir dos dígitos armazenados.
-// PT: 12 dígitos começando com 351.
-// EUA: 11 dígitos começando com "1". Diferenciamos de BR mobile (que sempre tem
-// o 3º dígito = "9", pois é DDD + 9 + 8 dígitos). Se o 3º dígito não é "9",
-// não pode ser celular brasileiro — é EUA (códigos de área 2-9).
-// BR: 10–11 dígitos sem DDI (demais casos).
-function detectWhatsappCountry(digits: string): "BR" | "PT" | "US" {
-  if (digits.startsWith("351") && digits.length === 12) return "PT";
-  if (digits.length === 11 && digits.startsWith("1") && digits[2] !== "9") return "US";
-  return "BR";
-}
-
-// Formata para exibição com bandeira e DDI completo, sem alterar o valor armazenado.
-function formatWhatsappDisplay(raw: string): { country: "BR" | "PT" | "US" | null; formatted: string } {
-  const digits = (raw || "").replace(/\D/g, "");
-  if (!digits) return { country: null, formatted: "—" };
-  const country = detectWhatsappCountry(digits);
-  if (country === "PT") {
-    const local = digits.slice(3);
-    return { country, formatted: `+351 ${local.slice(0, 3)} ${local.slice(3, 6)} ${local.slice(6)}`.trim() };
-  }
-  if (country === "US") {
-    const local = digits.slice(1);
-    return { country, formatted: `+1 (${local.slice(0, 3)}) ${local.slice(3, 6)}-${local.slice(6)}` };
-  }
-  // BR
-  if (digits.length < 3) return { country: "BR", formatted: `+55 ${digits}` };
-  const ddd = digits.slice(0, 2);
-  const rest = digits.slice(2);
-  const local = rest.length === 9
-    ? `${rest.slice(0, 5)}-${rest.slice(5)}`
-    : rest.length === 8
-      ? `${rest.slice(0, 4)}-${rest.slice(4)}`
-      : rest;
-  return { country: "BR", formatted: `+55 (${ddd}) ${local}` };
-}
+// Detecção/formatação de número de WhatsApp centralizadas em src/lib/whatsappFormat.ts
 
 const COUNTRY_ISO: Record<"BR" | "PT" | "US", string> = { BR: "br", PT: "pt", US: "us" };
 
