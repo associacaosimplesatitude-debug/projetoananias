@@ -206,6 +206,7 @@ export default function ResumoDiario() {
 
   const { data: ativosCount } = useQuery({
     queryKey: ["resumo-destinatarios-ativos-count"],
+    enabled: isAdmin,
     queryFn: async () => {
       const { count, error } = await supabase
         .from("resumo_diario_destinatarios")
@@ -218,7 +219,18 @@ export default function ResumoDiario() {
 
   const { data: enviosLog } = useQuery({
     queryKey: ["resumo-envios-log", dataRef],
+    enabled: isAdmin,
     queryFn: async () => {
+      const { data, error } = await supabase
+        .from("resumo_diario_envios_log")
+        .select("id, telefone, status, disparo_tipo, created_at, erro_mensagem")
+        .eq("data_ref", dataRef)
+        .order("created_at", { ascending: false })
+        .limit(5);
+      if (error) throw error;
+      return (data ?? []) as EnvioLog[];
+    },
+  });
       const { data, error } = await supabase
         .from("resumo_diario_envios_log")
         .select("id, telefone, status, disparo_tipo, created_at, erro_mensagem")
