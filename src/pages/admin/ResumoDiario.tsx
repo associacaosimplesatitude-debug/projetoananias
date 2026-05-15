@@ -1,8 +1,9 @@
-import { useState, useMemo } from "react";
-import { Link } from "react-router-dom";
-import { format, subDays, startOfDay } from "date-fns";
+import { useState, useMemo, useEffect } from "react";
+import { Link, useSearchParams } from "react-router-dom";
+import { format, subDays, startOfDay, parseISO, isValid } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/hooks/useAuth";
 import {
   CalendarIcon,
   MessageCircle,
