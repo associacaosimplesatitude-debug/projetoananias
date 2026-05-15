@@ -1,44 +1,42 @@
-# Resumo Diário — 6 canais oficiais
+## Problema
 
-## Objetivo
+Os cards de E-commerce, Shopee e Mercado Livre aparecem com **R$ 0,00** quando filtramos "Ontem", mas em `/admin/ebd/propostas` mostra 6 pedidos E-commerce (R$ 789,95), 2 Mercado Livre e 5 Shopee no mesmo dia.
 
-Em `/admin/resumo-diario`, exibir em "Vendas por canal" apenas estes 6 cards, e fazer os KPIs do topo somarem somente eles:
+**Causa raiz:** a função `get_resumo_diario` filtra essas tabelas por `order_date`, mas as abas em `/admin/ebd/propostas` (`AdminPedidosTab.tsx`) filtram por `created_at`. Quando `order_date` é nulo, antigo, ou está em fuso diferente, o pedido não entra no resumo do dia.
 
-1. **Faturados** — duas fontes mantidas:
-   - `ebd_shopify_pedidos` com `status_pagamento = 'Faturado'` no `order_date` do dia
-   - `vendedor_propostas` com `status IN ('FATURADO','APROVADA_FATURAMENTO','PAGO')` no `confirmado_em` (com fallback para `updated_at` quando `confirmado_em` for nulo) do dia
-2. **Mercado Pago** — `ebd_shopify_pedidos_mercadopago` com `payment_status IN ('approved','PAGO')` ou `status='PAGO'`, no `created_at` do dia
-3. **E-commerce** — `ebd_shopify_pedidos` com `status_pagamento = 'paid'` no `order_date` do dia
-4. **Balcão Penha** — `vendas_balcao` com `status = 'finalizada'` no `created_at` do dia (canal **novo**, não existe hoje na função)
-5. **Shopee** — `bling_marketplace_pedidos` com `marketplace = 'SHOPEE'` e `status_pagamento IN ('paid','Pago')` no `order_date` do dia
-6. **Mercado Livre** — idem, `marketplace = 'MERCADO_LIVRE'`
+Também há divergência de filtro de status: a aba "E-commerce" do painel inclui status `Faturado` por padrão (filtro "Todos os status"), enquanto o card "E-commerce" do resumo só conta `paid` — isso pode duplicar/subtrair contagens conforme a regra desejada.
 
-Canais removidos da UI e dos totais: Faturamento Direto (separado), Nova Loja CG, Amazon, Atacado, ADVECS.
+## Plano
 
-## Mudanças
+### Migration: recriar `get_resumo_diario(data_ref date)`
 
-### 1. Migration SQL — recriar `get_resumo_diario(date)`
-- Substituir CTE `fat_direto` (atual) por `faturados_propostas` com os 3 status e usar `COALESCE(confirmado_em, updated_at)`.
-- Adicionar CTE `balcao` lendo `vendas_balcao` (status `finalizada`).
-- Filtrar `mkt` apenas para `SHOPEE` e `MERCADO_LIVRE` com status pago; quebrar em duas CTEs `mkt_shopee` e `mkt_ml`.
-- Remover `nova_loja` e marketplaces não-marketplace dos totais.
-- `totais_hoje.faturamento` e `pedidos` = soma somente das 6 CTEs acima.
-- `totais_ontem` reescrito com a mesma lógica (mesmas 6 fontes).
-- Saída `canais` (array) com exatamente 6 entradas:
-  - `Faturados`, `Mercado Pago`, `E-commerce`, `Balcão Penha`, `Shopee`, `Mercado Livre`
-- `vendedores_top5` e `mix_produtos` continuam considerando as fontes presentes (sem nova_loja). Balcão entra no ranking de vendedores via `vendas_balcao.vendedor_id`.
-- Mantém `SECURITY DEFINER`, `STABLE`, checagem `has_role(auth.uid(),'admin')`.
+Alinhar 100% com a lógica de `AdminPedidosTab.tsx`:
 
-### 2. Frontend — `src/pages/admin/ResumoDiario.tsx`
-- Reduzir o array `CANAIS` para 6 entradas e renomear keys/labels para casar com os novos nomes do backend:
-  - `faturados`, `mercado_pago`, `ecommerce`, `balcao_penha`, `shopee`, `mercado_livre`
-- Atualizar `canalKeyMap` para os novos labels.
-- Trocar grid para `lg:grid-cols-3` (6 cards ficam em 2 linhas de 3).
-- Tipo `CanalKey` ajustado.
+1. **E-commerce** (`ebd_shopify_pedidos`)
+   - Filtrar por `(created_at AT TIME ZONE 'America/Sao_Paulo')::date = data_ref`
+   - Status: `status_pagamento = 'paid'`
 
-## Detalhes técnicos
+2. **Faturados** (manter as duas fontes, conforme decidido antes)
+   - `ebd_shopify_pedidos` com `status_pagamento = 'Faturado'` → filtrar por `created_at`
+   - `vendedor_propostas` com `status IN ('FATURADO','APROVADA_FATURAMENTO','PAGO')` → manter `COALESCE(confirmado_em, updated_at)`
 
-- Os totais do topo (Faturamento, Pedidos, Ticket médio, Produtos vendidos) já vêm de `totais_hoje` na função SQL, então a mudança de CTEs já refaz tudo.
-- Variação vs ontem usa `totais_ontem`, também refeito com as mesmas 6 fontes para consistência.
-- `vendas_balcao.itens` (jsonb) é incluído no mix de produtos com a mesma lógica defensiva (`jsonb_typeof = 'array'`) já usada para `vendedor_propostas.itens` e `mp.items`.
-- Nada muda em RLS, edge functions, cron de WhatsApp ou tabela de destinatários.
+3. **Mercado Pago** (`ebd_shopify_pedidos_mercadopago`)
+   - Manter `created_at` + `payment_status IN ('approved','PAGO','paid')`
+
+4. **Balcão Penha** (`vendas_balcao`)
+   - Manter `created_at` + `status = 'finalizada'`
+
+5. **Shopee / Mercado Livre** (`bling_marketplace_pedidos`)
+   - Trocar `order_date` por `created_at`
+   - Manter `marketplace = 'SHOPEE'` / `'MERCADO_LIVRE'` e `status_pagamento IN ('paid','Pago')`
+
+KPIs do topo (faturamento, pedidos, ticket médio, produtos) continuam somando apenas esses 6 canais.
+
+`vendedores_top5` e `mix_produtos` também passam a usar `created_at` para `ebd_shopify_pedidos` e `bling_marketplace_pedidos`, mantendo `confirmado_em/updated_at` para `vendedor_propostas`.
+
+### Não muda
+- Frontend `ResumoDiario.tsx` (já está com os 6 cards corretos)
+- Edge function de WhatsApp
+- Tabelas, RLS, cron
+
+Após a migration os números do resumo passam a bater com o painel `/admin/ebd/propostas` no mesmo dia.
