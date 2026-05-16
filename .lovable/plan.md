@@ -1,53 +1,25 @@
-## Problema confirmado
+## Correção da Multi-Licença — Jonathan Gonzalez
 
-Os dois cards estão errados pelas seguintes causas:
+### Diagnóstico
 
-### 1. Faturados duplicados (Elaine R$ 28.958,86 = 2× R$ 14.479,38)
+Encontrei a licença Multi (40 unidades, origem `nova_loja_cg`) do cliente **Jonathan Gonzalez** (`jonathanbaldancaca@gmail.com`):
 
-A venda da PLENITUDE (Elaine) existe nas **duas tabelas** com o mesmo `bling_order_id`:
-- `ebd_shopify_pedidos` — status `Faturado`, R$ 14.479,48
-- `vendedor_propostas` — status `FATURADO`, R$ 14.479,38
+- **Licença ID:** `3c737ea9-6460-422d-8003-34e8e76801a7`
+- **Quantidade:** 40 (1 já distribuída para a aluna Rebeca Gonzalez, status `pendente`)
+- **Revista atual (errada):** Revista EBD Adolescente 05 - Amando a Deus e ao Próximo - 15 A 17 ALUNO
+- **Revista correta:** Revista EBD Jovens e Adultos Nº9 - Cartas da Prisão - ALUNO (`87f217f3-093a-459b-87ab-4bb7c6a7951a`)
 
-A função `get_resumo_diario` soma as duas, dobrando o valor (e duplicando no Top vendedores).
+### Mudança
 
-### 2. Shopee e Mercado Livre zerados
+Atualizar `revista_licencas.revista_aluno_id` da licença acima para o ID da revista "Cartas da Prisão - ALUNO".
 
-Os pedidos de hoje em `bling_marketplace_pedidos` estão com `status_pagamento = 'Desconhecido'` (não `paid`/`Pago`). A função filtra por `paid/Pago` e zera tudo. O dashboard "Resumo de Vendas" (que o usuário pediu como fonte) **não filtra por status** — mostra Shopee R$ 317,20 e ML R$ 76,65 mesmo assim.
+A aluna já distribuída (Rebeca Gonzalez) automaticamente passa a ter acesso à revista correta, pois o vínculo é feito via `licenca_id` → `revista_aluno_id`. Nenhum outro registro precisa ser ajustado.
 
-## Plano
-
-Migration recriando `get_resumo_diario(data_ref)` com dois ajustes:
-
-### A) Dedupe Faturados por `bling_order_id`
-
-```text
-faturados = UNION das duas fontes, mas:
-  - se o mesmo bling_order_id aparece nos dois lados, manter apenas
-    o registro de vendedor_propostas (preferir, pois tem itens estruturados
-    e vendedor garantido)
-  - registros sem bling_order_id entram normalmente
+```sql
+UPDATE revista_licencas
+SET revista_aluno_id = '87f217f3-093a-459b-87ab-4bb7c6a7951a',
+    updated_at = now()
+WHERE id = '3c737ea9-6460-422d-8003-34e8e76801a7';
 ```
 
-Implementação: CTE `faturados_unificados` que faz `FULL OUTER JOIN` por `bling_order_id` quando ambos têm valor, ou `LEFT ANTI JOIN` para incluir os órfãos. Substitui `faturados_shopify` + `faturados_propostas` em todos os agregados (KPIs, vendedores_top5, mix_produtos).
-
-### B) Shopee/ML sem filtro de status
-
-Remover `AND status_pagamento IN ('paid','Pago')` das CTEs `mkt_shopee` e `mkt_ml`. Manter apenas:
-- `marketplace = 'SHOPEE'` / `'MERCADO_LIVRE'`
-- `(created_at AT TIME ZONE 'America/Sao_Paulo')::date = data_ref`
-
-Aplicar a mesma mudança em `totais_ontem`.
-
-### Não muda
-- Frontend (`ResumoDiario.tsx`)
-- E-commerce, Mercado Pago, Balcão Penha (já corretos)
-- RLS, edge functions, cron
-
-### Resultado esperado para 15/05
-
-| Card | Antes | Depois |
-|---|---|---|
-| Faturados | R$ 28.958,86 (2 pedidos) | R$ 14.479,38 (1 pedido) |
-| Shopee | R$ 0,00 | R$ 317,20 (5 pedidos) |
-| Mercado Livre | R$ 0,00 | R$ 76,65 (2 pedidos) |
-| Top vendedor Elaine | R$ 28.958,86 | R$ 14.479,38 |
+Sem alterações de código ou schema — apenas correção pontual de dado.
