@@ -71,6 +71,7 @@ serve(async (req) => {
         id,
         revista_id,
         nome_comprador,
+        whatsapp,
         expira_em,
         versao_preferida,
         revistas_digitais (
@@ -97,6 +98,7 @@ serve(async (req) => {
           id,
           revista_id,
           nome_comprador,
+          whatsapp,
           expira_em,
           versao_preferida,
           revistas_digitais (

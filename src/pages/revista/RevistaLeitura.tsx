@@ -846,7 +846,7 @@ export default function RevistaLeitura() {
                   border: 'none',
                   width: '100%',
                   height: '100%',
-                  minHeight: '100vh',
+                  minHeight: '100svh',
                   background: modoNoturno ? '#1a1a1a' : '#f5f0e8',
                   filter: modoNoturno ? 'invert(1) hue-rotate(180deg)' : 'none',
                   display: 'block'
@@ -1115,10 +1115,10 @@ export default function RevistaLeitura() {
               onTouchEnd={handleTouchEnd}
             >
               {paginas.length > 0 ? (
-                <img
-                  src={paginas[paginaAtual]}
-                  alt={`Página ${paginaAtual + 1}`}
-                  className="h-[calc(100vh-120px)] w-full object-contain cursor-zoom-in"
+                  <img
+                    src={paginas[paginaAtual]}
+                    alt={`Página ${paginaAtual + 1}`}
+                    className="h-[calc(100svh-120px)] w-full object-contain cursor-zoom-in"
                   style={{ touchAction: "pinch-zoom" }}
                   draggable={false}
                   onClick={() => setZoomed(true)}

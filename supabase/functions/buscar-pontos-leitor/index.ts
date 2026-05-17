@@ -24,15 +24,17 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    const identifiers = new Set<string>([whatsapp.trim()]);
+    const normalizedInput = whatsapp.trim();
+    const normalizedEmail = normalizedInput.toLowerCase();
+    const identifiers = new Set<string>([normalizedInput, normalizedEmail]);
 
     // Descobrir o e-mail associado a esse identificador (telefone ou e-mail-fallback)
     // e juntar todos os identificadores do mesmo comprador.
     try {
-      const { data: licByIdent } = await supabase
-        .from("revista_licencas_shopify")
-        .select("email")
-        .eq("whatsapp", whatsapp.trim());
+        const { data: licByIdent } = await supabase
+          .from("revista_licencas_shopify")
+          .select("whatsapp, email")
+          .or(`whatsapp.eq.${normalizedInput},email.eq.${normalizedEmail}`);
 
       const emails = Array.from(
         new Set(
@@ -63,6 +65,7 @@ Deno.serve(async (req) => {
     }
 
     const idList = Array.from(identifiers);
+    console.log("[buscar-pontos-leitor] identifiers", { input: normalizedInput, idList });
     const { data, error } = await supabase
       .from("revista_ranking_publico")
       .select("total_pontos, total_quizzes")

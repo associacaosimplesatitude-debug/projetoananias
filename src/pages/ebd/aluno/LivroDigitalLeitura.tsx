@@ -135,8 +135,8 @@ export default function LivroDigitalLeitura() {
 
   return (
     <div
-      className="fixed inset-x-0 top-0 z-50 bg-slate-950 flex flex-col select-none"
-      style={{ height: "100dvh", paddingBottom: "env(safe-area-inset-bottom)" }}
+      className="fixed inset-0 z-50 bg-slate-950 flex flex-col select-none overflow-hidden"
+      style={{ height: "100svh", minHeight: "100dvh", paddingBottom: "env(safe-area-inset-bottom)" }}
       onContextMenu={(e) => e.preventDefault()}
     >
       <div className="flex items-center justify-between px-4 py-2 bg-slate-900/80 backdrop-blur shrink-0">
