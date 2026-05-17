@@ -55,7 +55,7 @@ serve(async (req) => {
     const { data } = await supabaseAdmin
       .from("revista_licencas_shopify")
       .select(`
-        id, nome_comprador, email, primeiro_acesso_em, ultimo_acesso_em,
+        id, nome_comprador, email, whatsapp, primeiro_acesso_em, ultimo_acesso_em,
         revista_id, versao_preferida,
         revistas_digitais (
           id, titulo, capa_url, total_licoes, tipo, pdf_url, leitura_continua, tipo_conteudo
@@ -71,7 +71,7 @@ serve(async (req) => {
       const { data: emailData } = await supabaseAdmin
         .from("revista_licencas_shopify")
         .select(`
-          id, nome_comprador, email, primeiro_acesso_em, ultimo_acesso_em,
+          id, nome_comprador, email, whatsapp, primeiro_acesso_em, ultimo_acesso_em,
           revista_id, versao_preferida,
           revistas_digitais (
             id, titulo, capa_url, total_licoes, tipo, pdf_url, leitura_continua, tipo_conteudo
