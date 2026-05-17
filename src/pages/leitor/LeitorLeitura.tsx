@@ -332,7 +332,7 @@ export default function LeitorLeitura() {
   // READER MODE
   if (selectedRevista) {
     return (
-      <div className="min-h-screen flex flex-col" style={{ backgroundColor: "#000" }}>
+      <div className="fixed inset-0 flex flex-col overflow-hidden" style={{ backgroundColor: "#000", height: "100svh", minHeight: "100dvh", paddingBottom: "env(safe-area-inset-bottom)" }}>
         {/* Progress bar */}
         <div className="fixed top-0 left-0 right-0 z-50 h-1" style={{ backgroundColor: "#222" }}>
           <div
