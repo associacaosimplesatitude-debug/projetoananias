@@ -1115,10 +1115,10 @@ export default function RevistaLeitura() {
               onTouchEnd={handleTouchEnd}
             >
               {paginas.length > 0 ? (
-                <img
-                  src={paginas[paginaAtual]}
-                  alt={`Página ${paginaAtual + 1}`}
-                  className="h-[calc(100vh-120px)] w-full object-contain cursor-zoom-in"
+                  <img
+                    src={paginas[paginaAtual]}
+                    alt={`Página ${paginaAtual + 1}`}
+                    className="h-[calc(100svh-120px)] w-full object-contain cursor-zoom-in"
                   style={{ touchAction: "pinch-zoom" }}
                   draggable={false}
                   onClick={() => setZoomed(true)}
