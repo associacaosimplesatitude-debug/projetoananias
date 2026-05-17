@@ -103,7 +103,11 @@ export default function RevistaLeituraContinua() {
 
   // Fallback: show lesson images in continuous scroll
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950 flex flex-col select-none" onContextMenu={(e) => e.preventDefault()}>
+    <div
+      className="fixed inset-x-0 top-0 z-50 bg-slate-950 flex flex-col select-none"
+      style={{ height: "100dvh", paddingBottom: "env(safe-area-inset-bottom)" }}
+      onContextMenu={(e) => e.preventDefault()}
+    >
       <div className="flex items-center justify-between px-4 py-2 bg-slate-900/80 backdrop-blur shrink-0">
         <span className="text-white font-medium text-sm truncate">{revistaTitulo} — Leitura Contínua</span>
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="text-white hover:bg-white/10 shrink-0">
