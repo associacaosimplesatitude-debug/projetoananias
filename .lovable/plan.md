@@ -1,25 +1,41 @@
-## Correção da Multi-Licença — Jonathan Gonzalez
+## Problema
 
-### Diagnóstico
+Nas imagens enviadas (iPad em `gestaoebd.com.br`), a última linha do texto da revista digital fica cortada/escondida na parte de baixo da tela. O mesmo acontece no celular.
 
-Encontrei a licença Multi (40 unidades, origem `nova_loja_cg`) do cliente **Jonathan Gonzalez** (`jonathanbaldancaca@gmail.com`):
+**Causa:** Os leitores usam `fixed inset-0` (equivalente a `height: 100vh`). No Safari iOS/iPadOS, `100vh` representa a viewport **sem** a barra de URL dinâmica — então quando a barra aparece, o rodapé do leitor (e a última linha das imagens da revista) some atrás dela. Também não há respeito à `safe-area-inset-bottom`.
 
-- **Licença ID:** `3c737ea9-6460-422d-8003-34e8e76801a7`
-- **Quantidade:** 40 (1 já distribuída para a aluna Rebeca Gonzalez, status `pendente`)
-- **Revista atual (errada):** Revista EBD Adolescente 05 - Amando a Deus e ao Próximo - 15 A 17 ALUNO
-- **Revista correta:** Revista EBD Jovens e Adultos Nº9 - Cartas da Prisão - ALUNO (`87f217f3-093a-459b-87ab-4bb7c6a7951a`)
+No `RevistaLeitor.tsx` há ainda `max-h-[calc(100vh-120px)]` no `<img>`, que sofre do mesmo problema.
 
-### Mudança
+## Solução
 
-Atualizar `revista_licencas.revista_aluno_id` da licença acima para o ID da revista "Cartas da Prisão - ALUNO".
+Trocar a altura fixa por **dynamic viewport height (`100dvh`)**, que se ajusta automaticamente à barra do Safari, e adicionar **padding seguro** (`env(safe-area-inset-bottom)`) na barra inferior dos leitores. Sem mudanças em lógica/negócio — só CSS de layout.
 
-A aluna já distribuída (Rebeca Gonzalez) automaticamente passa a ter acesso à revista correta, pois o vínculo é feito via `licenca_id` → `revista_aluno_id`. Nenhum outro registro precisa ser ajustado.
+### Arquivos a alterar
 
-```sql
-UPDATE revista_licencas
-SET revista_aluno_id = '87f217f3-093a-459b-87ab-4bb7c6a7951a',
-    updated_at = now()
-WHERE id = '3c737ea9-6460-422d-8003-34e8e76801a7';
-```
+1. **`src/pages/ebd/aluno/RevistaLeituraContinua.tsx`**
+   - Trocar `fixed inset-0` por container com `height: 100dvh` (mantendo posicionamento fixo).
+   - Adicionar `paddingBottom: env(safe-area-inset-bottom)` no scroll container.
 
-Sem alterações de código ou schema — apenas correção pontual de dado.
+2. **`src/pages/ebd/aluno/RevistaLeitor.tsx`**
+   - Mesmo ajuste de altura (`100dvh`).
+   - Alterar `max-h-[calc(100vh-120px)]` para `max-h-[calc(100dvh-140px)]` no `<img>` do modo "setas", para a imagem não passar por trás da barra de navegação inferior.
+   - Adicionar safe-area no rodapé "Anterior / Próxima".
+
+3. **`src/pages/ebd/aluno/LivroDigitalLeitura.tsx`**
+   - Aplicar o mesmo padrão (`100dvh` + safe-area) para consistência, já que tem a mesma estrutura `fixed inset-0`.
+
+### Detalhes técnicos
+
+- Padrão a usar:
+  ```tsx
+  <div
+    className="fixed inset-x-0 top-0 z-50 bg-slate-950 flex flex-col select-none"
+    style={{ height: "100dvh", paddingBottom: "env(safe-area-inset-bottom)" }}
+  >
+  ```
+- `100dvh` tem suporte em Safari iOS 15.4+ (todos os iPads/iPhones atuais).
+- Memory existente sobre Mobile/PWA (rolagem contínua no mobile) continua valendo — não vou mexer nessa regra.
+
+## Verificação
+
+Após aplicar, abrir `/ebd/aluno/revista/:id/licao/:n` e `/ebd/aluno/revista/:id/continua` no iPad e celular e confirmar que a última linha do texto fica visível com a barra de URL do Safari visível.
