@@ -164,7 +164,11 @@ export default function RevistaLeitor() {
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950 flex flex-col select-none" onContextMenu={(e) => e.preventDefault()}>
+    <div
+      className="fixed inset-x-0 top-0 z-50 bg-slate-950 flex flex-col select-none"
+      style={{ height: "100dvh", paddingBottom: "env(safe-area-inset-bottom)" }}
+      onContextMenu={(e) => e.preventDefault()}
+    >
       <Progress value={viewMode === "arrows" ? progressPercent : 100} className="h-1 rounded-none bg-slate-800" indicatorClassName="bg-orange-500" />
 
       <div className="flex items-center justify-between px-4 py-2 bg-slate-900/80 backdrop-blur">
