@@ -1,41 +1,24 @@
-## Problema
+## Diagnóstico
 
-Nas imagens enviadas (iPad em `gestaoebd.com.br`), a última linha do texto da revista digital fica cortada/escondida na parte de baixo da tela. O mesmo acontece no celular.
+Os pontos do aluno aparecem zerados quando ele tem **mais de uma licença** comprada com **identificadores diferentes** (telefone em uma compra e e-mail como fallback em outra — caso real: "Centro Assistencial Simples Atitude" tem licenças com `whatsapp = 11947141878` e outras com `whatsapp = cleuton.soares@gmail.com`).
 
-**Causa:** Os leitores usam `fixed inset-0` (equivalente a `height: 100vh`). No Safari iOS/iPadOS, `100vh` representa a viewport **sem** a barra de URL dinâmica — então quando a barra aparece, o rodapé do leitor (e a última linha das imagens da revista) some atrás dela. Também não há respeito à `safe-area-inset-bottom`.
+A função `buscar-pontos-leitor` consulta `revista_ranking_publico` filtrando **exatamente** pelo `whatsapp` da sessão atual. Se a sessão entrou via e-mail mas os quizzes foram respondidos sob o telefone (ou vice-versa), retorna 0 — mesmo havendo pontos salvos no banco para o mesmo comprador.
 
-No `RevistaLeitor.tsx` há ainda `max-h-[calc(100vh-120px)]` no `<img>`, que sofre do mesmo problema.
+No caso real verificado: existem 3 respostas de quiz totalizando **100 pts** salvas sob `11947141878`, mas a sessão atual usa `cleuton.soares@gmail.com`, então o card mostra 0.
 
-## Solução
+## Correção
 
-Trocar a altura fixa por **dynamic viewport height (`100dvh`)**, que se ajusta automaticamente à barra do Safari, e adicionar **padding seguro** (`env(safe-area-inset-bottom)`) na barra inferior dos leitores. Sem mudanças em lógica/negócio — só CSS de layout.
+Atualizar a edge function `supabase/functions/buscar-pontos-leitor/index.ts` para **unificar todos os identificadores do mesmo comprador** antes de somar:
 
-### Arquivos a alterar
+1. Receber o `whatsapp` da sessão (como hoje).
+2. Buscar em `revista_licencas_shopify` o `email` associado a esse identificador.
+3. Coletar todos os `whatsapp` distintos das licenças que compartilham o mesmo `email` (case-insensitive, trim).
+4. Incluir o próprio identificador da sessão no conjunto, como segurança.
+5. Somar `total_pontos` e `total_quizzes` em `revista_ranking_publico` usando `.in("whatsapp", [...identificadores])`.
+6. Manter retorno `{ total_pontos, total_quizzes }` — nenhum cliente precisa mudar.
 
-1. **`src/pages/ebd/aluno/RevistaLeituraContinua.tsx`**
-   - Trocar `fixed inset-0` por container com `height: 100dvh` (mantendo posicionamento fixo).
-   - Adicionar `paddingBottom: env(safe-area-inset-bottom)` no scroll container.
+Sem alterações de schema, sem mudanças no `salvar-quiz-publico` (quizzes continuam sendo gravados sob o identificador da sessão), sem mexer na lista de ranking público (que continua segmentada por revista). Apenas o cartão "Seus Pontos" do leitor passa a refletir o total real do comprador.
 
-2. **`src/pages/ebd/aluno/RevistaLeitor.tsx`**
-   - Mesmo ajuste de altura (`100dvh`).
-   - Alterar `max-h-[calc(100vh-120px)]` para `max-h-[calc(100dvh-140px)]` no `<img>` do modo "setas", para a imagem não passar por trás da barra de navegação inferior.
-   - Adicionar safe-area no rodapé "Anterior / Próxima".
+## Arquivos alterados
 
-3. **`src/pages/ebd/aluno/LivroDigitalLeitura.tsx`**
-   - Aplicar o mesmo padrão (`100dvh` + safe-area) para consistência, já que tem a mesma estrutura `fixed inset-0`.
-
-### Detalhes técnicos
-
-- Padrão a usar:
-  ```tsx
-  <div
-    className="fixed inset-x-0 top-0 z-50 bg-slate-950 flex flex-col select-none"
-    style={{ height: "100dvh", paddingBottom: "env(safe-area-inset-bottom)" }}
-  >
-  ```
-- `100dvh` tem suporte em Safari iOS 15.4+ (todos os iPads/iPhones atuais).
-- Memory existente sobre Mobile/PWA (rolagem contínua no mobile) continua valendo — não vou mexer nessa regra.
-
-## Verificação
-
-Após aplicar, abrir `/ebd/aluno/revista/:id/licao/:n` e `/ebd/aluno/revista/:id/continua` no iPad e celular e confirmar que a última linha do texto fica visível com a barra de URL do Safari visível.
+- `supabase/functions/buscar-pontos-leitor/index.ts` — adicionar lookup por e-mail e somar todos os identificadores.
