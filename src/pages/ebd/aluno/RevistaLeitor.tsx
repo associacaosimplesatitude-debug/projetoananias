@@ -165,8 +165,8 @@ export default function RevistaLeitor() {
 
   return (
     <div
-      className="fixed inset-x-0 top-0 z-50 bg-slate-950 flex flex-col select-none"
-      style={{ height: "100dvh", paddingBottom: "env(safe-area-inset-bottom)" }}
+      className="fixed inset-0 z-50 bg-slate-950 flex flex-col select-none overflow-hidden"
+      style={{ height: "100svh", minHeight: "100dvh", paddingBottom: "env(safe-area-inset-bottom)" }}
       onContextMenu={(e) => e.preventDefault()}
     >
       <Progress value={viewMode === "arrows" ? progressPercent : 100} className="h-1 rounded-none bg-slate-800" indicatorClassName="bg-orange-500" />
@@ -205,7 +205,7 @@ export default function RevistaLeitor() {
                 <img
                   src={paginas[currentPage]}
                   alt={`Página ${currentPage + 1}`}
-                  className="max-h-[calc(100dvh-140px)] max-w-full object-contain pointer-events-none"
+                  className="max-h-[calc(100svh-140px)] max-w-full object-contain pointer-events-none"
                   draggable={false}
                 />
                 {watermarkText && (
