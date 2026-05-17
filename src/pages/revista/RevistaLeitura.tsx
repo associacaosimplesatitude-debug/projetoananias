@@ -846,7 +846,7 @@ export default function RevistaLeitura() {
                   border: 'none',
                   width: '100%',
                   height: '100%',
-                  minHeight: '100vh',
+                  minHeight: '100svh',
                   background: modoNoturno ? '#1a1a1a' : '#f5f0e8',
                   filter: modoNoturno ? 'invert(1) hue-rotate(180deg)' : 'none',
                   display: 'block'
