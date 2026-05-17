@@ -205,7 +205,7 @@ export default function RevistaLeitor() {
                 <img
                   src={paginas[currentPage]}
                   alt={`Página ${currentPage + 1}`}
-                  className="max-h-[calc(100vh-120px)] max-w-full object-contain pointer-events-none"
+                  className="max-h-[calc(100dvh-140px)] max-w-full object-contain pointer-events-none"
                   draggable={false}
                 />
                 {watermarkText && (
