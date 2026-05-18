@@ -62,15 +62,23 @@ export default function AdminEBDClientes() {
   const { data: clientes = [], isLoading, refetch } = useQuery({
     queryKey: ["admin-ebd-clientes"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("ebd_clientes")
-        .select(`
-          *,
-          vendedor:vendedores!ebd_clientes_vendedor_id_fkey(id, nome)
-        `)
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
+      // Paginar para contornar o limite de 1000 linhas do Supabase
+      const PAGE = 1000;
+      let data: any[] = [];
+      for (let from = 0; ; from += PAGE) {
+        const { data: page, error } = await supabase
+          .from("ebd_clientes")
+          .select(`
+            *,
+            vendedor:vendedores!ebd_clientes_vendedor_id_fkey(id, nome)
+          `)
+          .order("created_at", { ascending: false })
+          .range(from, from + PAGE - 1);
+        if (error) throw error;
+        if (!page || page.length === 0) break;
+        data = data.concat(page);
+        if (page.length < PAGE) break;
+      }
 
       // Buscar perfis dos usuários que atribuíram desconto
       const clientesComDesconto = (data || []).filter(c => c.desconto_atribuido_por);
