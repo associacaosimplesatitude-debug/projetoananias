@@ -133,11 +133,15 @@ export default function VendedorClientes() {
       // Isso significa:
       // - Clientes manuais (is_pos_venda_ecommerce = false) aparecem sempre
       // - Clientes do e-commerce só aparecem após ativar o painel
+      // Mostrar todos os clientes atribuídos ao vendedor.
+      // Antes filtrávamos por (is_pos_venda_ecommerce=false OR status_ativacao_ebd=true)
+      // para esconder clientes de e-commerce não ativados, mas isso ocultava clientes
+      // transferidos manualmente pelo gestor. Se o vendedor tem o cliente na carteira,
+      // ele deve aparecer.
       const { data: ebdClientesData, error: ebdClientesError } = await supabase
         .from("ebd_clientes")
         .select("*")
         .eq("vendedor_id", vendedor.id)
-        .or("is_pos_venda_ecommerce.eq.false,status_ativacao_ebd.eq.true")
         .order("created_at", { ascending: false });
       if (ebdClientesError) throw ebdClientesError;
 
