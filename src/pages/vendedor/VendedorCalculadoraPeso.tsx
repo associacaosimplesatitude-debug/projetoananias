@@ -1022,12 +1022,19 @@ ${vendedor?.nome || '[Nome do Vendedor]'}`;
                               )}
                               <div className="flex-1 min-w-0 mr-2">
                                 <p className="font-medium truncate">{item.product.node.title}</p>
-                                <p className="text-xs text-muted-foreground">
-                                  {item.weightKg < 1 
-                                    ? `${(item.weightKg * 1000).toFixed(0)}g`
-                                    : `${item.weightKg.toFixed(2)}kg`
-                                  } × {item.quantity}
-                                </p>
+                                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                  <Input
+                                    type="number"
+                                    step="0.001"
+                                    min="0"
+                                    value={item.weightKg || ""}
+                                    placeholder="kg"
+                                    onChange={(e) => setPesoManual(item.variantId, parseFloat(e.target.value) || 0)}
+                                    className="h-6 w-16 px-1 text-xs"
+                                    title="Peso unitário (kg)"
+                                  />
+                                  <span>kg × {item.quantity}</span>
+                                </div>
                               </div>
                               <div className="flex items-center gap-1">
                                 <Button size="icon" variant="outline" className="h-6 w-6" onClick={() => alterarQuantidade(item.variantId, -1)}>
