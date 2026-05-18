@@ -321,6 +321,39 @@ ${enderecoEntrega?.completo || 'Endereço não cadastrado'}
   }, [cliente, carrinho, calculo, enderecoEntrega, infoCaixas, dadosColeta]);
 
   // Handlers
+  const fetchWeightForSku = useCallback(async (variantId: string, sku: string) => {
+    try {
+      // Tenta cache local primeiro
+      const { data: cached } = await supabase
+        .from("shopify_produto_pesos")
+        .select("peso_bruto_kg")
+        .eq("sku", sku)
+        .maybeSingle();
+
+      let pesoKg = Number(cached?.peso_bruto_kg || 0);
+
+      if (!cached) {
+        const { data, error } = await supabase.functions.invoke("bling-get-product-weight", {
+          body: { sku },
+        });
+        if (error) throw error;
+        pesoKg = Number(data?.pesos?.[0]?.peso_bruto_kg || 0);
+      }
+
+      if (pesoKg > 0) {
+        setCarrinho(prev =>
+          prev.map(item =>
+            item.variantId === variantId ? { ...item, weightKg: pesoKg } : item
+          )
+        );
+      } else {
+        toast.warning(`Peso não encontrado no Bling para SKU ${sku}. Informe manualmente.`);
+      }
+    } catch (e) {
+      console.error("Erro ao buscar peso:", e);
+    }
+  }, []);
+
   const adicionarProduto = useCallback((product: ShopifyProduct) => {
     const variant = product.node.variants?.edges?.[0]?.node;
     if (!variant) return;
@@ -345,6 +378,19 @@ ${enderecoEntrega?.completo || 'Endereço não cadastrado'}
         weightKg
       }];
     });
+
+    // Se não veio peso do catálogo, buscar no Bling pelo SKU
+    if (weightKg === 0 && variant.sku) {
+      fetchWeightForSku(variant.id, variant.sku);
+    }
+  }, [fetchWeightForSku]);
+
+  const setPesoManual = useCallback((variantId: string, pesoKg: number) => {
+    setCarrinho(prev =>
+      prev.map(item =>
+        item.variantId === variantId ? { ...item, weightKg: Math.max(0, pesoKg) } : item
+      )
+    );
   }, []);
 
   const alterarQuantidade = useCallback((variantId: string, delta: number) => {
