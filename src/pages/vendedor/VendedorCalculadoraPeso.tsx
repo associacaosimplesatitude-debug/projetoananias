@@ -321,6 +321,39 @@ ${enderecoEntrega?.completo || 'Endereço não cadastrado'}
   }, [cliente, carrinho, calculo, enderecoEntrega, infoCaixas, dadosColeta]);
 
   // Handlers
+  const fetchWeightForSku = useCallback(async (variantId: string, sku: string) => {
+    try {
+      // Tenta cache local primeiro
+      const { data: cached } = await supabase
+        .from("shopify_produto_pesos")
+        .select("peso_bruto_kg")
+        .eq("sku", sku)
+        .maybeSingle();
+
+      let pesoKg = Number(cached?.peso_bruto_kg || 0);
+
+      if (!cached) {
+        const { data, error } = await supabase.functions.invoke("bling-get-product-weight", {
+          body: { sku },
+        });
+        if (error) throw error;
+        pesoKg = Number(data?.pesos?.[0]?.peso_bruto_kg || 0);
+      }
+
+      if (pesoKg > 0) {
+        setCarrinho(prev =>
+          prev.map(item =>
+            item.variantId === variantId ? { ...item, weightKg: pesoKg } : item
+          )
+        );
+      } else {
+        toast.warning(`Peso não encontrado no Bling para SKU ${sku}. Informe manualmente.`);
+      }
+    } catch (e) {
+      console.error("Erro ao buscar peso:", e);
+    }
+  }, []);
+
   const adicionarProduto = useCallback((product: ShopifyProduct) => {
     const variant = product.node.variants?.edges?.[0]?.node;
     if (!variant) return;
@@ -345,6 +378,19 @@ ${enderecoEntrega?.completo || 'Endereço não cadastrado'}
         weightKg
       }];
     });
+
+    // Se não veio peso do catálogo, buscar no Bling pelo SKU
+    if (weightKg === 0 && variant.sku) {
+      fetchWeightForSku(variant.id, variant.sku);
+    }
+  }, [fetchWeightForSku]);
+
+  const setPesoManual = useCallback((variantId: string, pesoKg: number) => {
+    setCarrinho(prev =>
+      prev.map(item =>
+        item.variantId === variantId ? { ...item, weightKg: Math.max(0, pesoKg) } : item
+      )
+    );
   }, []);
 
   const alterarQuantidade = useCallback((variantId: string, delta: number) => {
@@ -976,12 +1022,19 @@ ${vendedor?.nome || '[Nome do Vendedor]'}`;
                               )}
                               <div className="flex-1 min-w-0 mr-2">
                                 <p className="font-medium truncate">{item.product.node.title}</p>
-                                <p className="text-xs text-muted-foreground">
-                                  {item.weightKg < 1 
-                                    ? `${(item.weightKg * 1000).toFixed(0)}g`
-                                    : `${item.weightKg.toFixed(2)}kg`
-                                  } × {item.quantity}
-                                </p>
+                                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                  <Input
+                                    type="number"
+                                    step="0.001"
+                                    min="0"
+                                    value={item.weightKg || ""}
+                                    placeholder="kg"
+                                    onChange={(e) => setPesoManual(item.variantId, parseFloat(e.target.value) || 0)}
+                                    className="h-6 w-16 px-1 text-xs"
+                                    title="Peso unitário (kg)"
+                                  />
+                                  <span>kg × {item.quantity}</span>
+                                </div>
                               </div>
                               <div className="flex items-center gap-1">
                                 <Button size="icon" variant="outline" className="h-6 w-6" onClick={() => alterarQuantidade(item.variantId, -1)}>
