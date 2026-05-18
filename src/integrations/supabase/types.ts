@@ -7766,6 +7766,30 @@ export type Database = {
           },
         ]
       }
+      shopify_produto_pesos: {
+        Row: {
+          bling_product_id: number | null
+          peso_bruto_kg: number
+          peso_liquido_kg: number
+          sku: string
+          updated_at: string
+        }
+        Insert: {
+          bling_product_id?: number | null
+          peso_bruto_kg?: number
+          peso_liquido_kg?: number
+          sku: string
+          updated_at?: string
+        }
+        Update: {
+          bling_product_id?: number | null
+          peso_bruto_kg?: number
+          peso_liquido_kg?: number
+          sku?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       sorteio_eventos: {
         Row: {
           ativo: boolean
