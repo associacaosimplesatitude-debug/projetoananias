@@ -167,7 +167,6 @@ export default function ResumoDiario() {
       }>;
     },
   });
-  const queryClient = useQueryClient();
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["resumo-diario", dataRef, isAdmin],
