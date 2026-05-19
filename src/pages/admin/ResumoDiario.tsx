@@ -665,6 +665,63 @@ export default function ResumoDiario() {
           )}
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={!!canalDrillDown} onOpenChange={(o) => !o && setCanalDrillDown(null)}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Pedidos · {canalDrillDown?.label}</DialogTitle>
+            <DialogDescription>
+              {format(date, "dd/MM/yyyy")} ·{" "}
+              {canalDrillDown && data?.canais[canalDrillDown.key]
+                ? `${fmtNum(data.canais[canalDrillDown.key].pedidos)} pedido(s) · ${brl(data.canais[canalDrillDown.key].total)}`
+                : ""}
+            </DialogDescription>
+          </DialogHeader>
+          {isDrillLoading ? (
+            <div className="space-y-2 py-4">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <Skeleton key={i} className="h-12 w-full" />
+              ))}
+            </div>
+          ) : !drillDownPedidos || drillDownPedidos.length === 0 ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">
+              Nenhum pedido encontrado para esse canal.
+            </p>
+          ) : (
+            <ul className="divide-y">
+              {drillDownPedidos.map((p) => (
+                <li key={p.id} className="py-3 flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium truncate">{p.cliente || "—"}</p>
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground mt-0.5">
+                      {p.vendedor && <span>{p.vendedor}</span>}
+                      {p.vendedor && <span>·</span>}
+                      <span>{format(new Date(p.quando), "HH:mm")}</span>
+                      {p.numero && (
+                        <>
+                          <span>·</span>
+                          <span className="font-mono">#{p.numero}</span>
+                        </>
+                      )}
+                      {p.origem && p.origem !== canalDrillDown?.label && (
+                        <>
+                          <span>·</span>
+                          <Badge variant="outline" className="text-[10px] h-4 px-1">
+                            {p.origem}
+                          </Badge>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  <div className="text-sm font-semibold tabular-nums whitespace-nowrap">
+                    {brl(p.valor)}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
