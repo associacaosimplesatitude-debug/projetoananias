@@ -42,6 +42,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 
 const brl = (v: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v || 0);
@@ -137,7 +144,29 @@ export default function ResumoDiario() {
   const [date, setDate] = useState<Date>(initialDate);
   const dataRef = format(date, "yyyy-MM-dd");
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [canalDrillDown, setCanalDrillDown] = useState<{ key: CanalKey; label: string } | null>(null);
   const queryClient = useQueryClient();
+
+  const { data: drillDownPedidos, isLoading: isDrillLoading } = useQuery({
+    queryKey: ["resumo-canal-pedidos", dataRef, canalDrillDown?.key],
+    enabled: !!canalDrillDown && isAdmin,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_resumo_diario_canal_pedidos", {
+        data_ref: dataRef,
+        canal: canalDrillDown!.key,
+      });
+      if (error) throw error;
+      return (data ?? []) as Array<{
+        id: string;
+        origem: string;
+        cliente: string | null;
+        vendedor: string | null;
+        valor: number;
+        quando: string;
+        numero: string | null;
+      }>;
+    },
+  });
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["resumo-diario", dataRef, isAdmin],
@@ -434,12 +463,16 @@ export default function ResumoDiario() {
                 const stat = data.canais[c.key] ?? { total: 0, pedidos: 0 };
                 const isZero = stat.total === 0 && stat.pedidos === 0;
                 return (
-                  <div
+                  <button
+                    type="button"
                     key={c.key}
+                    onClick={() => isAdmin && !isZero && setCanalDrillDown({ key: c.key, label: c.label })}
+                    disabled={!isAdmin || isZero}
                     className={cn(
-                      "rounded-lg p-3 border",
+                      "rounded-lg p-3 border text-left transition-all",
                       c.bg,
-                      isZero && "opacity-60"
+                      isZero && "opacity-60 cursor-default",
+                      isAdmin && !isZero && "hover:shadow-md hover:scale-[1.02] cursor-pointer"
                     )}
                   >
                     <div className={cn("text-xs font-medium", c.text)}>{c.label}</div>
@@ -447,7 +480,7 @@ export default function ResumoDiario() {
                     <div className="text-xs text-muted-foreground mt-0.5">
                       {fmtNum(stat.pedidos)} {stat.pedidos === 1 ? "pedido" : "pedidos"}
                     </div>
-                  </div>
+                  </button>
                 );
               })}
             </div>
@@ -632,6 +665,63 @@ export default function ResumoDiario() {
           )}
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={!!canalDrillDown} onOpenChange={(o) => !o && setCanalDrillDown(null)}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Pedidos · {canalDrillDown?.label}</DialogTitle>
+            <DialogDescription>
+              {format(date, "dd/MM/yyyy")} ·{" "}
+              {canalDrillDown && data?.canais[canalDrillDown.key]
+                ? `${fmtNum(data.canais[canalDrillDown.key].pedidos)} pedido(s) · ${brl(data.canais[canalDrillDown.key].total)}`
+                : ""}
+            </DialogDescription>
+          </DialogHeader>
+          {isDrillLoading ? (
+            <div className="space-y-2 py-4">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <Skeleton key={i} className="h-12 w-full" />
+              ))}
+            </div>
+          ) : !drillDownPedidos || drillDownPedidos.length === 0 ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">
+              Nenhum pedido encontrado para esse canal.
+            </p>
+          ) : (
+            <ul className="divide-y">
+              {drillDownPedidos.map((p) => (
+                <li key={p.id} className="py-3 flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium truncate">{p.cliente || "—"}</p>
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground mt-0.5">
+                      {p.vendedor && <span>{p.vendedor}</span>}
+                      {p.vendedor && <span>·</span>}
+                      <span>{format(new Date(p.quando), "HH:mm")}</span>
+                      {p.numero && (
+                        <>
+                          <span>·</span>
+                          <span className="font-mono">#{p.numero}</span>
+                        </>
+                      )}
+                      {p.origem && p.origem !== canalDrillDown?.label && (
+                        <>
+                          <span>·</span>
+                          <Badge variant="outline" className="text-[10px] h-4 px-1">
+                            {p.origem}
+                          </Badge>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  <div className="text-sm font-semibold tabular-nums whitespace-nowrap">
+                    {brl(p.valor)}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
