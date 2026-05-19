@@ -463,12 +463,16 @@ export default function ResumoDiario() {
                 const stat = data.canais[c.key] ?? { total: 0, pedidos: 0 };
                 const isZero = stat.total === 0 && stat.pedidos === 0;
                 return (
-                  <div
+                  <button
+                    type="button"
                     key={c.key}
+                    onClick={() => isAdmin && !isZero && setCanalDrillDown({ key: c.key, label: c.label })}
+                    disabled={!isAdmin || isZero}
                     className={cn(
-                      "rounded-lg p-3 border",
+                      "rounded-lg p-3 border text-left transition-all",
                       c.bg,
-                      isZero && "opacity-60"
+                      isZero && "opacity-60 cursor-default",
+                      isAdmin && !isZero && "hover:shadow-md hover:scale-[1.02] cursor-pointer"
                     )}
                   >
                     <div className={cn("text-xs font-medium", c.text)}>{c.label}</div>
@@ -476,7 +480,7 @@ export default function ResumoDiario() {
                     <div className="text-xs text-muted-foreground mt-0.5">
                       {fmtNum(stat.pedidos)} {stat.pedidos === 1 ? "pedido" : "pedidos"}
                     </div>
-                  </div>
+                  </button>
                 );
               })}
             </div>
