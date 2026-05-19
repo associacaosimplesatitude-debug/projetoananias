@@ -144,6 +144,29 @@ export default function ResumoDiario() {
   const [date, setDate] = useState<Date>(initialDate);
   const dataRef = format(date, "yyyy-MM-dd");
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [canalDrillDown, setCanalDrillDown] = useState<{ key: CanalKey; label: string } | null>(null);
+  const queryClient = useQueryClient();
+
+  const { data: drillDownPedidos, isLoading: isDrillLoading } = useQuery({
+    queryKey: ["resumo-canal-pedidos", dataRef, canalDrillDown?.key],
+    enabled: !!canalDrillDown && isAdmin,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_resumo_diario_canal_pedidos", {
+        data_ref: dataRef,
+        canal: canalDrillDown!.key,
+      });
+      if (error) throw error;
+      return (data ?? []) as Array<{
+        id: string;
+        origem: string;
+        cliente: string | null;
+        vendedor: string | null;
+        valor: number;
+        quando: string;
+        numero: string | null;
+      }>;
+    },
+  });
   const queryClient = useQueryClient();
 
   const { data, isLoading, isError } = useQuery({
