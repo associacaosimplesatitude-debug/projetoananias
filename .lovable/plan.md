@@ -1,63 +1,33 @@
-## Causa raiz
+## Objetivo
+Fazer os cards **Faturados** e **E-commerce** em `/admin/resumo-diario` voltarem a abrir a lista de pedidos corretamente.
 
-A tela `Orçamento Transportadora` (`/vendedor/calculadora-peso`) mostra `0g` de peso e `0` volumes porque o catálogo agora vem da **Nova Loja** (via edge function externa `catalogo-publico`), que **não retorna peso**.
+## O que vou implementar
+1. **Corrigir a função do backend do drilldown**
+   - Ajustar `get_resumo_diario_canal_pedidos(date, text)` para usar os nomes de colunas que realmente existem nas tabelas.
+   - Em `ebd_shopify_pedidos`, usar `customer_name` e remover referência a `endereco_nome`, que não existe nessa tabela.
+   - Em `ebd_loja_pedidos_cg`, manter o fallback com `customer_name` e `endereco_nome`, porque ali ambos existem.
+   - Preservar a deduplicação dos pedidos faturados via `bling_order_id`.
 
-Em `src/lib/shopify.ts` (`fetchShopifyProducts`), todo produto é mapeado com:
-```
-weight: null,
-weightUnit: null,
-```
+2. **Publicar a correção via migration**
+   - Criar uma nova migration substituindo a função atual, sem alterar a tela nem a lógica dos demais canais.
 
-Como `weightKg` fica 0 para todos os itens, o cálculo de `pesoTotal` e `infoCaixas.totalVolumes` (que depende do peso) resulta em zero.
+3. **Validar com consulta direta**
+   - Testar os canais `faturados` e `ecommerce` para a data de ontem.
+   - Confirmar que a função retorna registros e que os totais batem com o resumo exibido na página.
 
-A função `bling-sync-products` já sabe ler `pesoBruto` do Bling, mas só popula `ebd_revistas` — não cobre o catálogo geral usado pela calculadora.
-
-## Plano
-
-### 1. Nova edge function `bling-get-product-weight`
-Arquivo: `supabase/functions/bling-get-product-weight/index.ts`
-- Recebe `{ sku: string }` (ou array de SKUs).
-- Reaproveita a lógica de token (`refreshBlingToken`, `isTokenExpired`) e busca por `codigo` igual ao `bling-search-product`.
-- Para cada SKU encontrado, chama `GET /produtos/{id}` e retorna `{ sku, pesoBruto, pesoLiquido }` em kg.
-- Mantém respeito ao rate limit do Bling (`delay(350)` entre chamadas).
-- Configurada com `verify_jwt = false` no `supabase/config.toml` (consumida pelo painel do vendedor autenticado).
-
-### 2. Cache local de pesos
-Tabela: `shopify_produto_pesos`
-```
-sku text primary key
-peso_bruto_kg numeric not null default 0
-peso_liquido_kg numeric not null default 0
-updated_at timestamptz default now()
-```
-RLS: leitura para `authenticated`, escrita só via service role (edge function).
-
-### 3. Integração na calculadora
-Arquivo: `src/pages/vendedor/VendedorCalculadoraPeso.tsx`
-- Em `adicionarProduto`: se `weightKg === 0` e existir `variant.sku`:
-  1. Consultar `shopify_produto_pesos` pelo SKU.
-  2. Se ausente, invocar `bling-get-product-weight`, persistir e usar o resultado.
-  3. Atualizar o item no carrinho com `weightKg` obtido (`setCarrinho` com novo valor).
-- Mostrar spinner inline ou toast "Buscando peso..." durante a consulta.
-- Tratar falha: manter `weightKg = 0` mas exibir aviso "Peso não disponível para este SKU".
-
-### 4. Permitir ajuste manual (fallback)
-No carrinho (linhas 970–990 do arquivo), adicionar um campo numérico discreto de peso (kg) por linha que sobrescreve `weightKg` caso o vendedor queira corrigir.
-
-### 5. Backfill opcional
-Botão "Sincronizar pesos do Bling" na própria tela (visível só para admin/representante) que percorre o catálogo carregado e popula `shopify_produto_pesos` em background — opcional para uma fase 2.
+## Diagnóstico encontrado
+- O frontend está chamando a RPC corretamente.
+- O problema está no backend: a função ativa ainda tenta ler `s.endereco_nome` dentro de `ebd_shopify_pedidos`.
+- Essa coluna **não existe** em `ebd_shopify_pedidos`, por isso o modal abre e depois fica sem dados.
+- Confirmei também que:
+  - `ebd_shopify_pedidos` tem `customer_name`, mas **não** `endereco_nome`
+  - `ebd_loja_pedidos_cg` tem `customer_name` **e** `endereco_nome`
 
 ## Detalhes técnicos
+- Arquivo a criar: nova migration em `supabase/migrations/...sql`
+- Função afetada: `public.get_resumo_diario_canal_pedidos(date, text)`
+- Escopo: apenas correção do drilldown dos canais `faturados` e `ecommerce`
+- Sem mudanças visuais na tela, a menos que a validação mostre necessidade real
 
-- Não modificamos o projeto externo da Nova Loja.
-- O cache evita estourar o rate limit do Bling em sessões repetidas.
-- Mantém compat com `convertToKg` (a função do Bling já retorna kg, então `unit = 'kg'`).
-- O cálculo `calcularCaixasDetalhado(calculo.pesoTotal)` volta a funcionar assim que `weightKg` for preenchido.
-
-## Arquivos afetados
-
-- novo: `supabase/functions/bling-get-product-weight/index.ts`
-- novo: migração com a tabela `shopify_produto_pesos` + RLS
-- editar: `supabase/config.toml` (registrar a nova function se necessário)
-- editar: `src/pages/vendedor/VendedorCalculadoraPeso.tsx` (enriquecer carrinho + campo manual)
-- (opcional) editar: `src/lib/shopify.ts` para tipar `weight` como opcional
+## Resultado esperado
+Ao clicar em **Faturados** e **E-commerce**, o modal deve listar os pedidos normalmente, como já acontece nos outros canais.
