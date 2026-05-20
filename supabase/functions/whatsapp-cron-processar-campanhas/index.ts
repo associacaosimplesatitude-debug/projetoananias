@@ -100,21 +100,21 @@ Deno.serve(async (req) => {
 
       log("invocando send-campaign", { id: c.id, pendentes });
       try {
-        const res = await fetch(`${supabaseUrl}/functions/v1/whatsapp-send-campaign`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${serviceKey}`,
-            apikey: anonKey,
-          },
-          body: JSON.stringify({ campanha_id: c.id }),
-        });
-        const body = await res.text();
-        results.push({ id: c.id, status: res.status, body: body.slice(0, 200) });
+        const { data: invokeData, error: invokeErr } = await supabase.functions.invoke(
+          "whatsapp-send-campaign",
+          { body: { campanha_id: c.id } }
+        );
+        if (invokeErr) {
+          log("ERRO send-campaign", { id: c.id, err: invokeErr.message });
+          results.push({ id: c.id, error: invokeErr.message });
+        } else {
+          results.push({ id: c.id, ok: true, body: invokeData });
+        }
       } catch (e: any) {
         log("ERRO send-campaign", { id: c.id, err: e.message });
         results.push({ id: c.id, error: e.message });
       }
+
     }
 
     return new Response(
