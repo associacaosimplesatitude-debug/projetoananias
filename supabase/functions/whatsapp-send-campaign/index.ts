@@ -368,11 +368,17 @@ Deno.serve(async (req) => {
         );
 
         const resBody = await res.text();
+        let resJson: any = null;
+        try { resJson = JSON.parse(resBody); } catch { /* keep null */ }
 
         if (res.ok) {
+          const wamid: string | null = resJson?.messages?.[0]?.id || null;
           await supabase.from("whatsapp_campanha_destinatarios").update({
             status_envio: "enviado",
             enviado_em: new Date().toISOString(),
+            meta_message_id: wamid,
+            erro_codigo: null,
+            erro_mensagem: null,
           }).eq("id", dest.id);
           enviados++;
 
@@ -381,20 +387,26 @@ Deno.serve(async (req) => {
               link_id: linkRecord.id,
               campaign_id: campanha_id,
               event_type: "message_sent",
-              event_data: { phone, template: templateName },
+              event_data: { phone, template: templateName, wamid },
             });
           }
         } else {
-          console.error(`[send-campaign] Erro envio para ${phone}:`, resBody);
+          const errCode = resJson?.error?.code ? String(resJson.error.code) : String(res.status);
+          const errMsg = resJson?.error?.message || resBody?.slice(0, 500) || "Erro desconhecido";
+          console.error(`[send-campaign] Erro envio para ${phone}:`, errCode, errMsg);
           await supabase.from("whatsapp_campanha_destinatarios").update({
             status_envio: "erro",
+            erro_codigo: errCode,
+            erro_mensagem: errMsg,
           }).eq("id", dest.id);
           erros++;
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error("[send-campaign] Erro envio destinatário:", err);
         await supabase.from("whatsapp_campanha_destinatarios").update({
           status_envio: "erro",
+          erro_codigo: "exception",
+          erro_mensagem: err?.message?.slice(0, 500) || "Exception",
         }).eq("id", dest.id);
         erros++;
       }
