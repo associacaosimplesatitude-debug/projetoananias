@@ -43,6 +43,16 @@ Deno.serve(async (req) => {
 
     console.log(`[send-campaign] === LOTE INICIADO para campanha ${campanha_id} ===`);
 
+    // Quiet hours guard (skip send entirely if outside window)
+    const { data: dentroData } = await supabase.rpc("whatsapp_dentro_quiet_hours");
+    if (dentroData === false) {
+      console.log("[send-campaign] Fora da janela de envio (quiet hours). Abortando lote.");
+      return new Response(
+        JSON.stringify({ success: true, fora_quiet_hours: true, batch_done: false }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // Fetch campaign with template
     const { data: campanha, error: cErr } = await supabase
       .from("whatsapp_campanhas")
@@ -58,8 +68,10 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Update campaign status to enviando
-    await supabase.from("whatsapp_campanhas").update({ status: "enviando" }).eq("id", campanha_id);
+    // Update campaign status to enviando (preserve new 'processando' state from cron)
+    if (campanha.status !== "processando" && campanha.status !== "pausada" && campanha.status !== "cancelada") {
+      await supabase.from("whatsapp_campanhas").update({ status: "enviando" }).eq("id", campanha_id);
+    }
 
     // Get WhatsApp credentials from system_settings
     const { data: settings } = await supabase
@@ -125,7 +137,37 @@ Deno.serve(async (req) => {
     let enviados = 0;
     let erros = 0;
 
+    // Parse per-campaign variable configuration (new flow)
+    const templateVarConfig: Record<string, any> = (campanha as any).template_variaveis || {};
+    const campanhaHeaderMedia: string | null = (campanha as any).cabecalho_midia_url || null;
+
+    let stoppedByQuietHours = false;
+
     for (const dest of (destinatarios || [])) {
+      // Re-check quiet hours per iteration — stops batch if window closed mid-send
+      const { data: dentroLoop } = await supabase.rpc("whatsapp_dentro_quiet_hours");
+      if (dentroLoop === false) {
+        console.log("[send-campaign] Quiet hours fechou durante o lote. Interrompendo.");
+        stoppedByQuietHours = true;
+        break;
+      }
+
+      // Re-check opt-out at send time
+      const destTelNormalizado = (dest.telefone || "").replace(/\D/g, "");
+      if (destTelNormalizado) {
+        const { data: optoutRow } = await supabase
+          .from("whatsapp_optouts")
+          .select("telefone")
+          .eq("telefone", destTelNormalizado)
+          .maybeSingle();
+        if (optoutRow) {
+          await supabase.from("whatsapp_campanha_destinatarios").update({
+            status_envio: "cancelado_optout",
+          }).eq("id", dest.id);
+          continue;
+        }
+      }
+
       try {
         // Format phone number
         let phone = (dest.telefone || "").replace(/\D/g, "");
@@ -209,9 +251,31 @@ Deno.serve(async (req) => {
         }
 
         // Build template components (variables)
+        const resolveVarFromConfig = (idx: number, key: string): string | null => {
+          // Try by numeric index ("1", "2", ...) and by name key
+          const cfg = templateVarConfig?.[String(idx)] ?? templateVarConfig?.[key];
+          if (!cfg || typeof cfg !== "object") return null;
+          const tipo = cfg.tipo;
+          const valor = cfg.valor;
+          if (tipo === "fixo") return typeof valor === "string" ? valor : "";
+          if (tipo === "campo") {
+            if (valor === "primeiro_nome") {
+              const n = (dest.nome || "").trim();
+              return n ? n.split(/\s+/)[0] : "amigo";
+            }
+            if (valor === "nome_completo") {
+              return (dest.nome || "").trim() || "amigo";
+            }
+          }
+          return null;
+        };
+
         const varValues: string[] = [];
-        for (const v of variables) {
+        for (let i = 0; i < variables.length; i++) {
+          const v = variables[i];
           const key = v.replace(/\{\{|\}\}/g, "").trim();
+          const overridden = resolveVarFromConfig(i + 1, key);
+          if (overridden !== null) { varValues.push(overridden); continue; }
           switch (key) {
             case "nome_completo": varValues.push(dest.nome || "Cliente"); break;
             case "primeiro_nome": varValues.push((dest.nome || "Cliente").split(" ")[0]); break;
@@ -246,8 +310,9 @@ Deno.serve(async (req) => {
         );
 
         const forceImageHeader = usesLinkEscolhaVar || templateName === "utilidade";
-        if (template?.cabecalho_tipo === "IMAGE" || forceImageHeader) {
-          const imageUrl = template?.cabecalho_midia_url || CAMPAIGN_IMAGE_URL;
+        if (template?.cabecalho_tipo === "IMAGE" || forceImageHeader || campanhaHeaderMedia) {
+          // Priority: per-campaign override → template default → fallback
+          const imageUrl = campanhaHeaderMedia || template?.cabecalho_midia_url || CAMPAIGN_IMAGE_URL;
           components.push({
             type: "header",
             parameters: [{
@@ -303,11 +368,17 @@ Deno.serve(async (req) => {
         );
 
         const resBody = await res.text();
+        let resJson: any = null;
+        try { resJson = JSON.parse(resBody); } catch { /* keep null */ }
 
         if (res.ok) {
+          const wamid: string | null = resJson?.messages?.[0]?.id || null;
           await supabase.from("whatsapp_campanha_destinatarios").update({
             status_envio: "enviado",
             enviado_em: new Date().toISOString(),
+            meta_message_id: wamid,
+            erro_codigo: null,
+            erro_mensagem: null,
           }).eq("id", dest.id);
           enviados++;
 
@@ -316,20 +387,26 @@ Deno.serve(async (req) => {
               link_id: linkRecord.id,
               campaign_id: campanha_id,
               event_type: "message_sent",
-              event_data: { phone, template: templateName },
+              event_data: { phone, template: templateName, wamid },
             });
           }
         } else {
-          console.error(`[send-campaign] Erro envio para ${phone}:`, resBody);
+          const errCode = resJson?.error?.code ? String(resJson.error.code) : String(res.status);
+          const errMsg = resJson?.error?.message || resBody?.slice(0, 500) || "Erro desconhecido";
+          console.error(`[send-campaign] Erro envio para ${phone}:`, errCode, errMsg);
           await supabase.from("whatsapp_campanha_destinatarios").update({
             status_envio: "erro",
+            erro_codigo: errCode,
+            erro_mensagem: errMsg,
           }).eq("id", dest.id);
           erros++;
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error("[send-campaign] Erro envio destinatário:", err);
         await supabase.from("whatsapp_campanha_destinatarios").update({
           status_envio: "erro",
+          erro_codigo: "exception",
+          erro_mensagem: err?.message?.slice(0, 500) || "Exception",
         }).eq("id", dest.id);
         erros++;
       }
@@ -346,13 +423,29 @@ Deno.serve(async (req) => {
       .eq("status_envio", "pendente");
 
     const hasMore = (remaining || 0) > 0;
+    const isNewFlow = campanha.status === "processando";
 
-    await syncCounters(supabase, campanha_id, hasMore ? "enviando" : "enviada");
+    // In the new flow, status transitions are managed by the cron
+    // (processando → concluida). In the legacy flow, keep the original behaviour.
+    let nextStatus: string;
+    if (isNewFlow) {
+      nextStatus = hasMore ? "processando" : "concluida";
+    } else {
+      nextStatus = hasMore ? "enviando" : "enviada";
+    }
 
-    console.log(`[send-campaign] Lote concluído: +${enviados} enviados, +${erros} erros. Restantes: ${remaining || 0}`);
+    await syncCounters(supabase, campanha_id, nextStatus);
+    if (isNewFlow && !hasMore) {
+      await supabase.from("whatsapp_campanhas")
+        .update({ finalizada_em: new Date().toISOString() })
+        .eq("id", campanha_id);
+    }
 
-    // If there are more pending, trigger next batch using SERVICE ROLE KEY (not user token)
-    if (hasMore) {
+    console.log(`[send-campaign] Lote concluído: +${enviados} enviados, +${erros} erros. Restantes: ${remaining || 0}. quiet_stop=${stoppedByQuietHours}`);
+
+    // Legacy auto-chain: only when in legacy mode and quiet hours allow.
+    // The new flow is driven by the cron, so we do NOT self-chain here.
+    if (hasMore && !isNewFlow && !stoppedByQuietHours) {
       console.log(`[send-campaign] Disparando próximo lote (${remaining} restantes)...`);
       const nextBatchUrl = `${supabaseUrl}/functions/v1/whatsapp-send-campaign`;
       try {
@@ -368,7 +461,6 @@ Deno.serve(async (req) => {
         console.log(`[send-campaign] Próximo lote disparado, status: ${nextRes.status}`);
       } catch (e) {
         console.error("[send-campaign] ERRO CRÍTICO ao disparar próximo lote:", e);
-        // Mark campaign as paused so it doesn't stay stuck in "enviando"
         await supabase.from("whatsapp_campanhas").update({ status: "pausada" }).eq("id", campanha_id);
       }
     }
