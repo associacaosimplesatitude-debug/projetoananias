@@ -251,9 +251,31 @@ Deno.serve(async (req) => {
         }
 
         // Build template components (variables)
+        const resolveVarFromConfig = (idx: number, key: string): string | null => {
+          // Try by numeric index ("1", "2", ...) and by name key
+          const cfg = templateVarConfig?.[String(idx)] ?? templateVarConfig?.[key];
+          if (!cfg || typeof cfg !== "object") return null;
+          const tipo = cfg.tipo;
+          const valor = cfg.valor;
+          if (tipo === "fixo") return typeof valor === "string" ? valor : "";
+          if (tipo === "campo") {
+            if (valor === "primeiro_nome") {
+              const n = (dest.nome || "").trim();
+              return n ? n.split(/\s+/)[0] : "amigo";
+            }
+            if (valor === "nome_completo") {
+              return (dest.nome || "").trim() || "amigo";
+            }
+          }
+          return null;
+        };
+
         const varValues: string[] = [];
-        for (const v of variables) {
+        for (let i = 0; i < variables.length; i++) {
+          const v = variables[i];
           const key = v.replace(/\{\{|\}\}/g, "").trim();
+          const overridden = resolveVarFromConfig(i + 1, key);
+          if (overridden !== null) { varValues.push(overridden); continue; }
           switch (key) {
             case "nome_completo": varValues.push(dest.nome || "Cliente"); break;
             case "primeiro_nome": varValues.push((dest.nome || "Cliente").split(" ")[0]); break;
@@ -288,8 +310,9 @@ Deno.serve(async (req) => {
         );
 
         const forceImageHeader = usesLinkEscolhaVar || templateName === "utilidade";
-        if (template?.cabecalho_tipo === "IMAGE" || forceImageHeader) {
-          const imageUrl = template?.cabecalho_midia_url || CAMPAIGN_IMAGE_URL;
+        if (template?.cabecalho_tipo === "IMAGE" || forceImageHeader || campanhaHeaderMedia) {
+          // Priority: per-campaign override → template default → fallback
+          const imageUrl = campanhaHeaderMedia || template?.cabecalho_midia_url || CAMPAIGN_IMAGE_URL;
           components.push({
             type: "header",
             parameters: [{
