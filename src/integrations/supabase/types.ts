@@ -8853,13 +8853,17 @@ export type Database = {
           created_at: string
           data_pedido: string | null
           email: string | null
+          entregue_em: string | null
           enviado_em: string | null
           erro_codigo: string | null
           erro_mensagem: string | null
+          falhou_em: string | null
           id: string
+          lido_em: string | null
           meta_message_id: string | null
           nome: string | null
           produtos_pedido: string | null
+          respondido_em: string | null
           status_envio: string
           telefone: string | null
           tipo_documento: string | null
@@ -8875,13 +8879,17 @@ export type Database = {
           created_at?: string
           data_pedido?: string | null
           email?: string | null
+          entregue_em?: string | null
           enviado_em?: string | null
           erro_codigo?: string | null
           erro_mensagem?: string | null
+          falhou_em?: string | null
           id?: string
+          lido_em?: string | null
           meta_message_id?: string | null
           nome?: string | null
           produtos_pedido?: string | null
+          respondido_em?: string | null
           status_envio?: string
           telefone?: string | null
           tipo_documento?: string | null
@@ -8897,13 +8905,17 @@ export type Database = {
           created_at?: string
           data_pedido?: string | null
           email?: string | null
+          entregue_em?: string | null
           enviado_em?: string | null
           erro_codigo?: string | null
           erro_mensagem?: string | null
+          falhou_em?: string | null
           id?: string
+          lido_em?: string | null
           meta_message_id?: string | null
           nome?: string | null
           produtos_pedido?: string | null
+          respondido_em?: string | null
           status_envio?: string
           telefone?: string | null
           tipo_documento?: string | null
@@ -8945,13 +8957,17 @@ export type Database = {
           status: string
           template_id: string | null
           template_variaveis: Json | null
+          total_entregues: number
           total_enviados: number
           total_erros: number
+          total_falhas: number
+          total_lidos: number
           total_link_clicks: number | null
           total_page_views: number | null
           total_panel_accesses: number | null
           total_publico: number
           total_purchases: number | null
+          total_respondidos: number
           total_revenue: number | null
           total_visitas_pagina: number | null
           updated_at: string
@@ -8972,13 +8988,17 @@ export type Database = {
           status?: string
           template_id?: string | null
           template_variaveis?: Json | null
+          total_entregues?: number
           total_enviados?: number
           total_erros?: number
+          total_falhas?: number
+          total_lidos?: number
           total_link_clicks?: number | null
           total_page_views?: number | null
           total_panel_accesses?: number | null
           total_publico?: number
           total_purchases?: number | null
+          total_respondidos?: number
           total_revenue?: number | null
           total_visitas_pagina?: number | null
           updated_at?: string
@@ -8999,13 +9019,17 @@ export type Database = {
           status?: string
           template_id?: string | null
           template_variaveis?: Json | null
+          total_entregues?: number
           total_enviados?: number
           total_erros?: number
+          total_falhas?: number
+          total_lidos?: number
           total_link_clicks?: number | null
           total_page_views?: number | null
           total_panel_accesses?: number | null
           total_publico?: number
           total_purchases?: number | null
+          total_respondidos?: number
           total_revenue?: number | null
           total_visitas_pagina?: number | null
           updated_at?: string
