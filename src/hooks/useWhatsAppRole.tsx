@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useIsSuperadmin } from "@/hooks/useIsSuperadmin";
 
 export type WhatsAppRole = "superadmin" | "gerente" | "vendedor" | "none";
 
@@ -15,6 +16,7 @@ interface WhatsAppRoleData {
 
 export function useWhatsAppRole(): WhatsAppRoleData {
   const { user, role, loading: authLoading } = useAuth();
+  const { isSuperadmin, isLoading: superLoading } = useIsSuperadmin();
 
   const { data, isLoading } = useQuery({
     queryKey: ["whatsapp-role-vendedor", user?.email?.toLowerCase()],
@@ -30,7 +32,7 @@ export function useWhatsAppRole(): WhatsAppRoleData {
     enabled: !!user?.email && !authLoading,
   });
 
-  const isSuperAdmin = role === "admin";
+  const isSuperAdmin = isSuperadmin;
   const isGerente = role === "gerente_ebd" && !isSuperAdmin;
   const vendedorId = data?.vendedorId ?? null;
   const isVendedor = !isSuperAdmin && !isGerente && !!vendedorId;
@@ -46,6 +48,6 @@ export function useWhatsAppRole(): WhatsAppRoleData {
     isSuperAdmin,
     isGerente,
     isVendedor,
-    loading: authLoading || isLoading,
+    loading: authLoading || isLoading || superLoading,
   };
 }
