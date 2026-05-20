@@ -1,1116 +1,602 @@
 import { useState, useMemo, useEffect } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
+} from "@/components/ui/dialog";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Progress } from "@/components/ui/progress";
-import { Checkbox } from "@/components/ui/checkbox";
-import { ptBR } from "date-fns/locale";
+import { Textarea } from "@/components/ui/textarea";
 import {
-  Users, ArrowRight, ArrowLeft, Send, Loader2, Target, MessageSquare,
-  MousePointerClick, Eye, ShoppingCart, DollarSign, Plus, ChevronRight, Trash2, Tag, BarChart3, Rocket, FlaskConical
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Progress } from "@/components/ui/progress";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Plus, RefreshCw, Loader2, MoreVertical, Play, Pause, X, BarChart3,
+  Target, Send, Calendar, AlertTriangle,
 } from "lucide-react";
-import { format } from "date-fns";
-
-type Step = "list" | "segmentation" | "template" | "funnel";
-
-interface BlingChannel {
-  id: string;
-  descricao: string;
-}
-
-interface PublicoMesOption {
-  mes: string;
-  label: string;
-  total_contatos: number;
-  com_desconto: number;
-  sem_desconto: number;
-  contatos: any[];
-}
-
-// Known Bling store ID to name mapping
-const BLING_STORE_NAMES: Record<string, string> = {
-  "205391854": "E-COMMERCE",
-  "204728077": "ECG SHOPEE",
-  "204732507": "MERCADO LIVRE",
-  "205441191": "ATACADO",
-  "205797806": "PEDIDOS MATRIZ",
-  "205891152": "PEDIDOS PENHA",
-  "205882190": "PEDIDOS PERNAMBUCO",
-};
-
-interface Filters {
-  dateFrom: string;
-  dateTo: string;
-  canalBling: string;
-}
-
-interface Recipient {
-  cliente_id: string | null;
-  nome: string;
-  telefone: string;
-  email: string;
-  tipo_documento: string;
-  data_pedido?: string;
-  produtos_pedido?: string;
-  valor_pedido?: string;
-}
 
 const STATUS_MAP: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
   rascunho: { label: "Rascunho", variant: "secondary" },
-  enviando: { label: "Enviando", variant: "outline" },
-  enviada: { label: "Enviada", variant: "default" },
+  agendada: { label: "Agendada", variant: "outline" },
+  materializando: { label: "Materializando", variant: "outline" },
+  pronta: { label: "Pronta", variant: "default" },
+  processando: { label: "Processando", variant: "default" },
   pausada: { label: "Pausada", variant: "destructive" },
+  concluida: { label: "Concluída", variant: "default" },
+  cancelada: { label: "Cancelada", variant: "secondary" },
+  erro: { label: "Erro", variant: "destructive" },
+  // legacy
+  enviando: { label: "Enviando", variant: "default" },
+  enviada: { label: "Enviada", variant: "default" },
+  ativa: { label: "Ativa", variant: "default" },
 };
+
+const DIAS_LABEL = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
+
+interface VarConfig {
+  tipo: "fixo" | "campo";
+  valor: string;
+}
 
 export default function WhatsAppCampaigns() {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const [step, setStep] = useState<Step>("list");
-  const [filters, setFilters] = useState<Filters>({
-    dateFrom: "",
-    dateTo: "",
-    canalBling: "todos",
-  });
-  const [blingChannels] = useState<BlingChannel[]>(
-    Object.entries(BLING_STORE_NAMES).map(([id, descricao]) => ({ id, descricao }))
-  );
-  const [recipients, setRecipients] = useState<Recipient[]>([]);
-  const [loadingAudience, setLoadingAudience] = useState(false);
-  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
-  const [campaignName, setCampaignName] = useState("");
-  const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null);
-  const [reuseCampaignId, setReuseCampaignId] = useState<string | null>(null);
-  const [loadingReuse, setLoadingReuse] = useState(false);
-  // Público de revistas state
-  const [selectedPublicoMeses, setSelectedPublicoMeses] = useState<Set<string>>(new Set());
-  const [publicoDescontoFilter, setPublicoDescontoFilter] = useState<"todos" | "com_desconto" | "sem_desconto">("todos");
-  const [loadingPublico, setLoadingPublico] = useState(false);
+  const qc = useQueryClient();
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [syncing, setSyncing] = useState(false);
 
-  // --- Queries ---
+  // ---- Queries ----
   const { data: campaigns, isLoading: loadingCampaigns } = useQuery({
-    queryKey: ["whatsapp-campanhas"],
+    queryKey: ["whatsapp-campanhas-v2"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("whatsapp_campanhas")
-        .select("*, whatsapp_templates(nome, corpo, botoes)")
+        .select("*, whatsapp_templates(nome, corpo), whatsapp_publicos(nome, total_calculado)")
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return data;
+      return data || [];
     },
-    enabled: step === "list" || step === "funnel",
+    refetchInterval: (q) => {
+      const list = (q.state.data as any[]) || [];
+      const active = list.some((c) => ["processando", "materializando", "agendada", "pronta", "enviando"].includes(c.status));
+      return active ? 8000 : false;
+    },
   });
 
-  // Campaigns with audience for reuse
-  const { data: campaignsWithAudience } = useQuery({
-    queryKey: ["whatsapp-campanhas-com-publico"],
+  const { data: quietHours } = useQuery({
+    queryKey: ["whatsapp-quiet-hours"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("system_settings")
+        .select("value")
+        .eq("key", "whatsapp_quiet_hours")
+        .maybeSingle();
+      if (!data?.value) return null;
+      try { return JSON.parse(data.value); } catch { return null; }
+    },
+  });
+
+  // ---- Mutations ----
+  const syncTemplates = async () => {
+    setSyncing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("whatsapp-sync-templates-from-meta", { body: {} });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      toast.success(`Templates sincronizados${data?.total ? `: ${data.total}` : ""}`);
+    } catch (e: any) {
+      toast.error("Falha ao sincronizar templates: " + e.message);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const updateStatus = useMutation({
+    mutationFn: async ({ id, status, extra }: { id: string; status: string; extra?: any }) => {
+      const patch: any = { status, ...(extra || {}) };
+      if (status === "pausada") patch.pausada_em = new Date().toISOString();
+      if (status === "cancelada") patch.finalizada_em = new Date().toISOString();
+      const { error } = await supabase.from("whatsapp_campanhas").update(patch).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["whatsapp-campanhas-v2"] });
+      toast.success("Campanha atualizada");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const deleteCampaign = useMutation({
+    mutationFn: async (id: string) => {
+      await supabase.from("whatsapp_campanha_destinatarios").delete().eq("campanha_id", id);
+      const { error } = await supabase.from("whatsapp_campanhas").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["whatsapp-campanhas-v2"] });
+      toast.success("Campanha excluída");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h2 className="text-lg font-semibold">Campanhas WhatsApp</h2>
+          <p className="text-sm text-muted-foreground">Disparo em massa via templates aprovados Meta</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={syncTemplates} disabled={syncing} className="gap-2">
+            {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+            Sincronizar templates Meta
+          </Button>
+          <Button onClick={() => setDialogOpen(true)} className="gap-2">
+            <Plus className="h-4 w-4" /> Nova Campanha
+          </Button>
+        </div>
+      </div>
+
+      {loadingCampaigns ? (
+        <div className="flex justify-center p-8 text-muted-foreground">Carregando...</div>
+      ) : !campaigns?.length ? (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center p-12 text-muted-foreground">
+            <Target className="h-12 w-12 mb-4 opacity-50" />
+            <p>Nenhuma campanha criada ainda.</p>
+            <Button variant="outline" className="mt-4 gap-2" onClick={() => setDialogOpen(true)}>
+              <Plus className="h-4 w-4" /> Criar primeira campanha
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid gap-3">
+          {campaigns.map((c: any) => (
+            <CampaignCard
+              key={c.id}
+              campanha={c}
+              onAction={(action) => {
+                if (action === "delete") {
+                  if (c.total_enviados > 0) {
+                    toast.error("Não é possível excluir uma campanha que já enviou mensagens.");
+                    return;
+                  }
+                  if (confirm("Excluir esta campanha?")) deleteCampaign.mutate(c.id);
+                } else if (action === "pausar") {
+                  updateStatus.mutate({ id: c.id, status: "pausada" });
+                } else if (action === "retomar") {
+                  updateStatus.mutate({ id: c.id, status: "processando" });
+                } else if (action === "cancelar") {
+                  if (confirm("Cancelar esta campanha?")) updateStatus.mutate({ id: c.id, status: "cancelada" });
+                } else if (action === "relatorio") {
+                  navigate(`/admin/whatsapp/campanhas/${c.id}/rastreamento`);
+                }
+              }}
+            />
+          ))}
+        </div>
+      )}
+
+      <NovaCampanhaDialog
+        open={dialogOpen}
+        onClose={() => setDialogOpen(false)}
+        quietHours={quietHours}
+        onCreated={() => qc.invalidateQueries({ queryKey: ["whatsapp-campanhas-v2"] })}
+      />
+    </div>
+  );
+}
+
+// ---- Card de campanha ----
+function CampaignCard({ campanha: c, onAction }: { campanha: any; onAction: (a: string) => void }) {
+  const st = STATUS_MAP[c.status] || STATUS_MAP.rascunho;
+  const total = c.total_publico || 0;
+  const enviados = c.total_enviados || 0;
+  const erros = c.total_erros || 0;
+  const progresso = total > 0 ? Math.min(100, Math.round(((enviados + erros) / total) * 100)) : 0;
+  const showProgress = ["processando", "concluida", "enviando", "enviada", "pausada"].includes(c.status);
+  const canPause = c.status === "processando";
+  const canResume = c.status === "pausada";
+  const canCancel = ["rascunho", "agendada", "pronta", "pausada", "processando"].includes(c.status);
+  const canDelete = enviados === 0;
+  const canReport = ["processando", "concluida", "pausada", "enviada", "enviando"].includes(c.status);
+
+  return (
+    <Card>
+      <CardContent className="p-4 space-y-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="space-y-1 min-w-0 flex-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-semibold truncate">{c.nome}</span>
+              <Badge variant={st.variant} className="text-xs">{st.label}</Badge>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Público: {c.whatsapp_publicos?.nome || "—"} · Template: {c.whatsapp_templates?.nome || "—"}
+            </p>
+            {c.status === "agendada" && c.agendada_para && (
+              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                <Calendar className="h-3 w-3" />
+                Agendada para {format(new Date(c.agendada_para), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+              </p>
+            )}
+          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8"><MoreVertical className="h-4 w-4" /></Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {canReport && (
+                <DropdownMenuItem onClick={() => onAction("relatorio")}>
+                  <BarChart3 className="h-4 w-4 mr-2" /> Ver relatório
+                </DropdownMenuItem>
+              )}
+              {canPause && (
+                <DropdownMenuItem onClick={() => onAction("pausar")}>
+                  <Pause className="h-4 w-4 mr-2" /> Pausar
+                </DropdownMenuItem>
+              )}
+              {canResume && (
+                <DropdownMenuItem onClick={() => onAction("retomar")}>
+                  <Play className="h-4 w-4 mr-2" /> Retomar
+                </DropdownMenuItem>
+              )}
+              {canCancel && (
+                <DropdownMenuItem onClick={() => onAction("cancelar")}>
+                  <X className="h-4 w-4 mr-2" /> Cancelar
+                </DropdownMenuItem>
+              )}
+              {canDelete && (
+                <DropdownMenuItem className="text-destructive" onClick={() => onAction("delete")}>
+                  Excluir
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
+        {showProgress && total > 0 && (
+          <div className="space-y-1">
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span>{enviados} enviados {erros > 0 && <span className="text-destructive">· {erros} erros</span>}</span>
+              <span>{enviados + erros} / {total}</span>
+            </div>
+            <Progress value={progresso} className="h-1.5" />
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ---- Dialog Nova Campanha ----
+function NovaCampanhaDialog({
+  open, onClose, quietHours, onCreated,
+}: {
+  open: boolean; onClose: () => void; quietHours: any; onCreated: () => void;
+}) {
+  const [nome, setNome] = useState("");
+  const [publicoId, setPublicoId] = useState<string>("");
+  const [templateId, setTemplateId] = useState<string>("");
+  const [headerMediaUrl, setHeaderMediaUrl] = useState("");
+  const [varConfig, setVarConfig] = useState<Record<string, VarConfig>>({});
+  const [quando, setQuando] = useState<"agora" | "agendar">("agora");
+  const [agendadaPara, setAgendadaPara] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setNome(""); setPublicoId(""); setTemplateId(""); setHeaderMediaUrl("");
+      setVarConfig({}); setQuando("agora"); setAgendadaPara("");
+    }
+  }, [open]);
+
+  const { data: publicos } = useQuery({
+    queryKey: ["whatsapp-publicos-list"],
+    enabled: open,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("whatsapp_campanhas")
-        .select("id, nome, total_publico, created_at")
-        .gt("total_publico", 0)
-        .order("created_at", { ascending: false });
+        .from("whatsapp_publicos")
+        .select("id, nome, total_calculado")
+        .order("nome");
       if (error) throw error;
-      return data;
+      return data || [];
     },
-    enabled: step === "segmentation",
   });
 
-  // Públicos de revistas query
-  const { data: publicosRevistas } = useQuery({
-    queryKey: ["publicos-revistas-campanhas"],
-    queryFn: async () => {
-      const { data, error } = await supabase.rpc("get_publicos_revistas_por_mes");
-      if (error) throw error;
-      return (data as unknown as PublicoMesOption[]) || [];
-    },
-    enabled: step === "segmentation",
-  });
-
-  const { data: approvedTemplates } = useQuery({
-    queryKey: ["whatsapp-templates-approved"],
+  const { data: templates } = useQuery({
+    queryKey: ["whatsapp-templates-approved-v2"],
+    enabled: open,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("whatsapp_templates")
         .select("*")
         .eq("status", "APROVADO")
-        .order("created_at", { ascending: false });
+        .order("nome");
       if (error) throw error;
-      return data;
+      return data || [];
     },
-    enabled: step === "template",
   });
 
-  const { data: funnelData } = useQuery({
-    queryKey: ["whatsapp-campanha-funnel", selectedCampaignId],
-    queryFn: async () => {
-      if (!selectedCampaignId) return null;
-      const { data: dest, error } = await supabase
-        .from("whatsapp_campanha_destinatarios")
-        .select("*")
-        .eq("campanha_id", selectedCampaignId);
-      if (error) throw error;
-      return dest;
-    },
-    enabled: step === "funnel" && !!selectedCampaignId,
-  });
-
-  const selectedCampaign = useMemo(
-    () => campaigns?.find((c: any) => c.id === selectedCampaignId),
-    [campaigns, selectedCampaignId]
+  const selectedTemplate = useMemo(
+    () => templates?.find((t) => t.id === templateId),
+    [templates, templateId]
   );
 
+  // Detect variables {{N}} in body
+  const variables = useMemo(() => {
+    if (!selectedTemplate?.corpo) return [] as string[];
+    const matches = selectedTemplate.corpo.match(/\{\{\d+\}\}/g) || [];
+    return Array.from(new Set(matches));
+  }, [selectedTemplate]);
 
-  // --- Audience search (incremental pagination) ---
-  const [searchProgress, setSearchProgress] = useState("");
-  const searchAudience = async () => {
-    if (!filters.dateFrom || !filters.dateTo) {
-      toast.error("Selecione o período da última compra");
-      return;
-    }
-    setLoadingAudience(true);
-    setSearchProgress("Iniciando busca...");
-    try {
-      const allContacts: any[] = [];
-      let nextPage: number | null = 1;
-      let nextContactIndex: number = 0;
-      let seenPhonesArr: string[] = [];
-      let retries = 0;
-      let staleIterations = 0;
-      let lastCursorKey = "";
-
-      while (nextPage !== null) {
-        setSearchProgress(`Buscando página ${nextPage} (pos ${nextContactIndex})… (${allContacts.length} contatos)`);
-
-        const { data, error } = await supabase.functions.invoke("bling-search-campaign-audience", {
-          body: {
-            loja_id: filters.canalBling === "todos" ? null : filters.canalBling || null,
-            data_inicial: filters.dateFrom,
-            data_final: filters.dateTo,
-            start_page: nextPage,
-            start_contact_index: nextContactIndex,
-            seen_phones: seenPhonesArr,
-          },
-        });
-
-        if (error) {
-          if (retries < 2) {
-            retries++;
-            setSearchProgress(`Falha temporária, tentando novamente (${retries}/2)…`);
-            await new Promise(r => setTimeout(r, 2000));
-            continue;
-          }
-          throw new Error("Falha de conexão após 2 tentativas. Tente novamente.");
-        }
-        if (data?.error) throw new Error(data.error);
-
-        retries = 0;
-
-        const contacts = (data?.contacts || []).map((c: any) => ({
-          cliente_id: null as any,
-          nome: c.nome || "",
-          telefone: c.telefone || "",
-          email: c.email || "",
-          tipo_documento: c.tipo_documento || "indefinido",
-        }));
-
-        allContacts.push(...contacts);
-        seenPhonesArr = data?.seen_phones || [];
-
-        // Anti-loop fail-safe: detect stale cursor
-        const cursorKey = `${data?.next_page}:${data?.next_contact_index ?? 0}`;
-        if (contacts.length === 0 && cursorKey === lastCursorKey) {
-          staleIterations++;
-          if (staleIterations >= 3) {
-            console.warn("Busca sem progresso detectada, interrompendo.");
-            toast.warning("Busca interrompida: sem progresso após múltiplas tentativas.");
-            break;
-          }
-        } else {
-          staleIterations = 0;
-        }
-        lastCursorKey = cursorKey;
-
-        if (data?.done) {
-          nextPage = null;
-        } else {
-          nextPage = data?.next_page ?? null;
-          nextContactIndex = data?.next_contact_index ?? 0;
-        }
-      }
-
-      setRecipients(allContacts);
-      if (allContacts.length === 0) toast.info("Nenhum destinatário encontrado com esses filtros.");
-      else toast.success(`${allContacts.length} contatos encontrados!`);
-    } catch (err: any) {
-      toast.error("Erro ao buscar público: " + err.message);
-    } finally {
-      setLoadingAudience(false);
-      setSearchProgress("");
-    }
-  };
-
-  // --- Create campaign ---
-  const createCampaignMutation = useMutation({
-    mutationFn: async () => {
-      if (!campaignName) throw new Error("Informe o nome da campanha");
-      if (!selectedTemplateId) throw new Error("Selecione um template");
-
-      const user = (await supabase.auth.getUser()).data.user;
-
-      const { data: campanha, error } = await supabase
-        .from("whatsapp_campanhas")
-        .insert({
-          nome: campaignName,
-          template_id: selectedTemplateId,
-          filtros_publico: filters as any,
-          total_publico: recipients.length,
-          created_by: user?.id,
-        })
-        .select()
-        .single();
-      if (error) throw error;
-
-      // Insert recipients in batches of 100
-      const batch = recipients.map((r) => ({
-        campanha_id: campanha.id,
-        cliente_id: r.cliente_id || null,
-        telefone: r.telefone,
-        nome: r.nome,
-        email: r.email,
-        tipo_documento: r.tipo_documento,
-        data_pedido: r.data_pedido || null,
-        produtos_pedido: r.produtos_pedido || null,
-        valor_pedido: r.valor_pedido || null,
-      }));
-
-      for (let i = 0; i < batch.length; i += 100) {
-        const chunk = batch.slice(i, i + 100);
-        const { error: batchError } = await supabase
-          .from("whatsapp_campanha_destinatarios")
-          .insert(chunk);
-        if (batchError) throw batchError;
-      }
-
-      return campanha;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["whatsapp-campanhas"] });
-      toast.success("Campanha criada com sucesso!");
-      resetFlow();
-    },
-    onError: (err: Error) => toast.error(err.message),
-  });
-
-  // --- Delete campaign ---
-  const deleteCampaignMutation = useMutation({
-    mutationFn: async (campanhaId: string) => {
-      await supabase.from("whatsapp_campanha_destinatarios").delete().eq("campanha_id", campanhaId);
-      const { error } = await supabase.from("whatsapp_campanhas").delete().eq("id", campanhaId);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["whatsapp-campanhas"] });
-      toast.success("Campanha excluída com sucesso!");
-    },
-    onError: (err: Error) => toast.error("Erro ao excluir: " + err.message),
-  });
-
-  // --- Send campaign ---
-  const sendCampaignMutation = useMutation({
-    mutationFn: async (campanhaId: string) => {
-      const { data, error } = await supabase.functions.invoke("whatsapp-send-campaign", {
-        body: { campanha_id: campanhaId },
-      });
-      if (error) throw new Error(error.message);
-      if (data?.error) throw new Error(data.error);
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["whatsapp-campanhas"] });
-      queryClient.invalidateQueries({ queryKey: ["whatsapp-campanha-funnel"] });
-      toast.success("Campanha enviada!");
-    },
-    onError: (err: Error) => toast.error("Erro ao enviar: " + err.message),
-  });
-
-  // --- Dispatch campaign (disparar-campanha-revista) ---
-  const [dispatchingId, setDispatchingId] = useState<string | null>(null);
-  const dispatchCampaignMutation = useMutation({
-    mutationFn: async ({ campanhaId, dryRun }: { campanhaId: string; dryRun: boolean }) => {
-      const { data, error } = await supabase.functions.invoke("disparar-campanha-revista", {
-        body: { campanha_id: campanhaId, dry_run: dryRun },
-      });
-      if (error) throw new Error(error.message);
-      if (data?.error) throw new Error(data.error);
-      return data;
-    },
-    onSuccess: (data) => {
-      if (data.dry_run) {
-        const confirmSend = confirm(
-          `Campanha possui ${data.total} destinatários pendentes.\n\nDeseja disparar agora?`
+  const previewBody = useMemo(() => {
+    if (!selectedTemplate?.corpo) return null;
+    const parts = selectedTemplate.corpo.split(/(\{\{\d+\}\})/g);
+    return parts.map((p: string, i: number) => {
+      if (/^\{\{\d+\}\}$/.test(p)) {
+        return (
+          <span key={i} className="inline-block px-1.5 py-0.5 bg-primary/10 text-primary rounded text-xs font-mono mx-0.5">
+            {p}
+          </span>
         );
-        if (confirmSend && dispatchingId) {
-          dispatchCampaignMutation.mutate({ campanhaId: dispatchingId, dryRun: false });
-        }
+      }
+      return <span key={i}>{p}</span>;
+    });
+  }, [selectedTemplate]);
+
+  const headerMediaType = selectedTemplate?.cabecalho_tipo &&
+    ["IMAGE", "VIDEO", "DOCUMENT"].includes(selectedTemplate.cabecalho_tipo)
+    ? selectedTemplate.cabecalho_tipo
+    : null;
+
+  const minDateTime = useMemo(() => {
+    const d = new Date(Date.now() + 5 * 60 * 1000);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }, [open]);
+
+  const quietHoursLabel = useMemo(() => {
+    if (!quietHours) return "Sempre permitido";
+    const dias = (quietHours.dias_semana || []).map((d: number) => DIAS_LABEL[d - 1]).join(", ");
+    return `${String(quietHours.inicio_hora).padStart(2, "0")}h–${String(quietHours.fim_hora).padStart(2, "0")}h, ${dias} (${quietHours.timezone || "America/Sao_Paulo"})`;
+  }, [quietHours]);
+
+  const handleSave = async (acao: "rascunho" | "iniciar") => {
+    if (!nome.trim()) { toast.error("Informe o nome da campanha"); return; }
+    if (!publicoId) { toast.error("Selecione um público"); return; }
+    if (!templateId) { toast.error("Selecione um template"); return; }
+    for (const v of variables) {
+      const cfg = varConfig[v];
+      if (!cfg) { toast.error(`Configure a variável ${v}`); return; }
+      if (cfg.tipo === "fixo" && !cfg.valor.trim()) {
+        toast.error(`Informe o valor fixo da variável ${v}`); return;
+      }
+    }
+    if (headerMediaType && !headerMediaUrl.trim()) {
+      toast.error(`Informe a URL pública da mídia do cabeçalho (${headerMediaType})`); return;
+    }
+
+    let status = "rascunho";
+    let agendaIso: string | null = null;
+    if (acao === "iniciar") {
+      if (quando === "agora") {
+        status = "agendada";
+        agendaIso = new Date().toISOString();
       } else {
-        queryClient.invalidateQueries({ queryKey: ["whatsapp-campanhas"] });
-        toast.success(data.message || `Disparo iniciado! ${data.total} pendentes serão processados em lotes.`);
-        setDispatchingId(null);
-        // Start polling for progress
-        startProgressPolling();
-      }
-    },
-    onError: (err: Error) => {
-      toast.error("Erro ao disparar: " + err.message);
-      setDispatchingId(null);
-    },
-  });
-
-  // --- Progress polling for active campaigns ---
-  const startProgressPolling = () => {
-    const interval = setInterval(() => {
-      queryClient.invalidateQueries({ queryKey: ["whatsapp-campanhas"] });
-    }, 8000);
-    // Stop polling after 40 minutes max
-    setTimeout(() => clearInterval(interval), 40 * 60 * 1000);
-    // Also stop when component unmounts or campaign finishes
-    const checkStop = setInterval(() => {
-      const cached = queryClient.getQueryData<any[]>(["whatsapp-campanhas"]);
-      const anyEnviando = cached?.some((c: any) => c.status === "enviando");
-      if (!anyEnviando) {
-        clearInterval(interval);
-        clearInterval(checkStop);
-      }
-    }, 10000);
-  };
-
-  // --- Test message state ---
-  const [testModalOpen, setTestModalOpen] = useState(false);
-  const [testNumero, setTestNumero] = useState("");
-  const [testSending, setTestSending] = useState(false);
-
-  const handleSendTest = async () => {
-    const cleaned = testNumero.replace(/\D/g, "");
-    if (!cleaned || cleaned.length < 10) {
-      toast.error("Informe um número válido com DDD");
-      return;
-    }
-    setTestSending(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("testar-campanha-revista", {
-        body: { numero: cleaned },
-      });
-      if (error) throw new Error(error.message);
-      if (data?.error) throw new Error(data.error);
-      toast.success(`Mensagem de teste enviada para ${cleaned}`);
-      setTestModalOpen(false);
-      setTestNumero("");
-    } catch (err: any) {
-      toast.error(err.message || "Erro ao enviar teste");
-    } finally {
-      setTestSending(false);
-    }
-  };
-
-  const resetFlow = () => {
-    setStep("list");
-    setRecipients([]);
-    setSelectedTemplateId(null);
-    setCampaignName("");
-    setFilters({ dateFrom: "", dateTo: "", canalBling: "205391854" });
-    setReuseCampaignId(null);
-    setSelectedPublicoMeses(new Set());
-    setPublicoDescontoFilter("todos");
-  };
-
-  // --- Load audience from públicos de revistas ---
-  const loadPublicoRevistas = async () => {
-    if (selectedPublicoMeses.size === 0) {
-      toast.error("Selecione pelo menos um mês");
-      return;
-    }
-    if (!publicosRevistas) return;
-    setLoadingPublico(true);
-    try {
-      const selectedMeses = selectedPublicoMeses.has("todos")
-        ? publicosRevistas
-        : publicosRevistas.filter((p) => selectedPublicoMeses.has(p.mes));
-
-      const seenEmails = new Set<string>();
-      const newRecipients: Recipient[] = [];
-
-      for (const pub of selectedMeses) {
-        for (const c of pub.contatos) {
-          // Apply discount filter
-          if (publicoDescontoFilter === "com_desconto" && !c.tem_desconto) continue;
-          if (publicoDescontoFilter === "sem_desconto" && c.tem_desconto) continue;
-
-          const emailKey = (c.customer_email || "").toLowerCase().trim();
-          if (emailKey && seenEmails.has(emailKey)) continue;
-          if (emailKey) seenEmails.add(emailKey);
-
-          newRecipients.push({
-            cliente_id: null,
-            nome: c.customer_name || "",
-            telefone: c.customer_phone || "",
-            email: c.customer_email || "",
-            tipo_documento: "revista",
-            data_pedido: c.data_pedido || undefined,
-            produtos_pedido: c.produtos || "seus produtos",
-            valor_pedido: c.valor_total ? String(c.valor_total) : undefined,
-          });
+        if (!agendadaPara) { toast.error("Selecione a data e hora do agendamento"); return; }
+        const d = new Date(agendadaPara);
+        if (d.getTime() < Date.now() + 4 * 60 * 1000) {
+          toast.error("Agendamento deve ser pelo menos 5 minutos no futuro"); return;
         }
+        status = "agendada";
+        agendaIso = d.toISOString();
       }
-
-      // Merge with existing recipients (dedup by email)
-      const existingEmails = new Set(recipients.map((r) => r.email.toLowerCase().trim()).filter(Boolean));
-      const merged = [...recipients];
-      for (const r of newRecipients) {
-        const key = r.email.toLowerCase().trim();
-        if (!key || !existingEmails.has(key)) {
-          merged.push(r);
-          if (key) existingEmails.add(key);
-        }
-      }
-
-      setRecipients(merged);
-      toast.success(`${newRecipients.length} contatos carregados do público de revistas!`);
-    } catch (err: any) {
-      toast.error("Erro ao carregar público: " + err.message);
-    } finally {
-      setLoadingPublico(false);
     }
-  };
 
-  // --- Load audience from existing campaign ---
-  const loadAudienceFromCampaign = async () => {
-    if (!reuseCampaignId) {
-      toast.error("Selecione uma campanha");
-      return;
-    }
-    setLoadingReuse(true);
-    try {
-      const { data, error } = await supabase
-        .from("whatsapp_campanha_destinatarios")
-        .select("*")
-        .eq("campanha_id", reuseCampaignId);
-      if (error) throw error;
-      if (!data || data.length === 0) {
-        toast.info("Nenhum destinatário encontrado nesta campanha.");
-        return;
-      }
-      const mapped: Recipient[] = data.map((d: any) => ({
-        cliente_id: d.cliente_id || null,
-        nome: d.nome || "",
-        telefone: d.telefone || "",
-        email: d.email || "",
-        tipo_documento: d.tipo_documento || "indefinido",
-        data_pedido: d.data_pedido || undefined,
-        produtos_pedido: d.produtos_pedido || undefined,
-        valor_pedido: d.valor_pedido || undefined,
-      }));
-      setRecipients(mapped);
-      toast.success(`${mapped.length} destinatários carregados da campanha anterior!`);
-    } catch (err: any) {
-      toast.error("Erro ao carregar público: " + err.message);
-    } finally {
-      setLoadingReuse(false);
-    }
-  };
-
-  // --- Funnel calculations ---
-  const funnelStats = useMemo(() => {
-    if (!funnelData) return null;
-    const total = funnelData.length;
-    const enviados = funnelData.filter((d: any) => d.status_envio === "enviado").length;
-    const erros = funnelData.filter((d: any) => d.status_envio === "erro").length;
-
-    // Aggregate button clicks
-    const buttonClicks: Record<string, number> = {};
-    funnelData.forEach((d: any) => {
-      if (d.cliques_botoes && typeof d.cliques_botoes === "object") {
-        Object.entries(d.cliques_botoes).forEach(([key, val]) => {
-          if (val) buttonClicks[key] = (buttonClicks[key] || 0) + 1;
-        });
+    // Build template_variaveis keyed by numeric index (1..N)
+    const templateVars: Record<string, VarConfig> = {};
+    variables.forEach((v, i) => {
+      const key = v.replace(/\{\{|\}\}/g, "").trim();
+      const cfg = varConfig[v];
+      if (cfg) {
+        templateVars[String(i + 1)] = cfg;
+        templateVars[key] = cfg;
       }
     });
 
-    const visitaram = funnelData.filter((d: any) => d.visitou_link).length;
-    const compraram = funnelData.filter((d: any) => d.comprou).length;
-    const valorTotal = funnelData.reduce((acc: number, d: any) => acc + (d.valor_compra || 0), 0);
+    setSaving(true);
+    try {
+      const user = (await supabase.auth.getUser()).data.user;
+      const { data: pub } = await supabase
+        .from("whatsapp_publicos").select("filtros").eq("id", publicoId).single();
+      const { error } = await supabase.from("whatsapp_campanhas").insert({
+        nome: nome.trim(),
+        publico_id: publicoId,
+        template_id: templateId,
+        template_variaveis: templateVars,
+        cabecalho_midia_url: headerMediaType ? headerMediaUrl.trim() : null,
+        filtros_publico: pub?.filtros || null,
+        status,
+        agendada_para: agendaIso,
+        created_by: user?.id,
+      });
+      if (error) throw error;
+      toast.success(acao === "iniciar" ? "Campanha agendada!" : "Rascunho salvo");
+      onCreated();
+      onClose();
+    } catch (e: any) {
+      toast.error("Erro ao salvar: " + e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
 
-    return { total, enviados, erros, buttonClicks, visitaram, compraram, valorTotal };
-  }, [funnelData]);
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Nova campanha</DialogTitle>
+          <DialogDescription>
+            Vincule um público, escolha um template aprovado da Meta e defina quando enviar.
+          </DialogDescription>
+        </DialogHeader>
 
-  // ===================== RENDER =====================
-
-  // --- STEP: Campaign List ---
-  if (step === "list") {
-    return (
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-lg font-semibold">Campanhas WhatsApp</h2>
-            <p className="text-sm text-muted-foreground">Gerencie suas campanhas de envio em massa</p>
+        <div className="space-y-5 py-2">
+          <div className="space-y-2">
+            <Label>Nome da campanha *</Label>
+            <Input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Ex: Lançamento Set/2026" />
           </div>
-          <Button onClick={() => setStep("segmentation")} className="gap-2">
-            <Plus className="h-4 w-4" /> Nova Campanha
-          </Button>
-        </div>
 
-        {loadingCampaigns ? (
-          <div className="flex justify-center p-8 text-muted-foreground">Carregando...</div>
-        ) : !campaigns?.length ? (
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center p-12 text-muted-foreground">
-              <Target className="h-12 w-12 mb-4 opacity-50" />
-              <p>Nenhuma campanha criada ainda.</p>
-              <Button variant="outline" className="mt-4 gap-2" onClick={() => setStep("segmentation")}>
-                <Plus className="h-4 w-4" /> Criar primeira campanha
-              </Button>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid gap-3">
-            {campaigns.map((c: any) => {
-              const st = STATUS_MAP[c.status] || STATUS_MAP.rascunho;
-              return (
-                <Card
-                  key={c.id}
-                  className="cursor-pointer hover:shadow-md transition-shadow"
-                  onClick={() => { setSelectedCampaignId(c.id); setStep("funnel"); }}
-                >
-                  <CardContent className="flex items-center justify-between p-4">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold">{c.nome}</span>
-                        <Badge variant={st.variant} className="text-xs">{st.label}</Badge>
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        Template: {(c as any).whatsapp_templates?.nome || "—"} · Público: {c.total_publico} · Enviados: {c.total_enviados}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {format(new Date(c.created_at), "dd/MM/yyyy HH:mm")}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {c.status === "enviando" && (
-                        <div className="flex items-center gap-2 text-xs text-amber-600">
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          <span>Enviando... {c.total_enviados || 0} enviados{c.total_erros > 0 ? `, ${c.total_erros} erros` : ""}</span>
-                        </div>
-                      )}
-                      {c.status === "enviada" && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="gap-1 text-xs h-8"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            navigate(`/admin/whatsapp/campanhas/${c.id}/rastreamento`);
-                          }}
-                        >
-                          <BarChart3 className="h-3.5 w-3.5" /> Rastreamento
-                        </Button>
-                      )}
-                      {(c.status === "rascunho" || c.status === "ativa") && (
-                        <>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="gap-1 text-xs h-8"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setTestModalOpen(true);
-                            }}
-                          >
-                            <FlaskConical className="h-3.5 w-3.5" /> Enviar teste
-                          </Button>
-                          <Button
-                            variant="default"
-                            size="sm"
-                            className="gap-1 text-xs h-8"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setDispatchingId(c.id);
-                              dispatchCampaignMutation.mutate({ campanhaId: c.id, dryRun: true });
-                            }}
-                            disabled={dispatchCampaignMutation.isPending}
-                          >
-                            {dispatchCampaignMutation.isPending && dispatchingId === c.id ? (
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                            ) : (
-                              <Rocket className="h-3.5 w-3.5" />
-                            )}
-                            Disparar
-                          </Button>
-                        </>
-                      )}
-                      {c.status === "rascunho" && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (confirm("Tem certeza que deseja excluir esta campanha?")) {
-                              deleteCampaignMutation.mutate(c.id);
-                            }
-                          }}
-                          disabled={deleteCampaignMutation.isPending}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      )}
-                      <ChevronRight className="h-5 w-5 text-muted-foreground" />
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
+          <div className="space-y-2">
+            <Label>Público *</Label>
+            <Select value={publicoId} onValueChange={setPublicoId}>
+              <SelectTrigger><SelectValue placeholder="Selecione um público" /></SelectTrigger>
+              <SelectContent>
+                {(publicos || []).map((p: any) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.nome} ({p.total_calculado ?? "?"} contatos)
+                  </SelectItem>
+                ))}
+                {publicos && publicos.length === 0 && (
+                  <div className="px-2 py-3 text-sm text-muted-foreground">Crie um público na aba "Públicos".</div>
+                )}
+              </SelectContent>
+            </Select>
           </div>
-        )}
-        {/* Test message modal */}
-        <Dialog open={testModalOpen} onOpenChange={setTestModalOpen}>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>Enviar mensagem de teste</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4 py-2">
-              <div className="space-y-2">
-                <Label htmlFor="test-numero">Número de WhatsApp (com DDD)</Label>
-                <Input
-                  id="test-numero"
-                  placeholder="11999999999"
-                  value={testNumero}
-                  onChange={(e) => setTestNumero(e.target.value.replace(/\D/g, ""))}
-                  maxLength={13}
-                />
-              </div>
-            </div>
-            <DialogFooter className="gap-2">
-              <Button variant="outline" onClick={() => { setTestModalOpen(false); setTestNumero(""); }}>
-                Cancelar
-              </Button>
-              <Button onClick={handleSendTest} disabled={testSending} className="gap-2">
-                {testSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                Enviar teste
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </div>
-    );
-  }
 
-  // --- STEP: Segmentation ---
-  if (step === "segmentation") {
-    return (
-      <div className="space-y-4">
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={resetFlow}><ArrowLeft className="h-4 w-4" /></Button>
-          <h2 className="text-lg font-semibold">Etapa 1: Segmentação do Público</h2>
-        </div>
-
-        {/* Reuse existing audience */}
-        {campaignsWithAudience && campaignsWithAudience.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Usar público de campanha existente</CardTitle>
-              <CardDescription>Carregue os destinatários de uma campanha anterior sem precisar buscar no Bling</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex flex-col sm:flex-row gap-3">
-                <div className="flex-1">
-                  <Select value={reuseCampaignId || ""} onValueChange={(v) => setReuseCampaignId(v)}>
-                    <SelectTrigger><SelectValue placeholder="Selecione uma campanha" /></SelectTrigger>
-                    <SelectContent>
-                      {campaignsWithAudience.map((c: any) => (
-                        <SelectItem key={c.id} value={c.id}>
-                          {c.nome} ({c.total_publico} contatos — {format(new Date(c.created_at), "dd/MM/yyyy")})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <Button onClick={loadAudienceFromCampaign} disabled={loadingReuse || !reuseCampaignId} className="gap-2">
-                  {loadingReuse ? <Loader2 className="h-4 w-4 animate-spin" /> : <Users className="h-4 w-4" />}
-                  Carregar Público
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Público de Revistas */}
-        <div className="flex items-center gap-3">
-          <div className="flex-1 h-px bg-border" />
-          <span className="text-sm text-muted-foreground font-medium">OU</span>
-          <div className="flex-1 h-px bg-border" />
-        </div>
-
-        {publicosRevistas && publicosRevistas.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <Tag className="h-4 w-4" />
-                Usar Público de Revistas
-              </CardTitle>
-              <CardDescription>Selecione meses e filtre por desconto para carregar contatos de compradores de revistas</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label>Meses</Label>
-                <div className="flex flex-wrap gap-2">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <Checkbox
-                      checked={selectedPublicoMeses.has("todos")}
-                      onCheckedChange={(checked) => {
-                        if (checked) {
-                          setSelectedPublicoMeses(new Set(["todos"]));
-                        } else {
-                          setSelectedPublicoMeses(new Set());
-                        }
-                      }}
-                    />
-                    <span className="text-sm font-medium">Todos os meses</span>
-                  </label>
-                  {publicosRevistas.map((p) => {
-                    const mesLabel = format(new Date(p.mes), "MMMM yyyy", { locale: ptBR }).replace(/^\w/, (c) => c.toUpperCase());
-                    return (
-                      <label key={p.mes} className="flex items-center gap-2 cursor-pointer">
-                        <Checkbox
-                          checked={selectedPublicoMeses.has(p.mes) || selectedPublicoMeses.has("todos")}
-                          disabled={selectedPublicoMeses.has("todos")}
-                          onCheckedChange={(checked) => {
-                            setSelectedPublicoMeses((prev) => {
-                              const next = new Set(prev);
-                              if (checked) next.add(p.mes);
-                              else next.delete(p.mes);
-                              return next;
-                            });
-                          }}
-                        />
-                        <span className="text-sm">{mesLabel} ({p.total_contatos})</span>
-                        <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 text-xs">{p.com_desconto}</Badge>
-                        <Badge variant="outline" className="text-xs">{p.sem_desconto}</Badge>
-                      </label>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div className="flex flex-col sm:flex-row gap-3 items-end">
-                <div className="space-y-2 flex-1">
-                  <Label>Filtrar por desconto</Label>
-                  <Select value={publicoDescontoFilter} onValueChange={(v: any) => setPublicoDescontoFilter(v)}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="todos">Todos</SelectItem>
-                      <SelectItem value="com_desconto">Com Desconto</SelectItem>
-                      <SelectItem value="sem_desconto">Sem Desconto</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <Button onClick={loadPublicoRevistas} disabled={loadingPublico || selectedPublicoMeses.size === 0} className="gap-2">
-                  {loadingPublico ? <Loader2 className="h-4 w-4 animate-spin" /> : <Users className="h-4 w-4" />}
-                  Carregar Público
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Divider */}
-        <div className="flex items-center gap-3">
-          <div className="flex-1 h-px bg-border" />
-          <span className="text-sm text-muted-foreground font-medium">OU</span>
-          <div className="flex-1 h-px bg-border" />
-        </div>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Filtros</CardTitle>
-            <CardDescription>Defina os critérios para selecionar o público da campanha</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Data Início (última compra)</Label>
-                <Input type="date" value={filters.dateFrom} onChange={(e) => setFilters({ ...filters, dateFrom: e.target.value })} />
-              </div>
-              <div className="space-y-2">
-                <Label>Data Fim (última compra)</Label>
-                <Input type="date" value={filters.dateTo} onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })} />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Canal de Venda (Bling)</Label>
-              <Select value={filters.canalBling} onValueChange={(v) => setFilters({ ...filters, canalBling: v })}>
-                <SelectTrigger><SelectValue placeholder="Selecione o canal" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="todos">Todos os Canais</SelectItem>
-                  {blingChannels.map((ch) => (
-                    <SelectItem key={ch.id} value={ch.id}>{ch.descricao}</SelectItem>
-                  ))}
-                  
-                </SelectContent>
-              </Select>
-            </div>
-
-            <Button onClick={searchAudience} disabled={loadingAudience} className="gap-2">
-              {loadingAudience ? <Loader2 className="h-4 w-4 animate-spin" /> : <Users className="h-4 w-4" />}
-              {loadingAudience && searchProgress ? searchProgress : "Buscar Público"}
-            </Button>
-          </CardContent>
-        </Card>
-
-        {recipients.length > 0 && (
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Users className="h-5 w-5" />
-                  Público Encontrado
-                </CardTitle>
-                <Badge className="text-lg px-3 py-1">{recipients.length} destinatários</Badge>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="max-h-60 overflow-y-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Nome</TableHead>
-                      <TableHead>Telefone</TableHead>
-                      <TableHead>Tipo Doc</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {recipients.slice(0, 50).map((r, i) => (
-                      <TableRow key={i}>
-                        <TableCell className="text-sm">{r.nome}</TableCell>
-                        <TableCell className="text-sm font-mono">{r.telefone}</TableCell>
-                        <TableCell><Badge variant="outline" className="text-xs uppercase">{r.tipo_documento}</Badge></TableCell>
-                      </TableRow>
-                    ))}
-                    {recipients.length > 50 && (
-                      <TableRow>
-                        <TableCell colSpan={3} className="text-center text-sm text-muted-foreground">
-                          ... e mais {recipients.length - 50} destinatários
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-
-              <div className="flex justify-end mt-4">
-                <Button onClick={() => setStep("template")} className="gap-2">
-                  Próximo: Selecionar Template <ArrowRight className="h-4 w-4" />
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-      </div>
-    );
-  }
-
-  // --- STEP: Template Selection ---
-  if (step === "template") {
-    const selectedTpl = approvedTemplates?.find((t: any) => t.id === selectedTemplateId);
-    const botoes = selectedTpl?.botoes
-      ? (typeof selectedTpl.botoes === "string" ? JSON.parse(selectedTpl.botoes) : selectedTpl.botoes)
-      : [];
-
-    return (
-      <div className="space-y-4">
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={() => setStep("segmentation")}><ArrowLeft className="h-4 w-4" /></Button>
-          <h2 className="text-lg font-semibold">Etapa 2: Selecionar Template</h2>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Templates Aprovados</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2 max-h-96 overflow-y-auto">
-              {!approvedTemplates?.length ? (
-                <p className="text-sm text-muted-foreground">Nenhum template aprovado encontrado.</p>
-              ) : (
-                approvedTemplates.map((t: any) => (
-                  <div
-                    key={t.id}
-                    className={`p-3 rounded-lg border cursor-pointer transition-colors ${selectedTemplateId === t.id ? "border-primary bg-primary/5" : "hover:bg-muted/50"}`}
-                    onClick={() => setSelectedTemplateId(t.id)}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="font-mono text-sm font-medium">{t.nome}</span>
-                      <Badge variant="default" className="text-xs">Aprovado</Badge>
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-1">{t.categoria} · {t.idioma}</p>
-                  </div>
-                ))
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Preview</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {selectedTpl ? (
-                <div className="bg-[#e5ddd5] rounded-lg p-4">
-                  <div className="bg-white rounded-lg p-3 shadow-sm max-w-sm">
-                    <p className="text-sm whitespace-pre-wrap">{selectedTpl.corpo}</p>
-                    {selectedTpl.rodape && (
-                      <p className="text-xs text-muted-foreground mt-2">{selectedTpl.rodape}</p>
-                    )}
-                    {botoes.length > 0 && (
-                      <div className="mt-2 border-t pt-2 space-y-1">
-                        {botoes.map((b: any, i: number) => (
-                          <div key={i} className="text-center text-sm text-blue-600 py-1 border rounded">
-                            {b.text || b.texto || `Botão ${i + 1}`}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">Selecione um template para ver o preview</p>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-
-        {selectedTemplateId && (
-          <Card>
-            <CardContent className="p-4 space-y-3">
-              <div className="space-y-2">
-                <Label>Nome da Campanha</Label>
-                <Input placeholder="Ex: Campanha Novembro 2025" value={campaignName} onChange={(e) => setCampaignName(e.target.value)} />
-              </div>
-              <div className="flex items-center justify-between">
-                <p className="text-sm text-muted-foreground">
-                  {recipients.length} destinatários · Template: {selectedTpl?.nome}
-                </p>
-                <Button
-                  onClick={() => createCampaignMutation.mutate()}
-                  disabled={createCampaignMutation.isPending || !campaignName}
-                  className="gap-2"
-                >
-                  {createCampaignMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                  Criar Campanha
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-      </div>
-    );
-  }
-
-  // --- STEP: Funnel ---
-  if (step === "funnel" && selectedCampaign) {
-    const maxVal = funnelStats?.total || 1;
-    const pct = (val: number) => Math.round((val / maxVal) * 100);
-
-    return (
-      <div className="space-y-4">
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={() => { setSelectedCampaignId(null); setStep("list"); }}>
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div>
-            <h2 className="text-lg font-semibold">{selectedCampaign.nome}</h2>
-            <p className="text-xs text-muted-foreground">
-              Criada em {format(new Date(selectedCampaign.created_at), "dd/MM/yyyy HH:mm")}
-            </p>
+          <div className="space-y-2">
+            <Label>Template aprovado Meta *</Label>
+            <Select value={templateId} onValueChange={(v) => { setTemplateId(v); setVarConfig({}); }}>
+              <SelectTrigger><SelectValue placeholder="Selecione um template" /></SelectTrigger>
+              <SelectContent>
+                {(templates || []).map((t: any) => (
+                  <SelectItem key={t.id} value={t.id}>
+                    {t.nome} · {t.categoria} · {t.idioma}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-          {selectedCampaign.status === "rascunho" && (
-            <Button
-              size="sm"
-              className="ml-auto gap-2"
-              onClick={() => {
-                setDispatchingId(selectedCampaign.id);
-                dispatchCampaignMutation.mutate({ campanhaId: selectedCampaign.id, dryRun: true });
-              }}
-              disabled={dispatchCampaignMutation.isPending}
-            >
-              {dispatchCampaignMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-              Enviar Campanha
-            </Button>
-          )}
-        </div>
 
-        {funnelStats && (
-          <div className="space-y-3">
-            {/* Público Total */}
-            <FunnelBar icon={<Users className="h-5 w-5" />} label="Público Total" value={funnelStats.total} pct={100} color="bg-primary" />
-            {/* Enviadas */}
-            <FunnelBar icon={<MessageSquare className="h-5 w-5" />} label="Mensagens Enviadas" value={funnelStats.enviados} pct={pct(funnelStats.enviados)} color="bg-blue-500" />
-            {/* Erros */}
-            {funnelStats.erros > 0 && (
-              <FunnelBar icon={<MessageSquare className="h-5 w-5" />} label="Erros de Envio" value={funnelStats.erros} pct={pct(funnelStats.erros)} color="bg-destructive" />
-            )}
-            {/* Cliques por botão */}
-            {Object.entries(funnelStats.buttonClicks).map(([key, val]) => (
-              <FunnelBar key={key} icon={<MousePointerClick className="h-5 w-5" />} label={`Clique: ${key}`} value={val as number} pct={pct(val as number)} color="bg-amber-500" />
-            ))}
-            {/* Visitaram */}
-            <FunnelBar icon={<Eye className="h-5 w-5" />} label="Visitaram a Página" value={funnelStats.visitaram} pct={pct(funnelStats.visitaram)} color="bg-emerald-500" />
-            {/* Compraram */}
-            <FunnelBar icon={<ShoppingCart className="h-5 w-5" />} label="Compraram" value={funnelStats.compraram} pct={pct(funnelStats.compraram)} color="bg-green-600" />
-            {/* Valor total */}
-            <Card className="border-green-200 bg-green-50">
-              <CardContent className="flex items-center gap-3 p-4">
-                <DollarSign className="h-6 w-6 text-green-700" />
-                <div>
-                  <p className="text-sm font-medium text-green-800">Valor Total de Compras</p>
-                  <p className="text-2xl font-bold text-green-700">
-                    R$ {funnelStats.valorTotal.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-                  </p>
-                </div>
+          {selectedTemplate && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">Pré-visualização</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                {selectedTemplate.cabecalho_texto && (
+                  <div className="font-semibold">{selectedTemplate.cabecalho_texto}</div>
+                )}
+                <div className="whitespace-pre-wrap text-foreground/90">{previewBody}</div>
+                {selectedTemplate.rodape && (
+                  <div className="text-xs text-muted-foreground mt-2">{selectedTemplate.rodape}</div>
+                )}
               </CardContent>
             </Card>
-          </div>
-        )}
-      </div>
-    );
-  }
+          )}
 
-  return null;
-}
+          {headerMediaType && (
+            <div className="space-y-2">
+              <Label>URL pública da mídia do cabeçalho ({headerMediaType}) *</Label>
+              <Input
+                value={headerMediaUrl}
+                onChange={(e) => setHeaderMediaUrl(e.target.value)}
+                placeholder="https://..."
+              />
+            </div>
+          )}
 
-function FunnelBar({ icon, label, value, pct, color }: { icon: React.ReactNode; label: string; value: number; pct: number; color: string }) {
-  return (
-    <Card>
-      <CardContent className="flex items-center gap-3 p-4">
-        <div className="text-muted-foreground">{icon}</div>
-        <div className="flex-1 space-y-1">
-          <div className="flex justify-between text-sm">
-            <span className="font-medium">{label}</span>
-            <span className="font-bold">{value}</span>
-          </div>
-          <div className="w-full bg-muted rounded-full h-2">
-            <div className={`h-2 rounded-full ${color} transition-all`} style={{ width: `${pct}%` }} />
+          {variables.length > 0 && (
+            <div className="space-y-3">
+              <Label>Variáveis do template</Label>
+              {variables.map((v) => {
+                const cfg = varConfig[v] || { tipo: "campo" as const, valor: "primeiro_nome" };
+                return (
+                  <Card key={v}>
+                    <CardContent className="p-3 space-y-2">
+                      <div className="text-sm font-medium">Variável {v}</div>
+                      <RadioGroup
+                        value={cfg.tipo === "fixo" ? "fixo" : (cfg.valor || "primeiro_nome")}
+                        onValueChange={(val) => {
+                          if (val === "fixo") {
+                            setVarConfig({ ...varConfig, [v]: { tipo: "fixo", valor: cfg.tipo === "fixo" ? cfg.valor : "" } });
+                          } else {
+                            setVarConfig({ ...varConfig, [v]: { tipo: "campo", valor: val } });
+                          }
+                        }}
+                        className="flex flex-wrap gap-4"
+                      >
+                        <label className="flex items-center gap-2 cursor-pointer text-sm">
+                          <RadioGroupItem value="primeiro_nome" /> Primeiro nome do contato
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer text-sm">
+                          <RadioGroupItem value="nome_completo" /> Nome completo do contato
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer text-sm">
+                          <RadioGroupItem value="fixo" /> Valor fixo
+                        </label>
+                      </RadioGroup>
+                      {cfg.tipo === "fixo" && (
+                        <Input
+                          value={cfg.valor}
+                          onChange={(e) => setVarConfig({ ...varConfig, [v]: { tipo: "fixo", valor: e.target.value } })}
+                          placeholder="Digite o valor"
+                        />
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <Label>Quando enviar</Label>
+            <RadioGroup value={quando} onValueChange={(v: any) => setQuando(v)} className="flex flex-col gap-2">
+              <label className="flex items-center gap-2 cursor-pointer text-sm">
+                <RadioGroupItem value="agora" /> Enviar assim que possível
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer text-sm">
+                <RadioGroupItem value="agendar" /> Agendar para data e hora
+              </label>
+            </RadioGroup>
+            {quando === "agendar" && (
+              <Input
+                type="datetime-local"
+                value={agendadaPara}
+                min={minDateTime}
+                onChange={(e) => setAgendadaPara(e.target.value)}
+              />
+            )}
+            <p className="text-xs text-muted-foreground flex items-start gap-1 mt-1">
+              <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+              <span>Envios respeitam a janela permitida em <code className="text-[10px]">system_settings.whatsapp_quiet_hours</code> (atual: {quietHoursLabel}).</span>
+            </p>
           </div>
         </div>
-      </CardContent>
-    </Card>
+
+        <DialogFooter className="gap-2">
+          <Button variant="outline" onClick={onClose} disabled={saving}>Cancelar</Button>
+          <Button variant="secondary" onClick={() => handleSave("rascunho")} disabled={saving}>
+            Salvar como rascunho
+          </Button>
+          <Button onClick={() => handleSave("iniciar")} disabled={saving} className="gap-2">
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            Iniciar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
