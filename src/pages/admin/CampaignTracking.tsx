@@ -151,6 +151,14 @@ export default function CampaignTracking() {
         </Button>
       </div>
 
+      {/* NOVO: Relatório de Entrega (Meta) */}
+      {campanha_id && <CampaignDeliveryReport campanhaId={campanha_id} />}
+
+      {/* Métricas de tracking pós-clique (existente) */}
+      <div className="pt-4 border-t">
+        <h3 className="text-lg font-semibold mb-3">🎯 Tracking pós-clique</h3>
+      </div>
+
       {/* Metric Cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         {[
