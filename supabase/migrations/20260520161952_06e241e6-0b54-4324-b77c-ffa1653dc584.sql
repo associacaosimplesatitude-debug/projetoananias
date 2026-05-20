@@ -1,0 +1,1 @@
+ALTER VIEW public.whatsapp_contatos_360 SET (security_invoker = true);
