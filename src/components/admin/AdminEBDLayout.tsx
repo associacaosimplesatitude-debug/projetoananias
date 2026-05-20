@@ -176,15 +176,15 @@ function AdminSidebar() {
                 <SidebarMenuItem>
                   <SidebarMenuButton
                     asChild
-                    className="!bg-[#25D366] hover:!bg-[#1ebe5d] !text-white font-bold transition-all duration-300 mb-1 shadow-md rounded-lg [&>svg]:!text-white data-[active=true]:!bg-[#25D366] data-[active=true]:!text-white"
-                    isActive={isActive('/admin/ebd/atendimento-whatsapp')}
+                    className="!bg-[#25D366] hover:!bg-[#1ebe5d] !text-white font-bold transition-all duration-300 mb-1 shadow-md rounded-lg [&>svg]:!text-white"
                   >
-                    <RouterNavLink to="/admin/ebd/atendimento-whatsapp" style={{ backgroundColor: '#25D366', color: '#ffffff' }} className="!text-white hover:!text-white">
+                    <a href="https://crm.houseassessoria.com.br" target="_blank" rel="noopener noreferrer" style={{ backgroundColor: '#25D366', color: '#ffffff' }} className="!text-white hover:!text-white">
                       <MessageCircle className="h-4 w-4 fill-white/20" />
                       <span>Atendimento</span>
                       <span className="ml-auto flex h-2 w-2 rounded-full bg-white animate-pulse" />
-                    </RouterNavLink>
+                    </a>
                   </SidebarMenuButton>
+
                 </SidebarMenuItem>
               </SidebarMenu>
             </SidebarGroupContent>
