@@ -374,7 +374,7 @@ Deno.serve(async (req) => {
         if (res.ok) {
           const wamid: string | null = resJson?.messages?.[0]?.id || null;
           await supabase.from("whatsapp_campanha_destinatarios").update({
-            status_envio: "enviado",
+            status_envio: "sent",
             enviado_em: new Date().toISOString(),
             meta_message_id: wamid,
             erro_codigo: null,
@@ -395,7 +395,7 @@ Deno.serve(async (req) => {
           const errMsg = resJson?.error?.message || resBody?.slice(0, 500) || "Erro desconhecido";
           console.error(`[send-campaign] Erro envio para ${phone}:`, errCode, errMsg);
           await supabase.from("whatsapp_campanha_destinatarios").update({
-            status_envio: "erro",
+            status_envio: "failed",
             erro_codigo: errCode,
             erro_mensagem: errMsg,
           }).eq("id", dest.id);
@@ -404,7 +404,7 @@ Deno.serve(async (req) => {
       } catch (err: any) {
         console.error("[send-campaign] Erro envio destinatário:", err);
         await supabase.from("whatsapp_campanha_destinatarios").update({
-          status_envio: "erro",
+          status_envio: "failed",
           erro_codigo: "exception",
           erro_mensagem: err?.message?.slice(0, 500) || "Exception",
         }).eq("id", dest.id);
@@ -490,13 +490,13 @@ async function syncCounters(supabase: any, campanha_id: string, status: string) 
     .from("whatsapp_campanha_destinatarios")
     .select("*", { count: "exact", head: true })
     .eq("campanha_id", campanha_id)
-    .eq("status_envio", "enviado");
+    .eq("status_envio", "sent");
 
   const { count: totalErros } = await supabase
     .from("whatsapp_campanha_destinatarios")
     .select("*", { count: "exact", head: true })
     .eq("campanha_id", campanha_id)
-    .eq("status_envio", "erro");
+    .eq("status_envio", "failed");
 
   await supabase.from("whatsapp_campanhas").update({
     status,
