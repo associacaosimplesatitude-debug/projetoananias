@@ -423,13 +423,29 @@ Deno.serve(async (req) => {
       .eq("status_envio", "pendente");
 
     const hasMore = (remaining || 0) > 0;
+    const isNewFlow = campanha.status === "processando";
 
-    await syncCounters(supabase, campanha_id, hasMore ? "enviando" : "enviada");
+    // In the new flow, status transitions are managed by the cron
+    // (processando → concluida). In the legacy flow, keep the original behaviour.
+    let nextStatus: string;
+    if (isNewFlow) {
+      nextStatus = hasMore ? "processando" : "concluida";
+    } else {
+      nextStatus = hasMore ? "enviando" : "enviada";
+    }
 
-    console.log(`[send-campaign] Lote concluído: +${enviados} enviados, +${erros} erros. Restantes: ${remaining || 0}`);
+    await syncCounters(supabase, campanha_id, nextStatus);
+    if (isNewFlow && !hasMore) {
+      await supabase.from("whatsapp_campanhas")
+        .update({ finalizada_em: new Date().toISOString() })
+        .eq("id", campanha_id);
+    }
 
-    // If there are more pending, trigger next batch using SERVICE ROLE KEY (not user token)
-    if (hasMore) {
+    console.log(`[send-campaign] Lote concluído: +${enviados} enviados, +${erros} erros. Restantes: ${remaining || 0}. quiet_stop=${stoppedByQuietHours}`);
+
+    // Legacy auto-chain: only when in legacy mode and quiet hours allow.
+    // The new flow is driven by the cron, so we do NOT self-chain here.
+    if (hasMore && !isNewFlow && !stoppedByQuietHours) {
       console.log(`[send-campaign] Disparando próximo lote (${remaining} restantes)...`);
       const nextBatchUrl = `${supabaseUrl}/functions/v1/whatsapp-send-campaign`;
       try {
@@ -445,7 +461,6 @@ Deno.serve(async (req) => {
         console.log(`[send-campaign] Próximo lote disparado, status: ${nextRes.status}`);
       } catch (e) {
         console.error("[send-campaign] ERRO CRÍTICO ao disparar próximo lote:", e);
-        // Mark campaign as paused so it doesn't stay stuck in "enviando"
         await supabase.from("whatsapp_campanhas").update({ status: "pausada" }).eq("id", campanha_id);
       }
     }
