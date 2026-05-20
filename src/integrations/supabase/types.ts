@@ -8854,6 +8854,8 @@ export type Database = {
           data_pedido: string | null
           email: string | null
           enviado_em: string | null
+          erro_codigo: string | null
+          erro_mensagem: string | null
           id: string
           meta_message_id: string | null
           nome: string | null
@@ -8874,6 +8876,8 @@ export type Database = {
           data_pedido?: string | null
           email?: string | null
           enviado_em?: string | null
+          erro_codigo?: string | null
+          erro_mensagem?: string | null
           id?: string
           meta_message_id?: string | null
           nome?: string | null
@@ -8894,6 +8898,8 @@ export type Database = {
           data_pedido?: string | null
           email?: string | null
           enviado_em?: string | null
+          erro_codigo?: string | null
+          erro_mensagem?: string | null
           id?: string
           meta_message_id?: string | null
           nome?: string | null
@@ -8924,13 +8930,21 @@ export type Database = {
       }
       whatsapp_campanhas: {
         Row: {
+          agendada_para: string | null
+          cabecalho_midia_url: string | null
           created_at: string
           created_by: string | null
           filtros_publico: Json | null
+          filtros_publico_snapshot: Json | null
+          finalizada_em: string | null
           id: string
+          iniciada_em: string | null
           nome: string
+          pausada_em: string | null
+          publico_id: string | null
           status: string
           template_id: string | null
+          template_variaveis: Json | null
           total_enviados: number
           total_erros: number
           total_link_clicks: number | null
@@ -8943,13 +8957,21 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          agendada_para?: string | null
+          cabecalho_midia_url?: string | null
           created_at?: string
           created_by?: string | null
           filtros_publico?: Json | null
+          filtros_publico_snapshot?: Json | null
+          finalizada_em?: string | null
           id?: string
+          iniciada_em?: string | null
           nome: string
+          pausada_em?: string | null
+          publico_id?: string | null
           status?: string
           template_id?: string | null
+          template_variaveis?: Json | null
           total_enviados?: number
           total_erros?: number
           total_link_clicks?: number | null
@@ -8962,13 +8984,21 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          agendada_para?: string | null
+          cabecalho_midia_url?: string | null
           created_at?: string
           created_by?: string | null
           filtros_publico?: Json | null
+          filtros_publico_snapshot?: Json | null
+          finalizada_em?: string | null
           id?: string
+          iniciada_em?: string | null
           nome?: string
+          pausada_em?: string | null
+          publico_id?: string | null
           status?: string
           template_id?: string | null
+          template_variaveis?: Json | null
           total_enviados?: number
           total_erros?: number
           total_link_clicks?: number | null
@@ -8981,6 +9011,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "whatsapp_campanhas_publico_id_fkey"
+            columns: ["publico_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_publicos"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "whatsapp_campanhas_template_id_fkey"
             columns: ["template_id"]
@@ -9489,6 +9526,11 @@ export type Database = {
         Returns: undefined
       }
       variantes_telefone: { Args: { p_telefone: string }; Returns: string[] }
+      whatsapp_campanha_materializar: {
+        Args: { p_campanha_id: string }
+        Returns: number
+      }
+      whatsapp_dentro_quiet_hours: { Args: never; Returns: boolean }
       whatsapp_publico_contar: { Args: { filtros: Json }; Returns: number }
       whatsapp_publico_materializar: {
         Args: { filtros: Json; limite?: number }
