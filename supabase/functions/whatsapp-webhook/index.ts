@@ -719,6 +719,11 @@ async function handleMetaPost(
 
       }
 
+      // ── Atualiza status de entrega de destinatários por wamid ──
+      if (statuses.length > 0) {
+        await processarStatusesMeta(supabase, statuses);
+      }
+
       // If no messages and no statuses, still audit the raw event
       if (messages.length === 0 && statuses.length === 0) {
         await supabase.from("whatsapp_webhooks").insert({
