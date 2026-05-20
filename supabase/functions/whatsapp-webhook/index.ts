@@ -692,6 +692,11 @@ async function handleMetaPost(
           audio_url: audioUrl,
         });
 
+        // ── Vincula essa mensagem como resposta a campanha recente (aditivo) ──
+        await vincularRespostaCampanha(supabase, telefone);
+
+
+
         // ── Roteamento pro agente-loja-cg (apenas tipos textuais e fluxos não-bloqueados) ──
         const tiposParaAgente = ["text", "button", "interactive"];
         if (tiposParaAgente.includes(msgType) && contentToSave && !contentToSave.startsWith("[")) {
