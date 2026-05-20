@@ -137,7 +137,37 @@ Deno.serve(async (req) => {
     let enviados = 0;
     let erros = 0;
 
+    // Parse per-campaign variable configuration (new flow)
+    const templateVarConfig: Record<string, any> = (campanha as any).template_variaveis || {};
+    const campanhaHeaderMedia: string | null = (campanha as any).cabecalho_midia_url || null;
+
+    let stoppedByQuietHours = false;
+
     for (const dest of (destinatarios || [])) {
+      // Re-check quiet hours per iteration — stops batch if window closed mid-send
+      const { data: dentroLoop } = await supabase.rpc("whatsapp_dentro_quiet_hours");
+      if (dentroLoop === false) {
+        console.log("[send-campaign] Quiet hours fechou durante o lote. Interrompendo.");
+        stoppedByQuietHours = true;
+        break;
+      }
+
+      // Re-check opt-out at send time
+      const destTelNormalizado = (dest.telefone || "").replace(/\D/g, "");
+      if (destTelNormalizado) {
+        const { data: optoutRow } = await supabase
+          .from("whatsapp_optouts")
+          .select("telefone")
+          .eq("telefone", destTelNormalizado)
+          .maybeSingle();
+        if (optoutRow) {
+          await supabase.from("whatsapp_campanha_destinatarios").update({
+            status_envio: "cancelado_optout",
+          }).eq("id", dest.id);
+          continue;
+        }
+      }
+
       try {
         // Format phone number
         let phone = (dest.telefone || "").replace(/\D/g, "");
