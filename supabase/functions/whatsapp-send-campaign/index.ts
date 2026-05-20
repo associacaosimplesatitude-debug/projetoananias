@@ -68,8 +68,10 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Update campaign status to enviando
-    await supabase.from("whatsapp_campanhas").update({ status: "enviando" }).eq("id", campanha_id);
+    // Update campaign status to enviando (preserve new 'processando' state from cron)
+    if (campanha.status !== "processando" && campanha.status !== "pausada" && campanha.status !== "cancelada") {
+      await supabase.from("whatsapp_campanhas").update({ status: "enviando" }).eq("id", campanha_id);
+    }
 
     // Get WhatsApp credentials from system_settings
     const { data: settings } = await supabase
