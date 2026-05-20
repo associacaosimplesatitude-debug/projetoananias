@@ -560,8 +560,8 @@ const App = () => (
                       <Route path="tutoriais" element={<GestaoTutoriais />} />
                       <Route path="apresentacao" element={<ApresentacaoScreenshots />} />
                       <Route path="implementacoes" element={<Implementacoes />} />
-                      <Route path="whatsapp" element={<WhatsAppPanel />} />
-                      <Route path="whatsapp/campanhas/:campanha_id/rastreamento" element={<CampaignTracking />} />
+                      <Route path="whatsapp" element={<RequireSuperadmin><WhatsAppPanel /></RequireSuperadmin>} />
+                      <Route path="whatsapp/campanhas/:campanha_id/rastreamento" element={<RequireSuperadmin><CampaignTracking /></RequireSuperadmin>} />
                       <Route path="stripe-teste" element={<StripeTeste />} />
                       <Route path="agente-ia" element={<AgenteIALayout />}>
                         <Route index element={<AgenteIAIndex />} />
