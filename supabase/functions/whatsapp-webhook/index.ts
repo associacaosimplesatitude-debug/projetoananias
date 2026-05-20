@@ -304,6 +304,134 @@ async function getVerifyToken(supabase: ReturnType<typeof createClient>): Promis
   return "centralgospel123"; // fallback
 }
 
+// ── Get Meta App Secret for HMAC signature validation ──
+async function getAppSecret(supabase: ReturnType<typeof createClient>): Promise<string> {
+  try {
+    const { data } = await supabase
+      .from("system_settings")
+      .select("value")
+      .eq("key", "whatsapp_app_secret")
+      .maybeSingle();
+    return (data?.value || "").trim();
+  } catch {
+    return "";
+  }
+}
+
+// ── HMAC-SHA256 signature validation against raw body ──
+async function validarAssinaturaMeta(rawBody: string, headerSig: string, secret: string): Promise<boolean> {
+  if (!headerSig || !headerSig.startsWith("sha256=")) return false;
+  try {
+    const enc = new TextEncoder();
+    const key = await crypto.subtle.importKey(
+      "raw",
+      enc.encode(secret),
+      { name: "HMAC", hash: "SHA-256" },
+      false,
+      ["sign"],
+    );
+    const sigBuf = await crypto.subtle.sign("HMAC", key, enc.encode(rawBody));
+    const hex = Array.from(new Uint8Array(sigBuf))
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+    const expected = `sha256=${hex}`;
+    if (expected.length !== headerSig.length) return false;
+    let diff = 0;
+    for (let i = 0; i < expected.length; i++) diff |= expected.charCodeAt(i) ^ headerSig.charCodeAt(i);
+    return diff === 0;
+  } catch (e) {
+    console.error("[Webhook] erro validando assinatura:", e);
+    return false;
+  }
+}
+
+// ── Processa array statuses[] da Meta: atualiza destinatários por meta_message_id ──
+async function processarStatusesMeta(
+  supabase: ReturnType<typeof createClient>,
+  statuses: Array<Record<string, unknown>>,
+) {
+  for (const st of statuses) {
+    const wamid = st.id as string | undefined;
+    const status = st.status as string | undefined;
+    const tsRaw = st.timestamp as string | undefined;
+    if (!wamid || !status) continue;
+
+    const ts = tsRaw ? new Date(Number(tsRaw) * 1000).toISOString() : new Date().toISOString();
+
+    const { data: dest } = await supabase
+      .from("whatsapp_campanha_destinatarios")
+      .select("id, status_envio")
+      .eq("meta_message_id", wamid)
+      .limit(1)
+      .maybeSingle();
+
+    if (!dest) continue;
+
+    const atual = (dest as any).status_envio as string;
+    const update: Record<string, unknown> = {};
+
+    if (status === "sent") {
+      if (atual === "pendente") update.status_envio = "sent";
+    } else if (status === "delivered") {
+      if (atual !== "read") update.status_envio = "delivered";
+      update.entregue_em = ts;
+    } else if (status === "read") {
+      update.status_envio = "read";
+      update.lido_em = ts;
+    } else if (status === "failed") {
+      update.status_envio = "failed";
+      update.falhou_em = ts;
+      const errors = (st.errors as Array<Record<string, unknown>> | undefined) || [];
+      if (errors.length > 0) {
+        update.erro_codigo = String(errors[0].code ?? "");
+        update.erro_mensagem = (errors[0].title as string) || (errors[0].message as string) || null;
+      }
+    } else {
+      continue;
+    }
+
+    if (Object.keys(update).length === 0) continue;
+
+    const { error } = await supabase
+      .from("whatsapp_campanha_destinatarios")
+      .update(update)
+      .eq("id", (dest as any).id);
+    if (error) console.error("[Webhook] erro atualizando destinatário", wamid, error.message);
+  }
+}
+
+// ── Vincula mensagem entrante como "respondido" a uma campanha recente ──
+async function vincularRespostaCampanha(
+  supabase: ReturnType<typeof createClient>,
+  telefoneRaw: string,
+) {
+  try {
+    const { data: norm } = await supabase.rpc("normalizar_telefone_whatsapp", { p_telefone: telefoneRaw });
+    const tel = (norm as string | null) || null;
+    if (!tel) return;
+
+    const limite = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+    const { data: dest } = await supabase
+      .from("whatsapp_campanha_destinatarios")
+      .select("id")
+      .eq("telefone", tel)
+      .gte("enviado_em", limite)
+      .is("respondido_em", null)
+      .order("enviado_em", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (dest) {
+      await supabase
+        .from("whatsapp_campanha_destinatarios")
+        .update({ respondido_em: new Date().toISOString() })
+        .eq("id", (dest as any).id);
+    }
+  } catch (e) {
+    console.error("[Webhook] vincularRespostaCampanha falhou:", e);
+  }
+}
+
 // ── Classifica resposta de campanha de retenção ──
 async function processarRespostaRetencao(
   supabase: ReturnType<typeof createClient>,
@@ -564,6 +692,11 @@ async function handleMetaPost(
           audio_url: audioUrl,
         });
 
+        // ── Vincula essa mensagem como resposta a campanha recente (aditivo) ──
+        await vincularRespostaCampanha(supabase, telefone);
+
+
+
         // ── Roteamento pro agente-loja-cg (apenas tipos textuais e fluxos não-bloqueados) ──
         const tiposParaAgente = ["text", "button", "interactive"];
         if (tiposParaAgente.includes(msgType) && contentToSave && !contentToSave.startsWith("[")) {
@@ -589,6 +722,11 @@ async function handleMetaPost(
           console.log("[Meta] Agente EBD desativado ou tipo não-texto - sem processamento IA legado");
         }
 
+      }
+
+      // ── Atualiza status de entrega de destinatários por wamid ──
+      if (statuses.length > 0) {
+        await processarStatusesMeta(supabase, statuses);
       }
 
       // If no messages and no statuses, still audit the raw event
@@ -639,12 +777,39 @@ Deno.serve(async (req) => {
   // ── POST: handle incoming events ──
   if (req.method === "POST") {
     try {
-      const body = await req.json();
+      const rawBody = await req.text();
+      let body: any;
+      try {
+        body = JSON.parse(rawBody);
+      } catch {
+        return new Response("Bad Request", { status: 400, headers: corsHeaders });
+      }
 
       const supabase = createClient(
         Deno.env.get("SUPABASE_URL")!,
         Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
       );
+
+      // ── Validação de assinatura HMAC (somente se app_secret estiver configurado) ──
+      if (isMetaPayload(body)) {
+        const appSecret = await getAppSecret(supabase);
+        if (appSecret) {
+          const sig = req.headers.get("x-hub-signature-256") || "";
+          const ok = await validarAssinaturaMeta(rawBody, sig, appSecret);
+          if (!ok) {
+            console.warn("[Webhook] Assinatura inválida — rejeitando");
+            await supabase.from("whatsapp_webhooks").insert({
+              evento: "assinatura_invalida",
+              telefone: null,
+              message_id: null,
+              payload: body,
+            });
+            return new Response("Unauthorized", { status: 401, headers: corsHeaders });
+          }
+        } else {
+          console.warn("[Webhook] whatsapp_app_secret não configurado — validação pulada");
+        }
+      }
 
       // ── Detect Meta payload by structure (not by URL path) ──
       if (isMetaPayload(body)) {

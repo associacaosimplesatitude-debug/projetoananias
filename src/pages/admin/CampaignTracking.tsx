@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ArrowLeft, RefreshCw, Send, MousePointerClick, Eye, ShoppingCart, DollarSign, BarChart3, ExternalLink } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import CampaignDeliveryReport from "@/components/admin/CampaignDeliveryReport";
 
 export default function CampaignTracking() {
   const { campanha_id } = useParams<{ campanha_id: string }>();
@@ -148,6 +149,14 @@ export default function CampaignTracking() {
         <Button variant="outline" size="sm" onClick={handleRefresh} className="gap-2">
           <RefreshCw className="h-4 w-4" /> Atualizar
         </Button>
+      </div>
+
+      {/* NOVO: Relatório de Entrega (Meta) */}
+      {campanha_id && <CampaignDeliveryReport campanhaId={campanha_id} />}
+
+      {/* Métricas de tracking pós-clique (existente) */}
+      <div className="pt-4 border-t">
+        <h3 className="text-lg font-semibold mb-3">🎯 Tracking pós-clique</h3>
       </div>
 
       {/* Metric Cards */}
