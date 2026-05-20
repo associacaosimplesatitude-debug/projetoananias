@@ -420,17 +420,17 @@ function NovaCampanhaDialog({
       const user = (await supabase.auth.getUser()).data.user;
       const { data: pub } = await supabase
         .from("whatsapp_publicos").select("filtros").eq("id", publicoId).single();
-      const { error } = await supabase.from("whatsapp_campanhas").insert({
+      const { error } = await supabase.from("whatsapp_campanhas").insert([{
         nome: nome.trim(),
         publico_id: publicoId,
         template_id: templateId,
-        template_variaveis: templateVars,
+        template_variaveis: templateVars as any,
         cabecalho_midia_url: headerMediaType ? headerMediaUrl.trim() : null,
-        filtros_publico: pub?.filtros || null,
+        filtros_publico: (pub?.filtros as any) || null,
         status,
         agendada_para: agendaIso,
         created_by: user?.id,
-      });
+      }]);
       if (error) throw error;
       toast.success(acao === "iniciar" ? "Campanha agendada!" : "Rascunho salvo");
       onCreated();
