@@ -9130,6 +9130,42 @@ export type Database = {
         }
         Relationships: []
       }
+      whatsapp_publicos: {
+        Row: {
+          calculado_em: string | null
+          created_at: string
+          created_by: string
+          descricao: string | null
+          filtros: Json
+          id: string
+          nome: string
+          total_calculado: number | null
+          updated_at: string
+        }
+        Insert: {
+          calculado_em?: string | null
+          created_at?: string
+          created_by: string
+          descricao?: string | null
+          filtros: Json
+          id?: string
+          nome: string
+          total_calculado?: number | null
+          updated_at?: string
+        }
+        Update: {
+          calculado_em?: string | null
+          created_at?: string
+          created_by?: string
+          descricao?: string | null
+          filtros?: Json
+          id?: string
+          nome?: string
+          total_calculado?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       whatsapp_templates: {
         Row: {
           botoes: Json | null
@@ -9453,6 +9489,20 @@ export type Database = {
         Returns: undefined
       }
       variantes_telefone: { Args: { p_telefone: string }; Returns: string[] }
+      whatsapp_publico_contar: { Args: { filtros: Json }; Returns: number }
+      whatsapp_publico_materializar: {
+        Args: { filtros: Json; limite?: number }
+        Returns: {
+          cliente_id: string
+          email: string
+          nome: string
+          telefone: string
+        }[]
+      }
+      whatsapp_publico_recalcular: {
+        Args: { publico_id: string }
+        Returns: number
+      }
     }
     Enums: {
       app_role:
