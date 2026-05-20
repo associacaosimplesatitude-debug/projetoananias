@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ArrowLeft, RefreshCw, Send, MousePointerClick, Eye, ShoppingCart, DollarSign, BarChart3, ExternalLink } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import CampaignDeliveryReport from "@/components/admin/CampaignDeliveryReport";
 
 export default function CampaignTracking() {
   const { campanha_id } = useParams<{ campanha_id: string }>();
