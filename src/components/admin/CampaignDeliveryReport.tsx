@@ -371,7 +371,7 @@ export default function CampaignDeliveryReport({ campanhaId }: { campanhaId: str
                     <TableCell colSpan={8} className="text-center text-muted-foreground py-8">Nenhum destinatário.</TableCell>
                   </TableRow>
                 ) : paginados.map((d) => {
-                  const st = STATUS_LABEL[d.status_envio] || { label: d.status_envio, variant: "outline" as const };
+                  const st = STATUS_LABEL[d.status_envio] || { label: d.status_envio, variant: "outline" as const, className: undefined };
                   return (
                     <TableRow key={d.id}>
                       <TableCell className="font-mono text-xs">{d.telefone}</TableCell>
