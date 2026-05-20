@@ -8855,6 +8855,7 @@ export type Database = {
           email: string | null
           enviado_em: string | null
           id: string
+          meta_message_id: string | null
           nome: string | null
           produtos_pedido: string | null
           status_envio: string
@@ -8874,6 +8875,7 @@ export type Database = {
           email?: string | null
           enviado_em?: string | null
           id?: string
+          meta_message_id?: string | null
           nome?: string | null
           produtos_pedido?: string | null
           status_envio?: string
@@ -8893,6 +8895,7 @@ export type Database = {
           email?: string | null
           enviado_em?: string | null
           id?: string
+          meta_message_id?: string | null
           nome?: string | null
           produtos_pedido?: string | null
           status_envio?: string
@@ -9063,6 +9066,7 @@ export type Database = {
           id: string
           imagem_url: string | null
           mensagem: string
+          meta_message_id: string | null
           nome_destino: string | null
           payload_enviado: Json | null
           resposta_recebida: Json | null
@@ -9077,6 +9081,7 @@ export type Database = {
           id?: string
           imagem_url?: string | null
           mensagem: string
+          meta_message_id?: string | null
           nome_destino?: string | null
           payload_enviado?: Json | null
           resposta_recebida?: Json | null
@@ -9091,12 +9096,37 @@ export type Database = {
           id?: string
           imagem_url?: string | null
           mensagem?: string
+          meta_message_id?: string | null
           nome_destino?: string | null
           payload_enviado?: Json | null
           resposta_recebida?: Json | null
           status?: string
           telefone_destino?: string
           tipo_mensagem?: string
+        }
+        Relationships: []
+      }
+      whatsapp_optouts: {
+        Row: {
+          motivo: string | null
+          opted_out_at: string
+          opted_out_by: string | null
+          opted_out_via: string
+          telefone: string
+        }
+        Insert: {
+          motivo?: string | null
+          opted_out_at?: string
+          opted_out_by?: string | null
+          opted_out_via: string
+          telefone: string
+        }
+        Update: {
+          motivo?: string | null
+          opted_out_at?: string
+          opted_out_by?: string | null
+          opted_out_via?: string
+          telefone?: string
         }
         Relationships: []
       }
@@ -9220,6 +9250,25 @@ export type Database = {
           titulo: string | null
           updated_at: string | null
           versao: string | null
+        }
+        Relationships: []
+      }
+      whatsapp_contatos_360: {
+        Row: {
+          cliente_id: string | null
+          dias_sem_comprar: number | null
+          email: string | null
+          is_advec: boolean | null
+          is_ecommerce: boolean | null
+          is_igreja_cnpj: boolean | null
+          is_igreja_cpf: boolean | null
+          is_licenciado_revista: boolean | null
+          nome: string | null
+          telefone: string | null
+          tem_optout: boolean | null
+          total_pedidos: number | null
+          ultima_compra_em: string | null
+          ultima_compra_em_raw: string | null
         }
         Relationships: []
       }
@@ -9389,6 +9438,7 @@ export type Database = {
       is_financeiro_or_admin: { Args: { _user_id: string }; Returns: boolean }
       is_royalties_autor: { Args: { _user_id: string }; Returns: boolean }
       is_vendedor: { Args: { _user_email: string }; Returns: boolean }
+      normalizar_telefone_whatsapp: { Args: { input: string }; Returns: string }
       normalizar_termo_busca: { Args: { termo: string }; Returns: string }
       recalcular_royalties_pendentes: {
         Args: never
