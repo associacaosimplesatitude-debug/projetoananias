@@ -11,6 +11,7 @@ import { PaymentBanner } from "@/components/layout/PaymentBanner";
 import { PwaInstallBanner } from "@/components/PwaInstallBanner";
 import { EBDTrimesterBanner } from "@/components/ebd/EBDTrimesterBanner";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import RequireSuperadmin from "@/components/RequireSuperadmin";
 import ModuleProtectedRoute from "@/components/ModuleProtectedRoute";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
