@@ -777,12 +777,39 @@ Deno.serve(async (req) => {
   // ── POST: handle incoming events ──
   if (req.method === "POST") {
     try {
-      const body = await req.json();
+      const rawBody = await req.text();
+      let body: any;
+      try {
+        body = JSON.parse(rawBody);
+      } catch {
+        return new Response("Bad Request", { status: 400, headers: corsHeaders });
+      }
 
       const supabase = createClient(
         Deno.env.get("SUPABASE_URL")!,
         Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
       );
+
+      // ── Validação de assinatura HMAC (somente se app_secret estiver configurado) ──
+      if (isMetaPayload(body)) {
+        const appSecret = await getAppSecret(supabase);
+        if (appSecret) {
+          const sig = req.headers.get("x-hub-signature-256") || "";
+          const ok = await validarAssinaturaMeta(rawBody, sig, appSecret);
+          if (!ok) {
+            console.warn("[Webhook] Assinatura inválida — rejeitando");
+            await supabase.from("whatsapp_webhooks").insert({
+              evento: "assinatura_invalida",
+              telefone: null,
+              message_id: null,
+              payload: body,
+            });
+            return new Response("Unauthorized", { status: 401, headers: corsHeaders });
+          }
+        } else {
+          console.warn("[Webhook] whatsapp_app_secret não configurado — validação pulada");
+        }
+      }
 
       // ── Detect Meta payload by structure (not by URL path) ──
       if (isMetaPayload(body)) {
