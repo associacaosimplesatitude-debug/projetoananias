@@ -43,6 +43,16 @@ Deno.serve(async (req) => {
 
     console.log(`[send-campaign] === LOTE INICIADO para campanha ${campanha_id} ===`);
 
+    // Quiet hours guard (skip send entirely if outside window)
+    const { data: dentroData } = await supabase.rpc("whatsapp_dentro_quiet_hours");
+    if (dentroData === false) {
+      console.log("[send-campaign] Fora da janela de envio (quiet hours). Abortando lote.");
+      return new Response(
+        JSON.stringify({ success: true, fora_quiet_hours: true, batch_done: false }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // Fetch campaign with template
     const { data: campanha, error: cErr } = await supabase
       .from("whatsapp_campanhas")
