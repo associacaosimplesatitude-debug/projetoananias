@@ -325,7 +325,14 @@ Deno.serve(async (req) => {
         if (varValues.length > 0) {
           components.push({
             type: "body",
-            parameters: varValues.map((v) => ({ type: "text", text: v })),
+            parameters: variables.map((rawVar: string, i: number) => {
+              const name = String(rawVar).replace(/\{\{|\}\}/g, "").trim();
+              const value = varValues[i];
+              const isPositional = /^\d+$/.test(name);
+              return isPositional
+                ? { type: "text", text: value }
+                : { type: "text", parameter_name: name, text: value };
+            }),
           });
         }
 
