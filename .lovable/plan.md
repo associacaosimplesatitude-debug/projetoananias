@@ -1,79 +1,49 @@
-# Correção: campanha "aviso advecs" — erro #100 da Meta
+## Objetivo
 
-## Causa raiz (confirmada pela API da Meta)
+Gerar um único arquivo CSV em `/mnt/documents/clientes_todos_canais.csv` contendo **nome completo, telefone e email** de todos os clientes que já compraram em qualquer canal, **excluindo números com DDI internacional** (Portugal +351, EUA +1, etc.).
 
-O template `aviso_novo_numero_central_gospel` está **APROVADO** pela Meta como `en_US` (a língua é só um rótulo, não importa o idioma do conteúdo). O problema **não é** a língua.
+## Fontes de dados (canais)
 
-O template foi aprovado usando **parâmetros nomeados** (named parameters), não posicionais. A definição na Meta retorna:
+| Tabela | Canal | Campos usados |
+|---|---|---|
+| `ebd_shopify_pedidos` | Shopify EBD (histórico) | customer_name, customer_email, customer_phone |
+| `ebd_shopify_pedidos_cg` | Shopify Central Gospel (histórico) | customer_name, customer_email, customer_phone |
+| `ebd_loja_pedidos_cg` | Loja Atual CG | customer_name, customer_email, customer_phone (fallback endereco_*) |
+| `bling_marketplace_pedidos` | Amazon / Mercado Livre / Shopee | customer_name, customer_email (sem telefone — join com `ebd_clientes` por documento quando possível) |
+| `ebd_pedidos` | EBD direto (MP) | nome_cliente + sobrenome_cliente, email_cliente, telefone_cliente |
+| `vendas_balcao` | Balcão | cliente_nome, email, telefone |
+| `royalties_vendas` | Royalties / Autor | cliente_nome, (email/telefone se existirem) |
+| `ebd_clientes` | Cadastro de clientes (enriquecimento) | nome_*, email_*, telefone |
 
-```json
-"example": {
-  "body_text_named_params": [
-    { "param_name": "lead_nome", "example": "John Doe" }
-  ]
-}
+## Regra de filtragem (somente Brasil)
+
+Normalizar telefone removendo `+`, espaços, parênteses, hífens. Então classificar:
+
+- **Manter**: 10 ou 11 dígitos (BR sem DDI) **OU** 12-13 dígitos começando com `55` (BR com DDI).
+- **Descartar**: qualquer outro DDI (`1` EUA/Canadá, `351` Portugal, `44` UK, `34` Espanha, etc.).
+- Registros **sem telefone válido BR** são descartados (mesmo que tenham email), conforme a instrução de excluir DDI internacionais.
+
+Telefone final normalizado para 11 dígitos (DDD + número), sem `+55`.
+
+## Deduplicação
+
+Chave: telefone normalizado. Em caso de duplicata, manter o registro com nome mais completo e email não-nulo (preferência: canais que têm nome+email+telefone).
+
+## Saída
+
+CSV UTF-8 com cabeçalho:
 ```
-
-Para templates com parâmetro nomeado, a Meta exige que cada `parameter` no `components[].parameters` inclua o campo `parameter_name`:
-
-```json
-{ "type": "text", "parameter_name": "lead_nome", "text": "João" }
+nome_completo,telefone,email,canais
 ```
+- `canais`: lista separada por `;` dos canais onde o cliente aparece (útil para auditoria).
 
-A função `whatsapp-send-campaign` hoje envia apenas posicional:
+## Execução
 
-```ts
-parameters: varValues.map((v) => ({ type: "text", text: v }))
-```
+Script Python único usando `psql` (env `PGHOST` já disponível) para extrair cada canal, normalizar/dedup em memória (pandas) e escrever o CSV.
 
-→ Meta responde **(#100) Invalid parameter** e marca os 50 destinatários como `failed`. Os outros 94 continuam `pendente` porque a campanha foi pausada.
+## Confirmações antes de executar
 
-## O que vai ser feito
+1. **Bling marketplace (Amazon/ML/Shopee) não tem telefone** nos pedidos. Devo: (a) incluir somente quando conseguir telefone via `ebd_clientes` por CPF/CNPJ, ou (b) ignorar esses pedidos por completo? — proponho **(a)**.
+2. **`ebd_clientes` (cadastro puro, sem pedido)**: incluo apenas clientes que **fizeram compra** em algum canal, conforme pedido. Cadastros órfãos ficam de fora.
 
-### 1. Edge Function `whatsapp-send-campaign` — suportar named params
-
-Trocar a montagem do `body` para incluir `parameter_name` quando a variável não for numérica (`{{1}}`, `{{2}}` etc):
-
-```ts
-components.push({
-  type: "body",
-  parameters: variables.map((rawVar, i) => {
-    const name = String(rawVar).replace(/\{\{|\}\}/g, "").trim();
-    const value = varValues[i];
-    const isPositional = /^\d+$/.test(name);
-    return isPositional
-      ? { type: "text", text: value }
-      : { type: "text", parameter_name: name, text: value };
-  }),
-});
-```
-
-Mantém 100% de compatibilidade com templates antigos (posicionais).
-
-### 2. Reset dos 50 destinatários que falharam
-
-Após o deploy, voltar status `failed` → `pendente` apenas para essa campanha (limpar `erro_codigo`, `erro_mensagem`, `falhou_em`, `meta_message_id`). Os 94 que ainda estão `pendente` permanecem.
-
-### 3. Retomar a campanha
-
-`status = 'agendada'`, `agendada_para = now()`. No próximo tick do cron (≤5 min) os 144 destinatários são processados em lotes de 50.
-
-## O que NÃO vai ser alterado
-
-- `whatsapp_templates` (template está correto — Meta confirma `en_US`).
-- `whatsapp-sync-templates-from-meta`, `whatsapp-cron-processar-campanhas`.
-- RPCs de público, UI de campanhas, relatório de entrega, tracking pós-clique.
-- Lógica de header de imagem, botões dinâmicos, cálculo de variáveis.
-
-## Detalhes técnicos
-
-- Mudança isolada nas linhas 325–330 de `supabase/functions/whatsapp-send-campaign/index.ts`.
-- Reset + retomada via 1 migration SQL pontual (escopo: somente campanha `a837230e-9ab8-4e53-9863-7ec66d66ff94`).
-- Não é necessário rodar `Sincronizar templates da Meta` — o template já está coerente, e o sync continuaria gravando `en_US` (que é o que a Meta retorna).
-
-## Validação após deploy
-
-1. Cron tick (≤5 min) → campanha vai para `processando`.
-2. `whatsapp_campanha_destinatarios` deve mostrar `sent` aumentando em lotes de 50.
-3. Em `/admin/campaign-tracking/a837230e-…` o "Relatório de Entrega" mostra enviados/entregues/lidos crescendo.
-4. Se ainda houver `failed`, conferir `erro_mensagem` — deve ser diferente de `(#100) Invalid parameter`.
+Posso prosseguir com essas regras?
