@@ -647,21 +647,35 @@ function LicencaEditDrawer({ licenca, open, onClose, onSaved }: {
                 <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5"><MailIcon className="h-3.5 w-3.5" />Email</p>
                 {emailLogs.length === 0 ? (
                   <div>
-                    <p className="text-xs text-muted-foreground italic pl-5">Emails de acesso à revista não são registrados no log de envios</p>
+                    <p className="text-xs text-muted-foreground italic pl-5">Nenhum envio registrado</p>
                   </div>
                 ) : (
-                  <div className="space-y-1">
-                    {emailLogs.map((log: any) => (
-                      <div key={log.id} className="flex items-center gap-2 text-xs py-1 px-2 rounded bg-muted/30">
-                        {["enviado", "sent", "delivered"].includes(log.status) ? (
-                          <CheckCircle2 className="h-3.5 w-3.5 text-green-500 flex-shrink-0" />
-                        ) : (
-                          <XCircle className="h-3.5 w-3.5 text-destructive flex-shrink-0" />
-                        )}
-                        <span className="text-muted-foreground">{format(new Date(log.created_at), "dd/MM HH:mm")}</span>
-                        <span className="truncate">{log.assunto || log.status}</span>
-                      </div>
-                    ))}
+                  <div className="space-y-2">
+                    {emailLogs.map((log: any) => {
+                      const enviadoOk = ["enviado", "sent", "delivered"].includes(log.status);
+                      return (
+                        <div key={log.id} className="border rounded-md p-2 bg-muted/20 space-y-1.5">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-xs truncate font-medium" title={log.assunto}>{log.assunto || log.status}</span>
+                            <span className="text-[10px] text-muted-foreground whitespace-nowrap">{format(new Date(log.created_at), "dd/MM HH:mm")}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <Badge variant={enviadoOk ? "default" : "destructive"} className="gap-1 text-[10px] h-5">
+                              {enviadoOk ? <CheckCircle2 className="h-3 w-3" /> : <XCircle className="h-3 w-3" />}
+                              Enviado{log.created_at ? ` ${format(new Date(log.created_at), "HH:mm")}` : ""}
+                            </Badge>
+                            <Badge variant={log.email_aberto ? "default" : "secondary"} className="gap-1 text-[10px] h-5">
+                              <Eye className="h-3 w-3" />
+                              {log.email_aberto ? `Aberto ${log.data_abertura ? format(new Date(log.data_abertura), "HH:mm") : ""}` : "Não aberto"}
+                            </Badge>
+                            <Badge variant={log.link_clicado ? "default" : "secondary"} className="gap-1 text-[10px] h-5">
+                              <MousePointerClick className="h-3 w-3" />
+                              {log.link_clicado ? `Clicou ${log.data_clique ? format(new Date(log.data_clique), "HH:mm") : ""}` : "Não clicou"}
+                            </Badge>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
