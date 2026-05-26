@@ -182,12 +182,39 @@ serve(async (req) => {
         }
       }
 
-      // Envio Email via Resend
+      // Envio Email via Resend (com tracking)
       if (lic.email && lic.email.includes("@")) {
         try {
           const resendApiKey = Deno.env.get("RESEND_API_KEY");
           if (resendApiKey) {
-            await fetch("https://api.resend.com/emails", {
+            const assunto = `Seu acesso a ${titulo}`;
+            // Cria log antes do envio para tracking de abertura/clique
+            const { data: logRow } = await supabaseAdmin
+              .from("ebd_email_logs")
+              .insert({
+                destinatario: lic.email,
+                assunto,
+                status: "enviado",
+                tipo_envio: "revista_acesso",
+                dados_enviados: {
+                  licenca_id: params.id,
+                  nome_comprador: lic.nome_comprador,
+                  revista_titulo: titulo,
+                },
+              })
+              .select("id")
+              .single();
+
+            const logId = logRow?.id;
+            const trackerBase = `${Deno.env.get("SUPABASE_URL")}/functions/v1/ebd-email-tracker`;
+            const clickUrl = logId
+              ? `${trackerBase}?type=click&logId=${logId}&url=${encodeURIComponent(urlAcesso)}`
+              : urlAcesso;
+            const openPixel = logId
+              ? `<img src="${trackerBase}?type=open&logId=${logId}" width="1" height="1" alt="" style="display:none" />`
+              : "";
+
+            const resp = await fetch("https://api.resend.com/emails", {
               method: "POST",
               headers: {
                 Authorization: `Bearer ${resendApiKey}`,
@@ -196,21 +223,37 @@ serve(async (req) => {
               body: JSON.stringify({
                 from: "Central Gospel <relatorios@painel.editoracentralgospel.com.br>",
                 to: [lic.email],
-                subject: `Seu acesso a ${titulo}`,
+                subject: assunto,
                 html: `
                   <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px">
                     <h2 style="color:#1a1a1a">Olá, ${lic.nome_comprador || "leitor"}!</h2>
                     <p style="color:#333;font-size:16px">Seu acesso a <strong>${titulo}</strong> está disponível.</p>
                     <p style="color:#333;font-size:16px">Para acessar, clique no botão abaixo:</p>
                     <div style="text-align:center;margin:30px 0">
-                      <a href="${urlAcesso}" style="background-color:#2563eb;color:#fff;padding:14px 28px;text-decoration:none;border-radius:8px;font-size:16px;font-weight:bold">Acessar meu material</a>
+                      <a href="${clickUrl}" style="background-color:#2563eb;color:#fff;padding:14px 28px;text-decoration:none;border-radius:8px;font-size:16px;font-weight:bold">Acessar meu material</a>
                     </div>
                     <p style="color:#666;font-size:14px">Você vai precisar do seu número de WhatsApp para entrar.<br>Enviaremos um código de 4 números para confirmar sua identidade.</p>
-                    <p style="color:#999;font-size:12px;margin-top:30px">Ou acesse diretamente: <a href="${urlAcesso}">${urlAcesso}</a></p>
+                    <p style="color:#999;font-size:12px;margin-top:30px">Ou acesse diretamente: <a href="${clickUrl}">${urlAcesso}</a></p>
+                    ${openPixel}
                   </div>
                 `,
               }),
             });
+            if (resp.ok && logId) {
+              const j = await resp.json().catch(() => ({}));
+              if (j?.id) {
+                await supabaseAdmin
+                  .from("ebd_email_logs")
+                  .update({ resend_email_id: j.id })
+                  .eq("id", logId);
+              }
+            } else if (!resp.ok && logId) {
+              const txt = await resp.text().catch(() => "");
+              await supabaseAdmin
+                .from("ebd_email_logs")
+                .update({ status: "falhou", erro: txt.slice(0, 500) })
+                .eq("id", logId);
+            }
           }
         } catch (emailErr) {
           console.error("Erro ao reenviar email:", emailErr);
