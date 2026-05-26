@@ -134,18 +134,39 @@ Deno.serve(async (req) => {
     // ====== Efeitos colaterais (replicando ação 'resend' do admin) ======
     const errosEC: string[] = [];
 
-    // Email via Resend
+    // Email via Resend (com tracking)
     if (emailFinal && emailFinal.includes("@")) {
       try {
         const resendApiKey = Deno.env.get("RESEND_API_KEY");
         if (resendApiKey) {
+          const assunto = `Seu presente: Cartas da Prisão (Professor + Infográfico)`;
+          const { data: logRow } = await supabase
+            .from("ebd_email_logs")
+            .insert({
+              destinatario: emailFinal,
+              assunto,
+              status: "enviado",
+              tipo_envio: "presente_cartas_prisao",
+              dados_enviados: { cliente_id, nome: nomeOk, whatsapp: wLocal },
+            })
+            .select("id")
+            .single();
+          const logId = logRow?.id;
+          const trackerBase = `${supabaseUrl}/functions/v1/ebd-email-tracker`;
+          const clickUrl = logId
+            ? `${trackerBase}?type=click&logId=${logId}&url=${encodeURIComponent(URL_ACESSO)}`
+            : URL_ACESSO;
+          const openPixel = logId
+            ? `<img src="${trackerBase}?type=open&logId=${logId}" width="1" height="1" alt="" style="display:none" />`
+            : "";
+
           const r = await fetch("https://api.resend.com/emails", {
             method: "POST",
             headers: { Authorization: `Bearer ${resendApiKey}`, "Content-Type": "application/json" },
             body: JSON.stringify({
               from: "Central Gospel <relatorios@painel.editoracentralgospel.com.br>",
               to: [emailFinal],
-              subject: `Seu presente: Cartas da Prisão (Professor + Infográfico)`,
+              subject: assunto,
               html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px">
                 <h2>Olá, ${nomeOk}!</h2>
                 <p>Liberamos seu acesso vitalício a:</p>
@@ -154,13 +175,27 @@ Deno.serve(async (req) => {
                   <li><strong>Infográfico premium "Cartas da Prisão"</strong></li>
                 </ul>
                 <div style="text-align:center;margin:30px 0">
-                  <a href="${URL_ACESSO}" style="background:#2563eb;color:#fff;padding:14px 28px;text-decoration:none;border-radius:8px;font-weight:bold">Acessar agora</a>
+                  <a href="${clickUrl}" style="background:#2563eb;color:#fff;padding:14px 28px;text-decoration:none;border-radius:8px;font-weight:bold">Acessar agora</a>
                 </div>
                 <p style="color:#666;font-size:14px">Use seu WhatsApp (${wLocal}) para receber o código de acesso.</p>
+                ${openPixel}
               </div>`,
             }),
           });
-          if (!r.ok) errosEC.push(`resend ${r.status}: ${await r.text()}`);
+          if (r.ok && logId) {
+            const j = await r.json().catch(() => ({}));
+            if (j?.id) {
+              await supabase.from("ebd_email_logs").update({ resend_email_id: j.id }).eq("id", logId);
+            }
+          } else if (!r.ok) {
+            const txt = await r.text();
+            errosEC.push(`resend ${r.status}: ${txt}`);
+            if (logId) {
+              await supabase.from("ebd_email_logs")
+                .update({ status: "falhou", erro: txt.slice(0, 500) })
+                .eq("id", logId);
+            }
+          }
         }
       } catch (e: any) { errosEC.push(`email: ${e.message}`); }
     }

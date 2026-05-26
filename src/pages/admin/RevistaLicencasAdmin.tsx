@@ -16,7 +16,8 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
-import { Plus, Search, Filter, Users, CreditCard, TrendingUp, Send, Ban, ShoppingCart, Trophy, Monitor, WifiOff, BookOpen, Mail, Loader2, CheckCircle2, XCircle, MessageSquare, MailIcon, Clock, User, Phone, AtSign, BookMarked, ShieldCheck, Hash, CalendarDays } from "lucide-react";
+import { Plus, Search, Filter, Users, CreditCard, TrendingUp, Send, Ban, ShoppingCart, Trophy, Monitor, WifiOff, BookOpen, Mail, Loader2, CheckCircle2, XCircle, MessageSquare, MailIcon, Clock, User, Phone, AtSign, BookMarked, ShieldCheck, Hash, CalendarDays, Eye, MousePointerClick } from "lucide-react";
+import { saveRevistaSession, persistRevistaToken } from "@/lib/revistaSession";
 import { format } from "date-fns";
 
 // === UTILS ===
@@ -427,12 +428,35 @@ function LicencaEditDrawer({ licenca, open, onClose, onSaved }: {
     queryFn: async () => {
       const { data } = await supabase
         .from("ebd_email_logs")
-        .select("id, created_at, status, assunto")
+        .select("id, created_at, status, assunto, email_aberto, data_abertura, link_clicado, data_clique, tipo_envio")
         .eq("destinatario", licenca!.email!)
         .order("created_at", { ascending: false })
-        .limit(5);
+        .limit(10);
       return data || [];
     },
+  });
+
+  const impersonateMutation = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke("revista-admin-impersonate", {
+        body: { licenca_id: licenca!.id },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data as { token: string; licencas: any[]; versao_preferida: string };
+    },
+    onSuccess: (data) => {
+      const persisted = persistRevistaToken(data.token);
+      if (!persisted) {
+        toast.error("Falha ao preparar sessão");
+        return;
+      }
+      saveRevistaSession(persisted, data.licencas);
+      toast.success("Sessão do cliente ativada — abrindo leitor");
+      const destino = data.versao_preferida === "leitor_cg" ? "/leitor/leitura" : "/revista/leitura";
+      window.open(destino, "_blank");
+    },
+    onError: (e: Error) => toast.error(e.message || "Erro ao impersonar"),
   });
 
   const updateMutation = useMutation({
@@ -561,9 +585,21 @@ function LicencaEditDrawer({ licenca, open, onClose, onSaved }: {
 
             <Separator />
 
-            {/* SEÇÃO 3 — Envio de acesso */}
+            {/* SEÇÃO 3 — Envio de acesso & Impersonação */}
             <div className="space-y-3">
-              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Envio de acesso</h3>
+              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Acesso do cliente</h3>
+              <Button
+                variant="outline"
+                className="w-full gap-2"
+                onClick={() => impersonateMutation.mutate()}
+                disabled={impersonateMutation.isPending}
+              >
+                {impersonateMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
+                Ver como cliente
+              </Button>
+              <p className="text-xs text-muted-foreground text-center">
+                Abre /revista/leitura em nova aba com a sessão deste cliente
+              </p>
               <Button
                 className="w-full gap-2"
                 onClick={() => resendMutation.mutate(licenca.id)}
@@ -611,21 +647,35 @@ function LicencaEditDrawer({ licenca, open, onClose, onSaved }: {
                 <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5"><MailIcon className="h-3.5 w-3.5" />Email</p>
                 {emailLogs.length === 0 ? (
                   <div>
-                    <p className="text-xs text-muted-foreground italic pl-5">Emails de acesso à revista não são registrados no log de envios</p>
+                    <p className="text-xs text-muted-foreground italic pl-5">Nenhum envio registrado</p>
                   </div>
                 ) : (
-                  <div className="space-y-1">
-                    {emailLogs.map((log: any) => (
-                      <div key={log.id} className="flex items-center gap-2 text-xs py-1 px-2 rounded bg-muted/30">
-                        {["enviado", "sent", "delivered"].includes(log.status) ? (
-                          <CheckCircle2 className="h-3.5 w-3.5 text-green-500 flex-shrink-0" />
-                        ) : (
-                          <XCircle className="h-3.5 w-3.5 text-destructive flex-shrink-0" />
-                        )}
-                        <span className="text-muted-foreground">{format(new Date(log.created_at), "dd/MM HH:mm")}</span>
-                        <span className="truncate">{log.assunto || log.status}</span>
-                      </div>
-                    ))}
+                  <div className="space-y-2">
+                    {emailLogs.map((log: any) => {
+                      const enviadoOk = ["enviado", "sent", "delivered"].includes(log.status);
+                      return (
+                        <div key={log.id} className="border rounded-md p-2 bg-muted/20 space-y-1.5">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-xs truncate font-medium" title={log.assunto}>{log.assunto || log.status}</span>
+                            <span className="text-[10px] text-muted-foreground whitespace-nowrap">{format(new Date(log.created_at), "dd/MM HH:mm")}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <Badge variant={enviadoOk ? "default" : "destructive"} className="gap-1 text-[10px] h-5">
+                              {enviadoOk ? <CheckCircle2 className="h-3 w-3" /> : <XCircle className="h-3 w-3" />}
+                              Enviado{log.created_at ? ` ${format(new Date(log.created_at), "HH:mm")}` : ""}
+                            </Badge>
+                            <Badge variant={log.email_aberto ? "default" : "secondary"} className="gap-1 text-[10px] h-5">
+                              <Eye className="h-3 w-3" />
+                              {log.email_aberto ? `Aberto ${log.data_abertura ? format(new Date(log.data_abertura), "HH:mm") : ""}` : "Não aberto"}
+                            </Badge>
+                            <Badge variant={log.link_clicado ? "default" : "secondary"} className="gap-1 text-[10px] h-5">
+                              <MousePointerClick className="h-3 w-3" />
+                              {log.link_clicado ? `Clicou ${log.data_clique ? format(new Date(log.data_clique), "HH:mm") : ""}` : "Não clicou"}
+                            </Badge>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -948,6 +998,29 @@ function ShopifyTab() {
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          title="Ver como cliente"
+                          onClick={async () => {
+                            try {
+                              const { data, error } = await supabase.functions.invoke("revista-admin-impersonate", {
+                                body: { licenca_id: l.id },
+                              });
+                              if (error) throw error;
+                              if (data?.error) throw new Error(data.error);
+                              const persisted = persistRevistaToken(data.token);
+                              if (!persisted) throw new Error("Falha ao preparar sessão");
+                              saveRevistaSession(persisted, data.licencas);
+                              const destino = data.versao_preferida === "leitor_cg" ? "/leitor/leitura" : "/revista/leitura";
+                              window.open(destino, "_blank");
+                            } catch (e: any) {
+                              toast.error(e.message || "Erro ao impersonar");
+                            }
+                          }}
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
                         <Button
                           variant="ghost"
                           size="icon"
