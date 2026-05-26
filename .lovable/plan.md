@@ -1,49 +1,88 @@
 ## Objetivo
 
-Gerar um único arquivo CSV em `/mnt/documents/clientes_todos_canais.csv` contendo **nome completo, telefone e email** de todos os clientes que já compraram em qualquer canal, **excluindo números com DDI internacional** (Portugal +351, EUA +1, etc.).
+Em `/admin/ebd/revista-licencas` (aba E-commerce/Shopify), o superadmin poderá:
+1. Clicar em "Ver como cliente" e abrir a página `/revista/leitura` exatamente como o cliente vê.
+2. Visualizar, por email enviado, três status: **Enviado**, **Aberto**, **Clicou no botão**.
 
-## Fontes de dados (canais)
+---
 
-| Tabela | Canal | Campos usados |
-|---|---|---|
-| `ebd_shopify_pedidos` | Shopify EBD (histórico) | customer_name, customer_email, customer_phone |
-| `ebd_shopify_pedidos_cg` | Shopify Central Gospel (histórico) | customer_name, customer_email, customer_phone |
-| `ebd_loja_pedidos_cg` | Loja Atual CG | customer_name, customer_email, customer_phone (fallback endereco_*) |
-| `bling_marketplace_pedidos` | Amazon / Mercado Livre / Shopee | customer_name, customer_email (sem telefone — join com `ebd_clientes` por documento quando possível) |
-| `ebd_pedidos` | EBD direto (MP) | nome_cliente + sobrenome_cliente, email_cliente, telefone_cliente |
-| `vendas_balcao` | Balcão | cliente_nome, email, telefone |
-| `royalties_vendas` | Royalties / Autor | cliente_nome, (email/telefone se existirem) |
-| `ebd_clientes` | Cadastro de clientes (enriquecimento) | nome_*, email_*, telefone |
+## 1. Impersonação do leitor
 
-## Regra de filtragem (somente Brasil)
+### Nova edge function `revista-admin-impersonate`
+- Recebe `{ licenca_id }` (ou `whatsapp`).
+- Verifica via JWT (`getUser()`) que o usuário tem role `superadmin` (`has_role`).
+- Busca todas as licenças ativas daquele whatsapp em `revista_licencas_shopify` (mesmo SELECT que `revista-validar-otp`).
+- Gera token base64 igual ao `revista-validar-otp`:
+  `btoa(JSON.stringify({ whatsapp, exp: Date.now()+86400000, licencas: [...revista_id] }))`.
+- Retorna `{ token, licencas, versao_preferida }`.
+- **Não** atualiza `primeiro_acesso_em` nem `ultimo_acesso_em` (para não poluir métricas do cliente).
 
-Normalizar telefone removendo `+`, espaços, parênteses, hífens. Então classificar:
+### UI no Drawer (`LicencaEditDrawer`) e na linha da tabela
+- Botão "Ver como cliente" (ícone `Eye`) ao lado de Reenviar.
+- Ao clicar:
+  1. Chama a nova função.
+  2. Faz `saveRevistaSession(persistRevistaToken(token), licencas)` no localStorage.
+  3. Abre `/revista/leitura` em nova aba (`window.open`).
+- Toast explicando que a sessão atual do leitor no navegador foi substituída pela do cliente.
 
-- **Manter**: 10 ou 11 dígitos (BR sem DDI) **OU** 12-13 dígitos começando com `55` (BR com DDI).
-- **Descartar**: qualquer outro DDI (`1` EUA/Canadá, `351` Portugal, `44` UK, `34` Espanha, etc.).
-- Registros **sem telefone válido BR** são descartados (mesmo que tenham email), conforme a instrução de excluir DDI internacionais.
+---
 
-Telefone final normalizado para 11 dígitos (DDD + número), sem `+55`.
+## 2. Rastreamento de email (enviado / aberto / clicou)
 
-## Deduplicação
+### Instrumentar envios de email para gravar em `ebd_email_logs`
+Atualmente o "Reenviar" em `revista-licencas-shopify-admin` envia via Resend sem logar. Também `liberar-presente-cartas-prisao` e `reprocessar-presentes-pendentes` enviam direto.
 
-Chave: telefone normalizado. Em caso de duplicata, manter o registro com nome mais completo e email não-nulo (preferência: canais que têm nome+email+telefone).
+Em cada um destes envios:
+1. Antes de enviar, `INSERT` em `ebd_email_logs` com:
+   - `destinatario`, `assunto`, `status='enviado'`, `tipo_envio='revista_acesso'` (ou `'presente_cartas_prisao'`),
+   - `cliente_id` quando disponível,
+   - `dados_enviados = { licenca_id, revista_id }`.
+2. Capturar o `id` do log e:
+   - Trocar a URL do botão `Acessar meu material` por:
+     `${SUPABASE_URL}/functions/v1/ebd-email-tracker?type=click&logId={id}&url={encoded original}`
+   - Injetar no final do HTML o pixel:
+     `<img src="${SUPABASE_URL}/functions/v1/ebd-email-tracker?type=open&logId={id}" width="1" height="1" />`
+3. Guardar `resend_email_id` retornado pela API do Resend.
 
-## Saída
+A função `ebd-email-tracker` já atualiza `email_aberto`/`data_abertura` e `link_clicado`/`data_clique` — nenhuma alteração nela.
 
-CSV UTF-8 com cabeçalho:
-```
-nome_completo,telefone,email,canais
-```
-- `canais`: lista separada por `;` dos canais onde o cliente aparece (útil para auditoria).
+### UI no Drawer — seção "Log de envios → Email"
+- Estender a query atual para selecionar também:
+  `email_aberto, data_abertura, link_clicado, data_clique, tipo_envio`.
+- Filtrar por `destinatario = email` E (opcionalmente) `tipo_envio IN ('revista_acesso','presente_cartas_prisao')`.
+- Para cada log mostrar três chips alinhados:
+  - ✅ **Enviado** — `created_at`
+  - 👁 **Aberto** — `data_abertura` ou "—"
+  - 🖱 **Clicou** — `data_clique` ou "—"
+- Cores: verde quando preenchido, cinza quando ainda não ocorreu.
+- Remover a frase "Emails de acesso à revista não são registrados no log de envios".
 
-## Execução
+---
 
-Script Python único usando `psql` (env `PGHOST` já disponível) para extrair cada canal, normalizar/dedup em memória (pandas) e escrever o CSV.
+## Detalhes técnicos
 
-## Confirmações antes de executar
+- Tabela `ebd_email_logs` já tem `email_aberto`, `data_abertura`, `link_clicado`, `data_clique`, `resend_email_id`. Nenhuma migration necessária.
+- Política RLS atual já permite que `admin`/`gerente_ebd` visualizem todos os logs; basta confirmar que o superadmin também tem permissão (ou adicionar `OR has_role(auth.uid(),'superadmin')`).
+- `revista-admin-impersonate` precisa de bloco em `supabase/config.toml` com `verify_jwt = true` (precisamos do usuário autenticado).
+- Cliente envia `Authorization` automaticamente via `supabase.functions.invoke`.
 
-1. **Bling marketplace (Amazon/ML/Shopee) não tem telefone** nos pedidos. Devo: (a) incluir somente quando conseguir telefone via `ebd_clientes` por CPF/CNPJ, ou (b) ignorar esses pedidos por completo? — proponho **(a)**.
-2. **`ebd_clientes` (cadastro puro, sem pedido)**: incluo apenas clientes que **fizeram compra** em algum canal, conforme pedido. Cadastros órfãos ficam de fora.
+---
 
-Posso prosseguir com essas regras?
+## Arquivos a alterar/criar
+
+- `supabase/functions/revista-admin-impersonate/index.ts` (novo)
+- `supabase/config.toml` (config da nova função)
+- `supabase/functions/revista-licencas-shopify-admin/index.ts` (logar email + envolver URL + pixel)
+- `supabase/functions/liberar-presente-cartas-prisao/index.ts` (idem)
+- `supabase/functions/reprocessar-presentes-pendentes/index.ts` (idem)
+- `src/pages/admin/RevistaLicencasAdmin.tsx`
+  - Botão "Ver como cliente" no drawer e na linha
+  - Query de `emailLogs` retornando campos extras
+  - Renderização dos três status (Enviado / Aberto / Clicou)
+- Possível ajuste em política RLS de `ebd_email_logs` para incluir `superadmin`.
+
+---
+
+## Fora do escopo
+- Tracking de WhatsApp aberto/clicado (Z-API/Meta não fornecem; mantemos como está).
+- Logs históricos retroativos: só novos envios passarão a ter status.
