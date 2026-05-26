@@ -1001,6 +1001,29 @@ function ShopifyTab() {
                         <Button
                           variant="ghost"
                           size="icon"
+                          title="Ver como cliente"
+                          onClick={async () => {
+                            try {
+                              const { data, error } = await supabase.functions.invoke("revista-admin-impersonate", {
+                                body: { licenca_id: l.id },
+                              });
+                              if (error) throw error;
+                              if (data?.error) throw new Error(data.error);
+                              const persisted = persistRevistaToken(data.token);
+                              if (!persisted) throw new Error("Falha ao preparar sessão");
+                              saveRevistaSession(persisted, data.licencas);
+                              const destino = data.versao_preferida === "leitor_cg" ? "/leitor/leitura" : "/revista/leitura";
+                              window.open(destino, "_blank");
+                            } catch (e: any) {
+                              toast.error(e.message || "Erro ao impersonar");
+                            }
+                          }}
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
                           title="Reenviar acesso"
                           onClick={() => resendMutation.mutate(l.id)}
                           disabled={!l.ativo || resendMutation.isPending}
