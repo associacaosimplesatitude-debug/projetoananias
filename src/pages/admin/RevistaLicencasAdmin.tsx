@@ -585,9 +585,21 @@ function LicencaEditDrawer({ licenca, open, onClose, onSaved }: {
 
             <Separator />
 
-            {/* SEÇÃO 3 — Envio de acesso */}
+            {/* SEÇÃO 3 — Envio de acesso & Impersonação */}
             <div className="space-y-3">
-              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Envio de acesso</h3>
+              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Acesso do cliente</h3>
+              <Button
+                variant="outline"
+                className="w-full gap-2"
+                onClick={() => impersonateMutation.mutate()}
+                disabled={impersonateMutation.isPending}
+              >
+                {impersonateMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
+                Ver como cliente
+              </Button>
+              <p className="text-xs text-muted-foreground text-center">
+                Abre /revista/leitura em nova aba com a sessão deste cliente
+              </p>
               <Button
                 className="w-full gap-2"
                 onClick={() => resendMutation.mutate(licenca.id)}
