@@ -428,12 +428,35 @@ function LicencaEditDrawer({ licenca, open, onClose, onSaved }: {
     queryFn: async () => {
       const { data } = await supabase
         .from("ebd_email_logs")
-        .select("id, created_at, status, assunto")
+        .select("id, created_at, status, assunto, email_aberto, data_abertura, link_clicado, data_clique, tipo_envio")
         .eq("destinatario", licenca!.email!)
         .order("created_at", { ascending: false })
-        .limit(5);
+        .limit(10);
       return data || [];
     },
+  });
+
+  const impersonateMutation = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke("revista-admin-impersonate", {
+        body: { licenca_id: licenca!.id },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data as { token: string; licencas: any[]; versao_preferida: string };
+    },
+    onSuccess: (data) => {
+      const persisted = persistRevistaToken(data.token);
+      if (!persisted) {
+        toast.error("Falha ao preparar sessão");
+        return;
+      }
+      saveRevistaSession(persisted, data.licencas);
+      toast.success("Sessão do cliente ativada — abrindo leitor");
+      const destino = data.versao_preferida === "leitor_cg" ? "/leitor/leitura" : "/revista/leitura";
+      window.open(destino, "_blank");
+    },
+    onError: (e: Error) => toast.error(e.message || "Erro ao impersonar"),
   });
 
   const updateMutation = useMutation({
