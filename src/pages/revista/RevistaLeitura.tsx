@@ -1927,7 +1927,10 @@ export default function RevistaLeitura() {
                     <Button
                       className="w-full h-12 text-base"
                       variant="outline"
-                      onClick={() => window.open(item.shopify_url, "_blank")}
+                      onClick={() => {
+                        const q = encodeURIComponent(item.revistas_digitais?.titulo || "");
+                        window.open(`https://www.centralgospel.com.br/search?q=${q}`, "_blank");
+                      }}
                     >
                       <ExternalLink className="h-4 w-4 mr-2" /> Ver produto
                     </Button>
