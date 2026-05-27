@@ -239,7 +239,6 @@ export function FaturamentoSelectionDialog({
       }
     } catch (error) {
       console.error('Error fetching shipping:', error);
-      toast.error('Erro ao calcular frete');
       // Fallback options
       const fallbackToday = new Date();
       const fallbackPacDate = addBusinessDays(fallbackToday, 5);
