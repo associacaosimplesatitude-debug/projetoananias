@@ -790,8 +790,10 @@ function ShopifyTab() {
       if (data?.error) throw new Error(data.error);
     },
     onSuccess: () => {
-      toast.success("Licença adicionada");
+      toast.success("Licença adicionada — credenciais enviadas por WhatsApp/Email");
       queryClient.invalidateQueries({ queryKey: ["admin-revista-licencas-shopify"] });
+      queryClient.invalidateQueries({ queryKey: ["licenca-whatsapp-logs"] });
+      queryClient.invalidateQueries({ queryKey: ["licenca-email-logs"] });
       setShowAddDialog(false);
       setFormWhatsapp(""); setFormNome(""); setFormEmail(""); setFormRevistaId(""); setFormExpira("");
     },
