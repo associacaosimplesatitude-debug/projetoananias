@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -26,23 +26,33 @@ serve(async (req) => {
       });
     }
 
-    const userClient = createClient(supabaseUrl, anonKey, {
-      global: { headers: { Authorization: `Bearer ${token}` } },
+    const admin = createClient(supabaseUrl, serviceKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
     });
-    const { data: userData, error: userErr } = await userClient.auth.getUser();
-    if (userErr || !userData?.user) {
+
+    const authResponse = await fetch(`${supabaseUrl}/auth/v1/user`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        apikey: anonKey,
+      },
+    });
+
+    const authPayload = await authResponse.json().catch(() => null);
+
+    if (!authResponse.ok || !authPayload?.id) {
       return new Response(JSON.stringify({ error: "unauthorized" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const admin = createClient(supabaseUrl, serviceKey);
-
     const { data: roles } = await admin
       .from("user_roles")
       .select("role")
-      .eq("user_id", userData.user.id);
+      .eq("user_id", authPayload.id);
 
     const hasAccess = (roles || []).some((r: any) =>
       ["admin", "gerente_ebd", "superadmin"].includes(r.role)

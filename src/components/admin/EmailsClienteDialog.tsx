@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
@@ -88,13 +88,34 @@ export function EmailsClienteDialog({ open, onOpenChange, email, licencaId }: Pr
     refetchOnWindowFocus: false,
     queryFn: async () => {
       try {
-        const { data, error } = await supabase.functions.invoke("revista-emails-cliente", {
-          body: { email, licenca_id: licencaId },
-        });
-        if (error) {
-          console.warn("[EmailsClienteDialog] invoke error", error);
+        const { data: sessionData } = await supabase.auth.getSession();
+        const accessToken = sessionData?.session?.access_token;
+
+        if (!accessToken) {
+          console.warn("[EmailsClienteDialog] sessão ausente para consultar emails");
           return { email: email || "", emails: [] };
         }
+
+        const response = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/revista-emails-cliente`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${accessToken}`,
+              apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+            },
+            body: JSON.stringify({ email, licenca_id: licencaId }),
+          }
+        );
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          console.warn("[EmailsClienteDialog] http error", errorData);
+          return { email: email || "", emails: [] };
+        }
+
+        const data = await response.json();
         if ((data as any)?.error) {
           console.warn("[EmailsClienteDialog] function error", (data as any).error);
           return { email: email || "", emails: [] };
@@ -134,6 +155,9 @@ export function EmailsClienteDialog({ open, onOpenChange, email, licencaId }: Pr
               <span className="text-base font-semibold">{email || "—"}</span>
             </div>
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            Histórico de emails enviados ao cliente com status de entrega, abertura e clique.
+          </DialogDescription>
         </DialogHeader>
 
         <ScrollArea className="max-h-[70vh]">
