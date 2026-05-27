@@ -15,10 +15,10 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
 
     const authHeader = req.headers.get("Authorization") || "";
     const token = authHeader.replace(/^Bearer\s+/i, "");
-    console.log("[revista-emails-cliente] auth header present", Boolean(authHeader), "token present", Boolean(token));
     if (!token) {
       return new Response(JSON.stringify({ error: "unauthorized" }), {
         status: 401,
@@ -33,12 +33,16 @@ serve(async (req) => {
       },
     });
 
-    const { data: userData, error: userErr } = await admin.auth.getUser(token);
-    console.log("[revista-emails-cliente] getUser result", {
-      hasUser: Boolean(userData?.user),
-      error: userErr?.message || null,
+    const authResponse = await fetch(`${supabaseUrl}/auth/v1/user`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        apikey: anonKey,
+      },
     });
-    if (userErr || !userData?.user) {
+
+    const authPayload = await authResponse.json().catch(() => null);
+
+    if (!authResponse.ok || !authPayload?.id) {
       return new Response(JSON.stringify({ error: "unauthorized" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -48,12 +52,11 @@ serve(async (req) => {
     const { data: roles } = await admin
       .from("user_roles")
       .select("role")
-      .eq("user_id", userData.user.id);
+      .eq("user_id", authPayload.id);
 
     const hasAccess = (roles || []).some((r: any) =>
       ["admin", "gerente_ebd", "superadmin"].includes(r.role)
     );
-    console.log("[revista-emails-cliente] roles", roles || [], "hasAccess", hasAccess);
     if (!hasAccess) {
       return new Response(JSON.stringify({ error: "forbidden" }), {
         status: 403,
