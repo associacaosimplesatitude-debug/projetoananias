@@ -78,6 +78,7 @@ interface FaturamentoSelectionDialogProps {
   onSelectPagamentoLoja?: (pagamentoData: PagamentoLojaData) => void;
   canUseFreteManual?: boolean; // Apenas vendedor e gerente podem usar
   showPagarNaLoja?: boolean; // Apenas vendedores da Loja Penha veem esta opção
+  podeFaturar?: boolean; // Cliente habilitado para B2B
 }
 
 const BANDEIRAS_CARTAO = [
@@ -102,6 +103,7 @@ export function FaturamentoSelectionDialog({
   onSelectPagamentoLoja,
   canUseFreteManual = false,
   showPagarNaLoja = false,
+  podeFaturar = true,
 }: FaturamentoSelectionDialogProps) {
   const [selectedPrazo, setSelectedPrazo] = useState<string>('');
   const [step, setStep] = useState<'choice' | 'config' | 'config_padrao' | 'config_padrao_manual' | 'config_loja' | 'config_loja_estoque'>('choice');
@@ -449,33 +451,39 @@ export function FaturamentoSelectionDialog({
             Forma de Pagamento
           </AlertDialogTitle>
           <AlertDialogDescription className="text-base">
-            O cliente <strong className="text-foreground">{clienteNome}</strong> está habilitado para faturamento B2B.
+            {podeFaturar ? (
+              <>O cliente <strong className="text-foreground">{clienteNome}</strong> está habilitado para faturamento B2B.</>
+            ) : (
+              <>Selecione a forma de pagamento para <strong className="text-foreground">{clienteNome}</strong>.</>
+            )}
           </AlertDialogDescription>
         </AlertDialogHeader>
 
         {step === 'choice' && (
           <div className="space-y-3 mt-4">
-            <Button
-              variant="outline"
-              className="w-full h-auto p-4 justify-start text-left border-2 hover:border-primary hover:bg-primary/5 transition-all"
-              onClick={handleSelectFaturamento}
-            >
-              <div className="flex gap-4 items-start w-full">
-                <div className="p-2 rounded-lg bg-primary/10">
-                  <FileText className="h-6 w-6 text-primary" />
-                </div>
-                <div className="flex-1">
-                  <p className="font-semibold text-base">Faturar Pedido (B2B)</p>
-                  <p className="text-sm text-muted-foreground font-normal mt-1">
-                    Pagamento em 30, 60 ou 90 dias. Pedido criado diretamente no Bling.
-                  </p>
-                  <div className="flex items-center gap-2 mt-2">
-                    <Clock className="h-3.5 w-3.5 text-muted-foreground" />
-                    <span className="text-xs text-muted-foreground">Prazo estendido para clientes B2B</span>
+            {podeFaturar && (
+              <Button
+                variant="outline"
+                className="w-full h-auto p-4 justify-start text-left border-2 hover:border-primary hover:bg-primary/5 transition-all"
+                onClick={handleSelectFaturamento}
+              >
+                <div className="flex gap-4 items-start w-full">
+                  <div className="p-2 rounded-lg bg-primary/10">
+                    <FileText className="h-6 w-6 text-primary" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-semibold text-base">Faturar Pedido (B2B)</p>
+                    <p className="text-sm text-muted-foreground font-normal mt-1">
+                      Pagamento em 30, 60 ou 90 dias. Pedido criado diretamente no Bling.
+                    </p>
+                    <div className="flex items-center gap-2 mt-2">
+                      <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                      <span className="text-xs text-muted-foreground">Prazo estendido para clientes B2B</span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </Button>
+              </Button>
+            )}
 
             <Button
               variant="outline"
