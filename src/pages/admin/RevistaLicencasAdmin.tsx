@@ -613,6 +613,16 @@ function LicencaEditDrawer({ licenca, open, onClose, onSaved }: {
               <p className="text-xs text-muted-foreground text-center">
                 Reenvia via WhatsApp{licenca.email ? " e Email" : ""} usando os dados atuais da licença
               </p>
+              {licenca.email && (
+                <Button
+                  variant="outline"
+                  className="w-full gap-2"
+                  onClick={() => setEmailsDialogOpen(true)}
+                >
+                  <MailIcon className="h-4 w-4" />
+                  Ver emails enviados
+                </Button>
+              )}
             </div>
 
             <Separator />
