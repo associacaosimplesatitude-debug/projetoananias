@@ -7,122 +7,6 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-// Envia WhatsApp + Email para o cliente e registra em ebd_email_logs com tracking de abertura/clique.
-async function enviarAcessoCredenciais(
-  supabaseAdmin: any,
-  licencaId: string,
-) {
-  const { data: lic } = await supabaseAdmin
-    .from("revista_licencas_shopify")
-    .select("nome_comprador, whatsapp, email, revistas_digitais(titulo)")
-    .eq("id", licencaId)
-    .single();
-
-  if (!lic) return;
-
-  const titulo = (lic as any).revistas_digitais?.titulo || "Revista";
-  const urlAcesso = "https://gestaoebd.com.br/revista/acesso";
-
-  // WhatsApp
-  if (lic.whatsapp) {
-    try {
-      await fetch(
-        `${Deno.env.get("SUPABASE_URL")}/functions/v1/send-whatsapp-message`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-          },
-          body: JSON.stringify({
-            telefone: lic.whatsapp,
-            mensagem: `Ola, ${lic.nome_comprador || "Cliente"}! Sua ${titulo} esta disponivel.\n\nAcesse em:\n${urlAcesso}\n\nDigite seu numero de WhatsApp para receber o codigo de acesso.`,
-          }),
-        }
-      );
-    } catch (whatsErr) {
-      console.error("Erro WhatsApp:", whatsErr);
-    }
-  }
-
-  // Email via Resend com tracking
-  if (lic.email && lic.email.includes("@")) {
-    try {
-      const resendApiKey = Deno.env.get("RESEND_API_KEY");
-      if (!resendApiKey) return;
-
-      const assunto = `Seu acesso a ${titulo}`;
-      const { data: logRow } = await supabaseAdmin
-        .from("ebd_email_logs")
-        .insert({
-          destinatario: lic.email,
-          assunto,
-          status: "enviado",
-          tipo_envio: "revista_acesso",
-          dados_enviados: {
-            licenca_id: licencaId,
-            nome_comprador: lic.nome_comprador,
-            revista_titulo: titulo,
-          },
-        })
-        .select("id")
-        .single();
-
-      const logId = logRow?.id;
-      const trackerBase = `${Deno.env.get("SUPABASE_URL")}/functions/v1/ebd-email-tracker`;
-      const clickUrl = logId
-        ? `${trackerBase}?type=click&logId=${logId}&url=${encodeURIComponent(urlAcesso)}`
-        : urlAcesso;
-      const openPixel = logId
-        ? `<img src="${trackerBase}?type=open&logId=${logId}" width="1" height="1" alt="" style="display:none" />`
-        : "";
-
-      const resp = await fetch("https://api.resend.com/emails", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${resendApiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          from: "Central Gospel <relatorios@painel.editoracentralgospel.com.br>",
-          to: [lic.email],
-          subject: assunto,
-          html: `
-            <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px">
-              <h2 style="color:#1a1a1a">Olá, ${lic.nome_comprador || "leitor"}!</h2>
-              <p style="color:#333;font-size:16px">Seu acesso a <strong>${titulo}</strong> está disponível.</p>
-              <p style="color:#333;font-size:16px">Para acessar, clique no botão abaixo:</p>
-              <div style="text-align:center;margin:30px 0">
-                <a href="${clickUrl}" style="background-color:#2563eb;color:#fff;padding:14px 28px;text-decoration:none;border-radius:8px;font-size:16px;font-weight:bold">Acessar meu material</a>
-              </div>
-              <p style="color:#666;font-size:14px">Você vai precisar do seu número de WhatsApp para entrar.<br>Enviaremos um código de 4 números para confirmar sua identidade.</p>
-              <p style="color:#999;font-size:12px;margin-top:30px">Ou acesse diretamente: <a href="${clickUrl}">${urlAcesso}</a></p>
-              ${openPixel}
-            </div>
-          `,
-        }),
-      });
-      if (resp.ok && logId) {
-        const j = await resp.json().catch(() => ({}));
-        if (j?.id) {
-          await supabaseAdmin
-            .from("ebd_email_logs")
-            .update({ resend_email_id: j.id })
-            .eq("id", logId);
-        }
-      } else if (!resp.ok && logId) {
-        const txt = await resp.text().catch(() => "");
-        await supabaseAdmin
-          .from("ebd_email_logs")
-          .update({ status: "falhou", erro: txt.slice(0, 500) })
-          .eq("id", logId);
-      }
-    } catch (emailErr) {
-      console.error("Erro email:", emailErr);
-    }
-  }
-}
-
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -190,7 +74,7 @@ serve(async (req) => {
       .eq("user_id", userId);
 
     const hasAccess = (roles || []).some((r: any) =>
-      ["admin", "gerente_ebd", "superadmin"].includes(r.role)
+      ["admin", "gerente_ebd"].includes(r.role)
     );
 
     if (!hasAccess) {
@@ -232,17 +116,6 @@ serve(async (req) => {
         .select("id")
         .single();
       if (error) throw error;
-
-      // Dispara envio automático de credenciais (WhatsApp + Email com tracking)
-      if (inserted?.id && !params.skip_notifications) {
-        // Fire and forget - falhas no envio NÃO revertem o INSERT
-        try {
-          await enviarAcessoCredenciais(supabaseAdmin, inserted.id);
-        } catch (e) {
-          console.error("enviarAcessoCredenciais falhou (insert):", e);
-        }
-      }
-
       return new Response(JSON.stringify({ success: true, id: inserted?.id }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -276,7 +149,117 @@ serve(async (req) => {
     }
 
     if (action === "resend") {
-      await enviarAcessoCredenciais(supabaseAdmin, params.id);
+      const { data: lic } = await supabaseAdmin
+        .from("revista_licencas_shopify")
+        .select("nome_comprador, whatsapp, email, revistas_digitais(titulo)")
+        .eq("id", params.id)
+        .single();
+
+      if (!lic) throw new Error("Licença não encontrada");
+
+      const titulo = (lic as any).revistas_digitais?.titulo || "Revista";
+      const urlAcesso = "https://gestaoebd.com.br/revista/acesso";
+
+      // Envio WhatsApp
+      if (lic.whatsapp) {
+        try {
+          await fetch(
+            `${Deno.env.get("SUPABASE_URL")}/functions/v1/send-whatsapp-message`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+              },
+              body: JSON.stringify({
+                telefone: lic.whatsapp,
+                mensagem: `Ola, ${lic.nome_comprador || "Cliente"}! Sua ${titulo} esta disponivel.\n\nAcesse em:\n${urlAcesso}\n\nDigite seu numero de WhatsApp para receber o codigo de acesso.`,
+              }),
+            }
+          );
+        } catch (whatsErr) {
+          console.error("Erro ao reenviar WhatsApp:", whatsErr);
+        }
+      }
+
+      // Envio Email via Resend (com tracking)
+      if (lic.email && lic.email.includes("@")) {
+        try {
+          const resendApiKey = Deno.env.get("RESEND_API_KEY");
+          if (resendApiKey) {
+            const assunto = `Seu acesso a ${titulo}`;
+            // Cria log antes do envio para tracking de abertura/clique
+            const { data: logRow } = await supabaseAdmin
+              .from("ebd_email_logs")
+              .insert({
+                destinatario: lic.email,
+                assunto,
+                status: "enviado",
+                tipo_envio: "revista_acesso",
+                dados_enviados: {
+                  licenca_id: params.id,
+                  nome_comprador: lic.nome_comprador,
+                  revista_titulo: titulo,
+                },
+              })
+              .select("id")
+              .single();
+
+            const logId = logRow?.id;
+            const trackerBase = `${Deno.env.get("SUPABASE_URL")}/functions/v1/ebd-email-tracker`;
+            const clickUrl = logId
+              ? `${trackerBase}?type=click&logId=${logId}&url=${encodeURIComponent(urlAcesso)}`
+              : urlAcesso;
+            const openPixel = logId
+              ? `<img src="${trackerBase}?type=open&logId=${logId}" width="1" height="1" alt="" style="display:none" />`
+              : "";
+
+            const resp = await fetch("https://api.resend.com/emails", {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${resendApiKey}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                from: "Central Gospel <relatorios@painel.editoracentralgospel.com.br>",
+                to: [lic.email],
+                subject: assunto,
+                html: `
+                  <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px">
+                    <h2 style="color:#1a1a1a">Olá, ${lic.nome_comprador || "leitor"}!</h2>
+                    <p style="color:#333;font-size:16px">Seu acesso a <strong>${titulo}</strong> está disponível.</p>
+                    <p style="color:#333;font-size:16px">Para acessar, clique no botão abaixo:</p>
+                    <div style="text-align:center;margin:30px 0">
+                      <a href="${clickUrl}" style="background-color:#2563eb;color:#fff;padding:14px 28px;text-decoration:none;border-radius:8px;font-size:16px;font-weight:bold">Acessar meu material</a>
+                    </div>
+                    <p style="color:#666;font-size:14px">Você vai precisar do seu número de WhatsApp para entrar.<br>Enviaremos um código de 4 números para confirmar sua identidade.</p>
+                    <p style="color:#999;font-size:12px;margin-top:30px">Ou acesse diretamente: <a href="${clickUrl}">${urlAcesso}</a></p>
+                    ${openPixel}
+                  </div>
+                `,
+              }),
+            });
+            if (resp.ok && logId) {
+              const j = await resp.json().catch(() => ({}));
+              if (j?.id) {
+                await supabaseAdmin
+                  .from("ebd_email_logs")
+                  .update({ resend_email_id: j.id })
+                  .eq("id", logId);
+              }
+            } else if (!resp.ok && logId) {
+              const txt = await resp.text().catch(() => "");
+              await supabaseAdmin
+                .from("ebd_email_logs")
+                .update({ status: "falhou", erro: txt.slice(0, 500) })
+                .eq("id", logId);
+            }
+          }
+        } catch (emailErr) {
+          console.error("Erro ao reenviar email:", emailErr);
+        }
+      }
+
       return new Response(JSON.stringify({ success: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
