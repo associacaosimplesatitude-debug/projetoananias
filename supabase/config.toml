@@ -381,3 +381,12 @@ verify_jwt = true
 
 [functions.enviar-resumo-diario-whatsapp]
 verify_jwt = false
+
+[functions.revista-licencas-shopify-admin]
+verify_jwt = false
+
+[functions.revista-emails-cliente]
+verify_jwt = false
+
+[functions.revista-admin-impersonate]
+verify_jwt = false
