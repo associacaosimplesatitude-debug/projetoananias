@@ -1554,7 +1554,7 @@ export default function RevistaLeitura() {
         })()}
 
         {/* Multiple revistas - show grid */}
-        {!selectedRevista && licencas.length > 1 && (
+        {!selectedRevista && licencas.length >= 1 && (
           <div className="space-y-6">
             <h1 className={`text-2xl font-bold ${modoNoturno ? "text-white" : "text-foreground"}`}>
               Minha Biblioteca
