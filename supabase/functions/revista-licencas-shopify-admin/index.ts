@@ -52,13 +52,8 @@ serve(async (req) => {
       });
     }
 
-    const supabaseUser = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_ANON_KEY")!,
-      { global: { headers: { Authorization: authHeader } } }
-    );
-
-    const { data: userData, error: userError } = await supabaseUser.auth.getUser();
+    const accessToken = authHeader.replace(/^Bearer\s+/i, "").trim();
+    const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(accessToken);
     if (userError || !userData?.user) {
       console.log("[revista-licencas-shopify-admin] 401 getUser falhou", userError?.message);
       return new Response(JSON.stringify({ error: "Unauthorized", reason: "get_user_failed", detail: userError?.message }), {
