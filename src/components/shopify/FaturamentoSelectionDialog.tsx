@@ -461,27 +461,29 @@ export function FaturamentoSelectionDialog({
 
         {step === 'choice' && (
           <div className="space-y-3 mt-4">
-            <Button
-              variant="outline"
-              className="w-full h-auto p-4 justify-start text-left border-2 hover:border-primary hover:bg-primary/5 transition-all"
-              onClick={handleSelectFaturamento}
-            >
-              <div className="flex gap-4 items-start w-full">
-                <div className="p-2 rounded-lg bg-primary/10">
-                  <FileText className="h-6 w-6 text-primary" />
-                </div>
-                <div className="flex-1">
-                  <p className="font-semibold text-base">Faturar Pedido (B2B)</p>
-                  <p className="text-sm text-muted-foreground font-normal mt-1">
-                    Pagamento em 30, 60 ou 90 dias. Pedido criado diretamente no Bling.
-                  </p>
-                  <div className="flex items-center gap-2 mt-2">
-                    <Clock className="h-3.5 w-3.5 text-muted-foreground" />
-                    <span className="text-xs text-muted-foreground">Prazo estendido para clientes B2B</span>
+            {podeFaturar && (
+              <Button
+                variant="outline"
+                className="w-full h-auto p-4 justify-start text-left border-2 hover:border-primary hover:bg-primary/5 transition-all"
+                onClick={handleSelectFaturamento}
+              >
+                <div className="flex gap-4 items-start w-full">
+                  <div className="p-2 rounded-lg bg-primary/10">
+                    <FileText className="h-6 w-6 text-primary" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-semibold text-base">Faturar Pedido (B2B)</p>
+                    <p className="text-sm text-muted-foreground font-normal mt-1">
+                      Pagamento em 30, 60 ou 90 dias. Pedido criado diretamente no Bling.
+                    </p>
+                    <div className="flex items-center gap-2 mt-2">
+                      <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                      <span className="text-xs text-muted-foreground">Prazo estendido para clientes B2B</span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </Button>
+              </Button>
+            )}
 
             <Button
               variant="outline"
