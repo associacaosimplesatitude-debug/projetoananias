@@ -45,7 +45,8 @@ serve(async (req) => {
     // All other actions require auth + admin role
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      console.log("[revista-licencas-shopify-admin] 401 sem Authorization header");
+      return new Response(JSON.stringify({ error: "Unauthorized", reason: "missing_auth_header" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -59,7 +60,8 @@ serve(async (req) => {
 
     const { data: userData, error: userError } = await supabaseUser.auth.getUser();
     if (userError || !userData?.user) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      console.log("[revista-licencas-shopify-admin] 401 getUser falhou", userError?.message);
+      return new Response(JSON.stringify({ error: "Unauthorized", reason: "get_user_failed", detail: userError?.message }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -73,16 +75,19 @@ serve(async (req) => {
       .select("role")
       .eq("user_id", userId);
 
-    const hasAccess = (roles || []).some((r: any) =>
-      ["admin", "gerente_ebd"].includes(r.role)
+    const roleList = (roles || []).map((r: any) => r.role);
+    const hasAccess = roleList.some((r: string) =>
+      ["admin", "gerente_ebd", "superadmin"].includes(r)
     );
 
     if (!hasAccess) {
+      console.log("[revista-licencas-shopify-admin] 403 sem role", { userId, roles: roleList });
       return new Response(
-        JSON.stringify({ error: "Sem permissão" }),
+        JSON.stringify({ error: "Sem permissão", roles: roleList }),
         { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
 
     if (action === "list") {
       const allRows: any[] = [];
