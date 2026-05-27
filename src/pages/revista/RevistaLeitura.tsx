@@ -315,14 +315,19 @@ export default function RevistaLeitura() {
     }
 
     const stored = localStorage.getItem(REVISTA_KEYS.LICENCAS);
+    let cached: Licenca[] = [];
     if (stored) {
-      const parsed = JSON.parse(stored) as Licenca[];
-      setLicencas(parsed);
-      if (parsed.length > 0) {
-        setNomeComprador(parsed[0].nome_comprador || "");
+      try {
+        cached = JSON.parse(stored) as Licenca[];
+      } catch {
+        cached = [];
       }
-      if (parsed.length === 1 && parsed[0].revista_id && parsed[0].revistas_digitais?.tipo_conteudo !== "infografico") {
-        setSelectedRevista(parsed[0].revista_id);
+      setLicencas(cached);
+      if (cached.length > 0) {
+        setNomeComprador(cached[0].nome_comprador || "");
+      }
+      if (cached.length === 1 && cached[0].revista_id && cached[0].revistas_digitais?.tipo_conteudo !== "infografico") {
+        setSelectedRevista(cached[0].revista_id);
       }
 
       // Show onboarding if first visit
@@ -330,7 +335,28 @@ export default function RevistaLeitura() {
       if (!jaViu) setMostrarOnboarding(true);
 
       // Geo tracking
-      trackAcesso(parsed);
+      trackAcesso(cached);
+    }
+
+    // Refresh licenças from backend (pega novas compras / inclusões manuais)
+    const decoded = session.decoded as { whatsapp?: string; email?: string };
+    const identifier = decoded?.whatsapp || decoded?.email;
+    if (identifier) {
+      supabase.functions
+        .invoke("revista-listar-licencas", {
+          body: { whatsapp: decoded?.whatsapp, email: decoded?.email },
+        })
+        .then(({ data, error }) => {
+          if (error || !data?.licencas) return;
+          const fresh = data.licencas as Licenca[];
+          const cachedIds = cached.map((l) => l.revista_id).sort().join(",");
+          const freshIds = fresh.map((l) => l.revista_id).sort().join(",");
+          if (cachedIds === freshIds) return;
+          localStorage.setItem(REVISTA_KEYS.LICENCAS, JSON.stringify(fresh));
+          setLicencas(fresh);
+          if (fresh.length > 0) setNomeComprador(fresh[0].nome_comprador || "");
+        })
+        .catch(() => {});
     }
   }, [navigate]);
 
@@ -442,6 +468,20 @@ export default function RevistaLeitura() {
 
   const handleAtualizarConteudo = async () => {
     try {
+      // Refresh licenças do backend antes de recarregar
+      try {
+        const session = getValidRevistaSession();
+        const decoded = session?.decoded as { whatsapp?: string; email?: string } | undefined;
+        if (decoded?.whatsapp || decoded?.email) {
+          const { data } = await supabase.functions.invoke("revista-listar-licencas", {
+            body: { whatsapp: decoded.whatsapp, email: decoded.email },
+          });
+          if (data?.licencas) {
+            localStorage.setItem(REVISTA_KEYS.LICENCAS, JSON.stringify(data.licencas));
+          }
+        }
+      } catch {}
+
       // Unregister service workers
       if ("serviceWorker" in navigator) {
         const regs = await navigator.serviceWorker.getRegistrations();
