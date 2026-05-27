@@ -468,6 +468,20 @@ export default function RevistaLeitura() {
 
   const handleAtualizarConteudo = async () => {
     try {
+      // Refresh licenças do backend antes de recarregar
+      try {
+        const session = getValidRevistaSession();
+        const decoded = session?.decoded as { whatsapp?: string; email?: string } | undefined;
+        if (decoded?.whatsapp || decoded?.email) {
+          const { data } = await supabase.functions.invoke("revista-listar-licencas", {
+            body: { whatsapp: decoded.whatsapp, email: decoded.email },
+          });
+          if (data?.licencas) {
+            localStorage.setItem(REVISTA_KEYS.LICENCAS, JSON.stringify(data.licencas));
+          }
+        }
+      } catch {}
+
       // Unregister service workers
       if ("serviceWorker" in navigator) {
         const regs = await navigator.serviceWorker.getRegistrations();
