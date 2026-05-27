@@ -15,7 +15,6 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
 
     const authHeader = req.headers.get("Authorization") || "";
     const token = authHeader.replace(/^Bearer\s+/i, "");
@@ -26,18 +25,20 @@ serve(async (req) => {
       });
     }
 
-    const userClient = createClient(supabaseUrl, anonKey, {
-      global: { headers: { Authorization: `Bearer ${token}` } },
+    const admin = createClient(supabaseUrl, serviceKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
     });
-    const { data: userData, error: userErr } = await userClient.auth.getUser();
+
+    const { data: userData, error: userErr } = await admin.auth.getUser(token);
     if (userErr || !userData?.user) {
       return new Response(JSON.stringify({ error: "unauthorized" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-
-    const admin = createClient(supabaseUrl, serviceKey);
 
     const { data: roles } = await admin
       .from("user_roles")
