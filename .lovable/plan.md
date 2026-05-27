@@ -1,47 +1,58 @@
 ## Diagnóstico
 
-A aba E-commerce em `/admin/ebd/revista-licencas` está vazia ("Vendas totais" 0, "Ativas" 0) e retorna **401 Unauthorized** da função `revista-licencas-shopify-admin`. O card "CG Digital" mostra 1402 porque ele usa outra RPC (`execute_readonly_query`) que não passa pela edge function.
+A cliente **Suellen** (`b3ff9feb-…`, telefone 21997043519) e o cliente **Pedro Augusto Rodrigues Pereira** (`9693ca08-…`, CNPJ 30973042000170) estão no banco com `pode_faturar = false` em `ebd_clientes`. Mesmo assim o modal “Forma de Pagamento” aparece e ambos conseguem clicar em **Faturar Pedido (B2B)**.
 
-Causas identificadas no arquivo restaurado `supabase/functions/revista-licencas-shopify-admin/index.ts`:
+O modal do print é o `FaturamentoSelectionDialog` (`src/components/shopify/FaturamentoSelectionDialog.tsx`), aberto a partir de `src/pages/shopify/ShopifyPedidos.tsx` no fluxo do checkout do carrinho.
 
-1. **Role `superadmin` não está autorizada.** O check só permite `admin` e `gerente_ebd`:
-   ```ts
-   const hasAccess = (roles || []).some((r) =>
-     ["admin", "gerente_ebd"].includes(r.role)
-   );
-   ```
-   Usuários que só têm `superadmin` (sem `admin`) caem em 403 — e, como o frontend mostra a mensagem genérica do `functions.invoke`, aparece como 401.
+### Causa raiz
 
-2. **Função não foi redeployada após o restore.** Os logs só mostram `boot/shutdown`, sem requisições — indício forte de que a versão ativa no servidor é a antiga / não foi atualizada após o restore. Redeploy força sincronizar com o arquivo restaurado.
+Em `src/pages/shopify/ShopifyPedidos.tsx`, dentro do handler de finalizar carrinho (linhas 517–524):
 
-3. **Mensagem de erro pobre.** Hoje só responde `{"error":"Unauthorized"}` sem dizer se é "sem Authorization", "getUser falhou" ou "sem role". Dificulta diagnóstico futuro.
-
-## Correção (mínima, só na edge function — sem mexer no frontend)
-
-### Arquivo: `supabase/functions/revista-licencas-shopify-admin/index.ts`
-
-a) **Incluir `superadmin`** no array de roles autorizadas:
 ```ts
-const hasAccess = (roles || []).some((r) =>
-   ["admin", "gerente_ebd", "superadmin"].includes(r.role)
-);
+// Se tem cliente selecionado (superintendente logado com cadastro)
+if (!isVendedor && selectedCliente) {
+  setShowFaturamentoDialog(true);   // ❌ NÃO checa pode_faturar
+  return;
+}
 ```
 
-b) **Logar o motivo do 401/403** (`console.log` com `userId`, presença de `authHeader`, roles encontradas) para facilitar próximos diagnósticos.
+O dialog é aberto **sempre** que um superintendente logado tem cadastro vinculado, sem olhar a flag `pode_faturar`. Para o caminho do vendedor, a checagem existe corretamente (linha 542: `if (selectedCliente.pode_faturar || canUseFreteManual)`), mas no caminho do superintendente ela foi esquecida.
 
-c) **Não alterar mais nada** — manter o restante exatamente como está na versão restaurada, incluindo as actions `list`, `insert`, `deactivate`, `resend`, etc.
+Resultado: qualquer cliente logado (B2B desativado ou não) vê o modal e o botão “Faturar Pedido (B2B)”.
 
-### Deploy
+## Correção (escopo mínimo, só frontend)
 
-Redeployar **apenas** `revista-licencas-shopify-admin` via `supabase--deploy_edge_functions` e validar com `supabase--curl_edge_functions` (action `list`) que retorna `data` com as licenças.
+Único arquivo alterado: `src/pages/shopify/ShopifyPedidos.tsx`, bloco das linhas 517–524.
 
-## Fora do escopo
+Trocar:
 
-- Não vou tocar em `RevistaLicencasAdmin.tsx` nem em outras funções (`revista-admin-impersonate`, `liberar-presente-cartas-prisao`). O usuário restaurou para a versão estável de ontem e quero manter assim — só corrijo o que está bloqueando a aba E-commerce.
-- Tracking de email (enviado/aberto/clicou) e botão "Ver como cliente" ficam para uma próxima rodada, depois de confirmado que a tela voltou a funcionar.
+```ts
+if (!isVendedor && selectedCliente) {
+  setShowFaturamentoDialog(true);
+  return;
+}
+```
+
+por:
+
+```ts
+if (!isVendedor && selectedCliente) {
+  if (selectedCliente.pode_faturar) {
+    // Cliente B2B habilitado: pode escolher Faturar ou Pagamento Padrão
+    setShowFaturamentoDialog(true);
+    return;
+  }
+  // Cliente sem B2B: cai no fluxo padrão (checkout normal logo abaixo)
+}
+```
+
+Assim, quando `pode_faturar = false`, o código segue para a rota de checkout padrão já existente para cliente final (`handleCreateDraftOrder(...)` mais abaixo), exatamente como acontece para clientes sem cadastro.
+
+Nada mais é tocado: nenhuma mudança em RLS, no Bling, no dialog em si, no caminho do vendedor ou em outras telas.
 
 ## Validação
 
-1. Após o deploy, recarregar `/admin/ebd/revista-licencas` → aba E-commerce.
-2. Esperado: cards "Vendas totais" e "Ativas" com números > 0 e a lista preenchida.
-3. Se ainda houver 401, conferir nos logs o motivo (auth header ausente, getUser, sem role) — agora será visível.
+1. Logar como **Suellen** (`pode_faturar = false`), adicionar item ao carrinho e finalizar → deve ir direto para o checkout padrão; o modal “Forma de Pagamento / Faturar Pedido (B2B)” não deve aparecer.
+2. Logar como **Pedro Augusto Rodrigues Pereira** (`pode_faturar = false`) → mesmo comportamento, sem modal de faturamento.
+3. Logar como um cliente com `pode_faturar = true` → modal continua aparecendo normalmente com as duas opções.
+4. Fluxo do vendedor não muda: para clientes com `pode_faturar = true` o modal continua aparecendo; para os demais segue a lógica atual de descontos.

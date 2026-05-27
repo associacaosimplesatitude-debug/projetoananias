@@ -515,12 +515,14 @@ export default function ShopifyPedidos() {
     }
 
     // Se tem cliente selecionado (superintendente logado com cadastro)
-    // Mostrar modal de forma de pagamento igual ao vendedor
+    // Mostrar modal de forma de pagamento apenas se o cliente estiver habilitado para B2B
     if (!isVendedor && selectedCliente) {
-      // Cliente com cadastro: abrir modal de faturamento igual ao vendedor
-      // Isso permite que o cliente escolha Faturar ou Pagamento Padrão
-      setShowFaturamentoDialog(true);
-      return;
+      if (selectedCliente.pode_faturar) {
+        // Cliente B2B habilitado: pode escolher Faturar ou Pagamento Padrão
+        setShowFaturamentoDialog(true);
+        return;
+      }
+      // Cliente sem B2B: cai no fluxo padrão (checkout normal logo abaixo)
     }
 
     if (!selectedCliente) {
