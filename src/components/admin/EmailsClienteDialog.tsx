@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
@@ -134,6 +134,9 @@ export function EmailsClienteDialog({ open, onOpenChange, email, licencaId }: Pr
               <span className="text-base font-semibold">{email || "—"}</span>
             </div>
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            Histórico de emails enviados ao cliente com status de entrega, abertura e clique.
+          </DialogDescription>
         </DialogHeader>
 
         <ScrollArea className="max-h-[70vh]">
