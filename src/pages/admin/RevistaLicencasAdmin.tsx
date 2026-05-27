@@ -19,6 +19,7 @@ import { toast } from "sonner";
 import { Plus, Search, Filter, Users, CreditCard, TrendingUp, Send, Ban, ShoppingCart, Trophy, Monitor, WifiOff, BookOpen, Mail, Loader2, CheckCircle2, XCircle, MessageSquare, MailIcon, Clock, User, Phone, AtSign, BookMarked, ShieldCheck, Hash, CalendarDays, Eye, MousePointerClick } from "lucide-react";
 import { saveRevistaSession, persistRevistaToken } from "@/lib/revistaSession";
 import { format } from "date-fns";
+import { EmailsClienteDialog } from "@/components/admin/EmailsClienteDialog";
 
 // === UTILS ===
 function generateCodigoPagamento() {
@@ -394,6 +395,7 @@ function LicencaEditDrawer({ licenca, open, onClose, onSaved }: {
   const [editWhatsapp, setEditWhatsapp] = useState("");
   const [editEmail, setEditEmail] = useState("");
   const [editAtivo, setEditAtivo] = useState(true);
+  const [emailsDialogOpen, setEmailsDialogOpen] = useState(false);
 
   const licId = licenca?.id;
   const [prevId, setPrevId] = useState<string | null>(null);
@@ -611,6 +613,16 @@ function LicencaEditDrawer({ licenca, open, onClose, onSaved }: {
               <p className="text-xs text-muted-foreground text-center">
                 Reenvia via WhatsApp{licenca.email ? " e Email" : ""} usando os dados atuais da licença
               </p>
+              {licenca.email && (
+                <Button
+                  variant="outline"
+                  className="w-full gap-2"
+                  onClick={() => setEmailsDialogOpen(true)}
+                >
+                  <MailIcon className="h-4 w-4" />
+                  Ver emails enviados
+                </Button>
+              )}
             </div>
 
             <Separator />
@@ -683,6 +695,12 @@ function LicencaEditDrawer({ licenca, open, onClose, onSaved }: {
           </div>
         </ScrollArea>
       </SheetContent>
+      <EmailsClienteDialog
+        open={emailsDialogOpen}
+        onOpenChange={setEmailsDialogOpen}
+        email={licenca?.email || null}
+        licencaId={licenca?.id || null}
+      />
     </Sheet>
   );
 }
@@ -772,8 +790,10 @@ function ShopifyTab() {
       if (data?.error) throw new Error(data.error);
     },
     onSuccess: () => {
-      toast.success("Licença adicionada");
+      toast.success("Licença adicionada — credenciais enviadas por WhatsApp/Email");
       queryClient.invalidateQueries({ queryKey: ["admin-revista-licencas-shopify"] });
+      queryClient.invalidateQueries({ queryKey: ["licenca-whatsapp-logs"] });
+      queryClient.invalidateQueries({ queryKey: ["licenca-email-logs"] });
       setShowAddDialog(false);
       setFormWhatsapp(""); setFormNome(""); setFormEmail(""); setFormRevistaId(""); setFormExpira("");
     },
