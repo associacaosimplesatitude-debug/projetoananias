@@ -695,6 +695,12 @@ function LicencaEditDrawer({ licenca, open, onClose, onSaved }: {
           </div>
         </ScrollArea>
       </SheetContent>
+      <EmailsClienteDialog
+        open={emailsDialogOpen}
+        onOpenChange={setEmailsDialogOpen}
+        email={licenca?.email || null}
+        licencaId={licenca?.id || null}
+      />
     </Sheet>
   );
 }
