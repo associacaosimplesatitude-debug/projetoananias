@@ -1927,13 +1927,14 @@ export default function RevistaLeitura() {
                     <Button
                       className="w-full h-12 text-base"
                       variant="outline"
+                      disabled={!item.shopify_url}
                       onClick={() => {
-                        const q = encodeURIComponent(item.revistas_digitais?.titulo || "");
-                        window.open(`https://www.centralgospel.com.br/search?q=${q}`, "_blank");
+                        if (item.shopify_url) window.open(item.shopify_url, "_blank");
                       }}
                     >
                       <ExternalLink className="h-4 w-4 mr-2" /> Ver produto
                     </Button>
+
                   </CardContent>
                 </Card>
               ))}
