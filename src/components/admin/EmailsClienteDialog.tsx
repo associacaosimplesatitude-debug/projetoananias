@@ -84,13 +84,26 @@ export function EmailsClienteDialog({ open, onOpenChange, email, licencaId }: Pr
   const { data, isLoading } = useQuery({
     queryKey: ["emails-cliente", email, licencaId],
     enabled: open && (!!email || !!licencaId),
+    retry: false,
+    refetchOnWindowFocus: false,
     queryFn: async () => {
-      const { data, error } = await supabase.functions.invoke("revista-emails-cliente", {
-        body: { email, licenca_id: licencaId },
-      });
-      if (error) throw error;
-      if ((data as any)?.error) throw new Error((data as any).error);
-      return data as { email: string; emails: EmailItem[] };
+      try {
+        const { data, error } = await supabase.functions.invoke("revista-emails-cliente", {
+          body: { email, licenca_id: licencaId },
+        });
+        if (error) {
+          console.warn("[EmailsClienteDialog] invoke error", error);
+          return { email: email || "", emails: [] };
+        }
+        if ((data as any)?.error) {
+          console.warn("[EmailsClienteDialog] function error", (data as any).error);
+          return { email: email || "", emails: [] };
+        }
+        return data as { email: string; emails: EmailItem[] };
+      } catch (e) {
+        console.warn("[EmailsClienteDialog] exception", e);
+        return { email: email || "", emails: [] };
+      }
     },
   });
 
