@@ -103,6 +103,7 @@ export function FaturamentoSelectionDialog({
   onSelectPagamentoLoja,
   canUseFreteManual = false,
   showPagarNaLoja = false,
+  podeFaturar = true,
 }: FaturamentoSelectionDialogProps) {
   const [selectedPrazo, setSelectedPrazo] = useState<string>('');
   const [step, setStep] = useState<'choice' | 'config' | 'config_padrao' | 'config_padrao_manual' | 'config_loja' | 'config_loja_estoque'>('choice');
