@@ -1522,6 +1522,7 @@ export default function ShopifyPedidos() {
             onSelectFaturamento={handleSelectFaturamento}
             onSelectPagamentoPadrao={handleSelectPagamentoPadrao}
             canUseFreteManual={canUseFreteManual}
+            podeFaturar={!!selectedCliente?.pode_faturar}
             showPagarNaLoja={!!vendedor?.polo}
             onSelectPagamentoLoja={async (pagamentoData: PagamentoLojaData) => {
               if (!selectedCliente) return;
