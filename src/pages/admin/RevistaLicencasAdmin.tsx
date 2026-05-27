@@ -69,6 +69,41 @@ type ShopifyLicencaRow = {
 
 type CardFilterType = "vendas" | "ativas" | "cg_digital" | "leitor_cg" | "livros" | null;
 
+async function callRevistaLicencasShopifyAdmin(body: Record<string, unknown>) {
+  const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+  if (sessionError) throw sessionError;
+
+  const accessToken = sessionData.session?.access_token;
+  if (!accessToken) {
+    throw new Error("Sessão expirada. Faça login novamente.");
+  }
+
+  const response = await fetch(
+    `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/revista-licencas-shopify-admin`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+        apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+      },
+      body: JSON.stringify(body),
+    }
+  );
+
+  const payload = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(payload?.detail || payload?.error || `Erro ${response.status}`);
+  }
+
+  if (payload?.error) {
+    throw new Error(payload.error);
+  }
+
+  return payload;
+}
+
 // === SUB-COMPONENTS ===
 
 function SuperintendentTab() {
@@ -461,21 +496,14 @@ function LicencaEditDrawer({ licenca, open, onClose, onSaved }: {
 
   const updateMutation = useMutation({
     mutationFn: async () => {
-      const { data, error } = await supabase.functions.invoke(
-        "revista-licencas-shopify-admin",
-        {
-          body: {
-            action: "update",
-            id: licenca!.id,
-            nome_comprador: editNome,
-            whatsapp: editWhatsapp.replace(/\D/g, ""),
-            email: editEmail,
-            ativo: editAtivo,
-          },
-        }
-      );
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
+      await callRevistaLicencasShopifyAdmin({
+        action: "update",
+        id: licenca!.id,
+        nome_comprador: editNome,
+        whatsapp: editWhatsapp.replace(/\D/g, ""),
+        email: editEmail,
+        ativo: editAtivo,
+      });
     },
     onSuccess: () => {
       toast.success("Licença atualizada");
@@ -486,12 +514,7 @@ function LicencaEditDrawer({ licenca, open, onClose, onSaved }: {
 
   const resendMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { data, error } = await supabase.functions.invoke(
-        "revista-licencas-shopify-admin",
-        { body: { action: "resend", id } }
-      );
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
+      await callRevistaLicencasShopifyAdmin({ action: "resend", id });
     },
     onSuccess: () => toast.success("Acesso reenviado com sucesso"),
     onError: (e: Error) => toast.error(e.message),
@@ -704,11 +727,7 @@ function ShopifyTab() {
   const { data: licencas = [], isLoading } = useQuery({
     queryKey: ["admin-revista-licencas-shopify"],
     queryFn: async () => {
-      const { data, error } = await supabase.functions.invoke(
-        "revista-licencas-shopify-admin",
-        { body: { action: "list" } }
-      );
-      if (error) throw error;
+      const data = await callRevistaLicencasShopifyAdmin({ action: "list" });
       return (data?.data || []) as ShopifyLicencaRow[];
     },
   });
@@ -752,24 +771,17 @@ function ShopifyTab() {
     mutationFn: async () => {
       const digits = formWhatsapp.replace(/\D/g, "");
       const whatsappLimpo = digits.startsWith("55") && digits.length >= 12 ? digits.slice(2) : digits;
-      const { data, error } = await supabase.functions.invoke(
-        "revista-licencas-shopify-admin",
-        {
-          body: {
-            action: "insert",
-            record: {
-              whatsapp: whatsappLimpo,
-              nome_comprador: formNome || null,
-              email: formEmail || null,
-              revista_id: formRevistaId || null,
-              expira_em: formExpira || null,
-              ativo: true,
-            },
-          },
-        }
-      );
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
+      await callRevistaLicencasShopifyAdmin({
+        action: "insert",
+        record: {
+          whatsapp: whatsappLimpo,
+          nome_comprador: formNome || null,
+          email: formEmail || null,
+          revista_id: formRevistaId || null,
+          expira_em: formExpira || null,
+          ativo: true,
+        },
+      });
     },
     onSuccess: () => {
       toast.success("Licença adicionada");
@@ -782,12 +794,7 @@ function ShopifyTab() {
 
   const deactivateMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { data, error } = await supabase.functions.invoke(
-        "revista-licencas-shopify-admin",
-        { body: { action: "deactivate", id } }
-      );
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
+      await callRevistaLicencasShopifyAdmin({ action: "deactivate", id });
     },
     onSuccess: () => {
       toast.success("Licença desativada");
@@ -798,12 +805,7 @@ function ShopifyTab() {
 
   const resendMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { data, error } = await supabase.functions.invoke(
-        "revista-licencas-shopify-admin",
-        { body: { action: "resend", id } }
-      );
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
+      await callRevistaLicencasShopifyAdmin({ action: "resend", id });
     },
     onSuccess: () => toast.success("Acesso reenviado por WhatsApp"),
     onError: (e: Error) => toast.error(e.message),
