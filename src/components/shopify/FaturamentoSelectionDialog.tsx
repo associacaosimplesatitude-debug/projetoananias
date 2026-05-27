@@ -451,7 +451,11 @@ export function FaturamentoSelectionDialog({
             Forma de Pagamento
           </AlertDialogTitle>
           <AlertDialogDescription className="text-base">
-            O cliente <strong className="text-foreground">{clienteNome}</strong> está habilitado para faturamento B2B.
+            {podeFaturar ? (
+              <>O cliente <strong className="text-foreground">{clienteNome}</strong> está habilitado para faturamento B2B.</>
+            ) : (
+              <>Selecione a forma de pagamento para <strong className="text-foreground">{clienteNome}</strong>.</>
+            )}
           </AlertDialogDescription>
         </AlertDialogHeader>
 
