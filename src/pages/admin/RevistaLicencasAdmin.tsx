@@ -395,6 +395,7 @@ function LicencaEditDrawer({ licenca, open, onClose, onSaved }: {
   const [editWhatsapp, setEditWhatsapp] = useState("");
   const [editEmail, setEditEmail] = useState("");
   const [editAtivo, setEditAtivo] = useState(true);
+  const [emailsDialogOpen, setEmailsDialogOpen] = useState(false);
 
   const licId = licenca?.id;
   const [prevId, setPrevId] = useState<string | null>(null);
