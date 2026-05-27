@@ -88,13 +88,34 @@ export function EmailsClienteDialog({ open, onOpenChange, email, licencaId }: Pr
     refetchOnWindowFocus: false,
     queryFn: async () => {
       try {
-        const { data, error } = await supabase.functions.invoke("revista-emails-cliente", {
-          body: { email, licenca_id: licencaId },
-        });
-        if (error) {
-          console.warn("[EmailsClienteDialog] invoke error", error);
+        const { data: sessionData } = await supabase.auth.getSession();
+        const accessToken = sessionData?.session?.access_token;
+
+        if (!accessToken) {
+          console.warn("[EmailsClienteDialog] sessão ausente para consultar emails");
           return { email: email || "", emails: [] };
         }
+
+        const response = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/revista-emails-cliente`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${accessToken}`,
+              apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+            },
+            body: JSON.stringify({ email, licenca_id: licencaId }),
+          }
+        );
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          console.warn("[EmailsClienteDialog] http error", errorData);
+          return { email: email || "", emails: [] };
+        }
+
+        const data = await response.json();
         if ((data as any)?.error) {
           console.warn("[EmailsClienteDialog] function error", (data as any).error);
           return { email: email || "", emails: [] };
