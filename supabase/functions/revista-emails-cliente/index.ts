@@ -18,6 +18,7 @@ serve(async (req) => {
 
     const authHeader = req.headers.get("Authorization") || "";
     const token = authHeader.replace(/^Bearer\s+/i, "");
+    console.log("[revista-emails-cliente] auth header present", Boolean(authHeader), "token present", Boolean(token));
     if (!token) {
       return new Response(JSON.stringify({ error: "unauthorized" }), {
         status: 401,
@@ -33,6 +34,10 @@ serve(async (req) => {
     });
 
     const { data: userData, error: userErr } = await admin.auth.getUser(token);
+    console.log("[revista-emails-cliente] getUser result", {
+      hasUser: Boolean(userData?.user),
+      error: userErr?.message || null,
+    });
     if (userErr || !userData?.user) {
       return new Response(JSON.stringify({ error: "unauthorized" }), {
         status: 401,
@@ -48,6 +53,7 @@ serve(async (req) => {
     const hasAccess = (roles || []).some((r: any) =>
       ["admin", "gerente_ebd", "superadmin"].includes(r.role)
     );
+    console.log("[revista-emails-cliente] roles", roles || [], "hasAccess", hasAccess);
     if (!hasAccess) {
       return new Response(JSON.stringify({ error: "forbidden" }), {
         status: 403,
