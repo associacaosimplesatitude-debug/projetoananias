@@ -78,6 +78,7 @@ interface FaturamentoSelectionDialogProps {
   onSelectPagamentoLoja?: (pagamentoData: PagamentoLojaData) => void;
   canUseFreteManual?: boolean; // Apenas vendedor e gerente podem usar
   showPagarNaLoja?: boolean; // Apenas vendedores da Loja Penha veem esta opção
+  podeFaturar?: boolean; // Cliente habilitado para B2B
 }
 
 const BANDEIRAS_CARTAO = [
