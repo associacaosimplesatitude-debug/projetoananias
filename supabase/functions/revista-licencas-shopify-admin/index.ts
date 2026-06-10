@@ -138,11 +138,33 @@ serve(async (req) => {
     }
 
     if (action === "deactivate") {
+      // Snapshot antes da alteração para auditoria
+      const { data: licAntes } = await supabaseAdmin
+        .from("revista_licencas_shopify")
+        .select("id, ativo, nome_comprador, whatsapp, email, revista_id, shopify_order_id")
+        .eq("id", params.id)
+        .maybeSingle();
+
       const { error } = await supabaseAdmin
         .from("revista_licencas_shopify")
         .update({ ativo: false, updated_at: new Date().toISOString() })
         .eq("id", params.id);
       if (error) throw error;
+
+      // Audit log (best-effort, não bloqueia a resposta)
+      try {
+        await supabaseAdmin.from("admin_audit_log").insert({
+          admin_id: userId,
+          action: "deactivate_revista_licenca_shopify",
+          table_name: "revista_licencas_shopify",
+          record_id: params.id,
+          old_values: licAntes || { id: params.id, ativo: true },
+          new_values: { ativo: false },
+        });
+      } catch (auditErr) {
+        console.error("[revista-licencas-shopify-admin] audit log falhou:", auditErr);
+      }
+
       return new Response(JSON.stringify({ success: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
