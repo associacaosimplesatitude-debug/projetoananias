@@ -1,58 +1,27 @@
-## Diagnóstico
+## Objetivo
 
-A cliente **Suellen** (`b3ff9feb-…`, telefone 21997043519) e o cliente **Pedro Augusto Rodrigues Pereira** (`9693ca08-…`, CNPJ 30973042000170) estão no banco com `pode_faturar = false` em `ebd_clientes`. Mesmo assim o modal “Forma de Pagamento” aparece e ambos conseguem clicar em **Faturar Pedido (B2B)**.
+Rastrear automaticamente toda ação que um vendedor faz sobre uma proposta (criou, editou, marcou como PAGO, regerou, cancelou etc.), gravando quem clicou, quando, e o que mudou — sem depender de cada botão lembrar de chamar um log.
 
-O modal do print é o `FaturamentoSelectionDialog` (`src/components/shopify/FaturamentoSelectionDialog.tsx`), aberto a partir de `src/pages/shopify/ShopifyPedidos.tsx` no fluxo do checkout do carrinho.
+## Estratégia
 
-### Causa raiz
+Trigger no banco sobre `vendedor_propostas`. Toda mudança fica registrada, venha do app do vendedor, do admin, ou de uma edge function. A tabela `vendedor_propostas_audit` já existe.
 
-Em `src/pages/shopify/ShopifyPedidos.tsx`, dentro do handler de finalizar carrinho (linhas 517–524):
+### 1. Trigger automático (cobre 100% das ações)
+`AFTER INSERT/UPDATE/DELETE` em `vendedor_propostas` → grava em `vendedor_propostas_audit`:
+- `CREATE` / `MARCAR_PAGO` / `CANCELAR` / `STATUS_CHANGE:X->Y` / `EDIT_VALOR` / `EDIT_PRAZO_FATURAMENTO` / `BLING_LINK` / `UPDATE` / `DELETE`.
+- `user_id = auth.uid()` (NULL = edge function/automático).
+- Diff apenas dos campos mudados (`old_data`/`new_data`), ignora updates só de `updated_at`.
 
-```ts
-// Se tem cliente selecionado (superintendente logado com cadastro)
-if (!isVendedor && selectedCliente) {
-  setShowFaturamentoDialog(true);   // ❌ NÃO checa pode_faturar
-  return;
-}
-```
+### 2. Detecção de duplicatas (caso Neila)
+Trigger `AFTER INSERT` que detecta mesmo CNPJ + mesmo valor em janela de 10 min e grava linha `DUPLICATA_SUSPEITA` no audit (não bloqueia).
 
-O dialog é aberto **sempre** que um superintendente logado tem cadastro vinculado, sem olhar a flag `pode_faturar`. Para o caminho do vendedor, a checagem existe corretamente (linha 542: `if (selectedCliente.pode_faturar || canUseFreteManual)`), mas no caminho do superintendente ela foi esquecida.
+### 3. Página de visualização — APENAS SUPERADMIN
+Nova rota `/admin/ebd/auditoria-vendedor` (`src/pages/admin/AuditoriaVendedor.tsx`), protegida por `RequireSuperadmin`:
+- Filtros: vendedor, ação, busca por cliente/CNPJ/proposta.
+- Lista: data/hora, vendedor (nome via join com `vendedores.user_id`), ação (badge colorida), link pra proposta, diff antes/depois.
+- Destaque vermelho para `DUPLICATA_SUSPEITA` e `MARCAR_PAGO` sem `prazo_faturamento_selecionado`.
+- Item no menu do `AdminEBDLayout` visível só para superadmin.
+- RLS: policy `SELECT` na tabela audit restrita a `has_role('superadmin')`.
 
-Resultado: qualquer cliente logado (B2B desativado ou não) vê o modal e o botão “Faturar Pedido (B2B)”.
-
-## Correção (escopo mínimo, só frontend)
-
-Único arquivo alterado: `src/pages/shopify/ShopifyPedidos.tsx`, bloco das linhas 517–524.
-
-Trocar:
-
-```ts
-if (!isVendedor && selectedCliente) {
-  setShowFaturamentoDialog(true);
-  return;
-}
-```
-
-por:
-
-```ts
-if (!isVendedor && selectedCliente) {
-  if (selectedCliente.pode_faturar) {
-    // Cliente B2B habilitado: pode escolher Faturar ou Pagamento Padrão
-    setShowFaturamentoDialog(true);
-    return;
-  }
-  // Cliente sem B2B: cai no fluxo padrão (checkout normal logo abaixo)
-}
-```
-
-Assim, quando `pode_faturar = false`, o código segue para a rota de checkout padrão já existente para cliente final (`handleCreateDraftOrder(...)` mais abaixo), exatamente como acontece para clientes sem cadastro.
-
-Nada mais é tocado: nenhuma mudança em RLS, no Bling, no dialog em si, no caminho do vendedor ou em outras telas.
-
-## Validação
-
-1. Logar como **Suellen** (`pode_faturar = false`), adicionar item ao carrinho e finalizar → deve ir direto para o checkout padrão; o modal “Forma de Pagamento / Faturar Pedido (B2B)” não deve aparecer.
-2. Logar como **Pedro Augusto Rodrigues Pereira** (`pode_faturar = false`) → mesmo comportamento, sem modal de faturamento.
-3. Logar como um cliente com `pode_faturar = true` → modal continua aparecendo normalmente com as duas opções.
-4. Fluxo do vendedor não muda: para clientes com `pode_faturar = true` o modal continua aparecendo; para os demais segue a lógica atual de descontos.
+## Resultado
+Toda ação de qualquer vendedor sobre qualquer proposta fica registrada com quem + quando + o que mudou. No caso Neila/Igreja Batista Mantena, apareceriam: 4 INSERTs em 10 min com flag `DUPLICATA_SUSPEITA`, 3 `MARCAR_PAGO` sem prazo de faturamento, todos com `user_id` dela.
