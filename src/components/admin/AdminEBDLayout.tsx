@@ -302,6 +302,17 @@ function AdminSidebar() {
                 </SidebarMenuButton>
               </SidebarMenuItem>
 
+              {isSuperadmin && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={isActive('/admin/ebd/auditoria-vendedor')}>
+                    <RouterNavLink to="/admin/ebd/auditoria-vendedor">
+                      <Shield className="h-4 w-4" />
+                      <span>Auditoria Vendedores</span>
+                    </RouterNavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
+
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={isActive('/admin/ebd/retencao')}>
                   <RouterNavLink to="/admin/ebd/retencao">
