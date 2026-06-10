@@ -106,20 +106,24 @@ export default function AuditoriaVendedor() {
   const { data: vendedores } = useQuery({
     queryKey: ["auditoria-vendedores"],
     queryFn: async () => {
+      // Apenas vendedores reais (da tabela vendedores) que tenham login (profile)
       const [vendRes, profRes] = await Promise.all([
-        supabase.from("vendedores").select("nome, email"),
-        supabase.from("profiles").select("id, email, full_name"),
+        supabase.from("vendedores").select("nome, email").eq("status", "ativo"),
+        supabase.from("profiles").select("id, email"),
       ]);
-      const vendByEmail = new Map<string, string>();
-      for (const v of vendRes.data || []) {
-        if (v.email) vendByEmail.set(v.email.toLowerCase(), v.nome);
-      }
-      // Inclui TODOS os profiles (mesmo que não estejam em vendedores), usando full_name como fallback
-      const result: { user_id: string; nome: string }[] = [];
+      const profByEmail = new Map<string, string>();
       for (const p of profRes.data || []) {
-        const emailKey = p.email?.toLowerCase();
-        const nome = (emailKey && vendByEmail.get(emailKey)) || p.full_name || p.email || `Usuário ${p.id.slice(0, 8)}`;
-        result.push({ user_id: p.id, nome });
+        if (p.email) profByEmail.set(p.email.toLowerCase(), p.id);
+      }
+      const result: { user_id: string; nome: string }[] = [];
+      const seen = new Set<string>();
+      for (const v of vendRes.data || []) {
+        const key = v.email?.toLowerCase();
+        const uid = key ? profByEmail.get(key) : null;
+        if (uid && !seen.has(uid)) {
+          seen.add(uid);
+          result.push({ user_id: uid, nome: v.nome });
+        }
       }
       result.sort((a, b) => a.nome.localeCompare(b.nome));
       return result;
