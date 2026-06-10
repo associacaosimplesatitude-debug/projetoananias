@@ -25,6 +25,29 @@ interface AuditRow {
   created_at: string;
 }
 
+interface VendorOption {
+  value: string;
+  nome: string;
+  email: string | null;
+  user_ids: string[];
+}
+
+interface VendorDirectory {
+  options: VendorOption[];
+  userIdToName: Record<string, string>;
+  emailToName: Record<string, string>;
+}
+
+interface PropostaResumo {
+  id: string;
+  cliente_nome: string;
+  cliente_cnpj: string | null;
+  valor_total: number | string | null;
+  status: string;
+  vendedor_nome: string | null;
+  vendedor_email: string | null;
+}
+
 const ACTION_LABELS: Record<string, { label: string; color: string }> = {
   CREATE: { label: "Criou proposta", color: "bg-blue-500" },
   MARCAR_PAGO: { label: "Marcou como PAGO", color: "bg-red-600" },
@@ -59,6 +82,14 @@ function fmtMoney(v: any) {
   const n = Number(v);
   if (isNaN(n)) return String(v);
   return `R$ ${n.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
+}
+
+function cleanText(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function cleanEmail(value: unknown) {
+  return cleanText(value).toLowerCase();
 }
 
 // Campos legíveis para humanos com label e formatador
@@ -103,35 +134,58 @@ export default function AuditoriaVendedor() {
   const [search, setSearch] = useState("");
   const [vendedorFilter, setVendedorFilter] = useState<string>("all");
 
-  const { data: vendedores } = useQuery({
+  const { data: vendorDirectory } = useQuery<VendorDirectory>({
     queryKey: ["auditoria-vendedores"],
     queryFn: async () => {
-      // Apenas vendedores reais (da tabela vendedores) que tenham login (profile)
       const [vendRes, profRes] = await Promise.all([
-        supabase.from("vendedores").select("nome, email").eq("status", "ativo"),
-        supabase.from("profiles").select("id, email"),
+        supabase.from("vendedores").select("nome, email").in("status", ["Ativo", "ativo"]),
+        supabase.from("profiles").select("id, email, full_name"),
       ]);
-      const profByEmail = new Map<string, string>();
+
+      const profileIdsByEmail = new Map<string, string[]>();
+      const userIdToName: Record<string, string> = {};
+      const emailToName: Record<string, string> = {};
+
       for (const p of profRes.data || []) {
-        if (p.email) profByEmail.set(p.email.toLowerCase(), p.id);
-      }
-      const result: { user_id: string; nome: string }[] = [];
-      const seen = new Set<string>();
-      for (const v of vendRes.data || []) {
-        const key = v.email?.toLowerCase();
-        const uid = key ? profByEmail.get(key) : null;
-        if (uid && !seen.has(uid)) {
-          seen.add(uid);
-          result.push({ user_id: uid, nome: v.nome });
+        const email = cleanEmail(p.email);
+        if (email) {
+          profileIdsByEmail.set(email, [...(profileIdsByEmail.get(email) || []), p.id]);
+        }
+        if (p.full_name) {
+          userIdToName[p.id] = p.full_name;
         }
       }
-      result.sort((a, b) => a.nome.localeCompare(b.nome));
-      return result;
+
+      const options: VendorOption[] = [];
+      const seenOptions = new Set<string>();
+
+      for (const v of vendRes.data || []) {
+        const email = cleanEmail(v.email) || null;
+        const nome = cleanText(v.nome) || (email ?? "Sem nome");
+        const userIds = email ? profileIdsByEmail.get(email) || [] : [];
+
+        if (email) {
+          emailToName[email] = nome;
+        }
+
+        for (const userId of userIds) {
+          userIdToName[userId] = nome;
+        }
+
+        const value = email || `nome:${nome.toLowerCase()}`;
+        if (!seenOptions.has(value)) {
+          seenOptions.add(value);
+          options.push({ value, nome, email, user_ids: userIds });
+        }
+      }
+
+      options.sort((a, b) => a.nome.localeCompare(b.nome));
+      return { options, userIdToName, emailToName };
     },
   });
 
   const { data: rows, isLoading } = useQuery({
-    queryKey: ["auditoria-vendedor-propostas", actionFilter, vendedorFilter],
+    queryKey: ["auditoria-vendedor-propostas", actionFilter],
     queryFn: async () => {
       let q = supabase
         .from("vendedor_propostas_audit")
@@ -139,7 +193,6 @@ export default function AuditoriaVendedor() {
         .order("created_at", { ascending: false })
         .limit(500);
       if (actionFilter !== "all") q = q.eq("action", actionFilter);
-      if (vendedorFilter !== "all") q = q.eq("user_id", vendedorFilter);
       const { data, error } = await q;
       if (error) throw error;
       return (data || []) as AuditRow[];
@@ -157,35 +210,73 @@ export default function AuditoriaVendedor() {
     queryFn: async () => {
       const { data } = await supabase
         .from("vendedor_propostas")
-        .select("id, cliente_nome, cliente_cnpj, valor_total, status, vendedor_nome")
+        .select("id, cliente_nome, cliente_cnpj, valor_total, status, vendedor_nome, vendedor_email")
         .in("id", propostaIds);
-      const map: Record<string, any> = {};
+      const map: Record<string, PropostaResumo> = {};
       for (const p of data || []) map[p.id] = p;
       return map;
     },
   });
 
-  const vendorMap = useMemo(() => {
-    const m: Record<string, string> = {};
-    for (const v of vendedores || []) m[v.user_id] = v.nome;
-    return m;
-  }, [vendedores]);
+  const vendorMap = vendorDirectory?.userIdToName || {};
+  const vendorEmailMap = vendorDirectory?.emailToName || {};
+  const vendorOptions = vendorDirectory?.options || [];
+  const selectedVendor = useMemo(
+    () => vendorOptions.find((option) => option.value === vendedorFilter) || null,
+    [vendorOptions, vendedorFilter]
+  );
+
+  const getVendorName = (row: AuditRow, proposta?: PropostaResumo) => {
+    const auditVendorName =
+      cleanText(row.new_data?.vendedor_nome) || cleanText(row.old_data?.vendedor_nome);
+    const vendorEmail =
+      cleanEmail(proposta?.vendedor_email) ||
+      cleanEmail(row.new_data?.vendedor_email) ||
+      cleanEmail(row.old_data?.vendedor_email);
+
+    if (!row.user_id) {
+      return cleanText(proposta?.vendedor_nome) || auditVendorName || "Sistema/Automático";
+    }
+
+    return (
+      vendorMap[row.user_id] ||
+      cleanText(proposta?.vendedor_nome) ||
+      auditVendorName ||
+      (vendorEmail ? vendorEmailMap[vendorEmail] : "") ||
+      `Usuário ${row.user_id.slice(0, 8)}`
+    );
+  };
 
   const filtered = useMemo(() => {
     if (!rows) return [];
     const s = search.trim().toLowerCase();
-    if (!s) return rows;
+
     return rows.filter((r) => {
       const p = propostas?.[r.proposta_id];
+      const vendorName = getVendorName(r, p).toLowerCase();
+      const vendorEmail =
+        cleanEmail(p?.vendedor_email) ||
+        cleanEmail(r.new_data?.vendedor_email) ||
+        cleanEmail(r.old_data?.vendedor_email);
+
+      const matchesVendor =
+        !selectedVendor ||
+        selectedVendor.user_ids.includes(r.user_id || "") ||
+        (!!selectedVendor.email && selectedVendor.email === vendorEmail) ||
+        vendorName === selectedVendor.nome.toLowerCase();
+
+      if (!matchesVendor) return false;
+      if (!s) return true;
+
       return (
         r.proposta_id?.toLowerCase().includes(s) ||
         p?.cliente_nome?.toLowerCase().includes(s) ||
         p?.cliente_cnpj?.toLowerCase().includes(s) ||
         p?.vendedor_nome?.toLowerCase().includes(s) ||
-        vendorMap[r.user_id || ""]?.toLowerCase().includes(s)
+        vendorName.includes(s)
       );
     });
-  }, [rows, search, propostas, vendorMap]);
+  }, [rows, search, propostas, selectedVendor]);
 
   const actions = useMemo(() => {
     const set = new Set<string>();
@@ -219,8 +310,8 @@ export default function AuditoriaVendedor() {
             <SelectTrigger><SelectValue placeholder="Vendedor" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todos os vendedores</SelectItem>
-              {(vendedores || []).map((v) => (
-                <SelectItem key={v.user_id} value={v.user_id}>{v.nome}</SelectItem>
+                {vendorOptions.map((v) => (
+                  <SelectItem key={v.value} value={v.value}>{v.nome}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -257,9 +348,7 @@ export default function AuditoriaVendedor() {
             <div className="divide-y">
               {filtered.map((r) => {
                 const p = propostas?.[r.proposta_id];
-                const userName = r.user_id
-                  ? vendorMap[r.user_id] || `Usuário ${r.user_id.slice(0, 8)}`
-                  : "Sistema/Automático";
+                const userName = getVendorName(r, p);
                 const isAlert =
                   r.action === "DUPLICATA_SUSPEITA" ||
                   (r.action === "MARCAR_PAGO" &&
