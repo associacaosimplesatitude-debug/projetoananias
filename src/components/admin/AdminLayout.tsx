@@ -24,6 +24,7 @@ import {
   Rocket,
   RefreshCw,
   Sparkles,
+  Shield,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -184,6 +185,14 @@ function AdminSidebar() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               )}
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={isActive('/admin/ebd/auditoria-vendedor')}>
+                  <RouterNavLink to="/admin/ebd/auditoria-vendedor">
+                    <Shield className="h-4 w-4" />
+                    <span>Auditoria Vendedores</span>
+                  </RouterNavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
