@@ -107,18 +107,21 @@ export default function AuditoriaVendedor() {
     queryKey: ["auditoria-vendedores"],
     queryFn: async () => {
       const [vendRes, profRes] = await Promise.all([
-        supabase.from("vendedores").select("nome, email").order("nome"),
+        supabase.from("vendedores").select("nome, email"),
         supabase.from("profiles").select("id, email, full_name"),
       ]);
-      const profileByEmail = new Map<string, { id: string; full_name: string | null }>();
-      for (const p of profRes.data || []) {
-        if (p.email) profileByEmail.set(p.email.toLowerCase(), { id: p.id, full_name: p.full_name });
-      }
-      const result: { user_id: string; nome: string }[] = [];
+      const vendByEmail = new Map<string, string>();
       for (const v of vendRes.data || []) {
-        const prof = v.email ? profileByEmail.get(v.email.toLowerCase()) : null;
-        if (prof) result.push({ user_id: prof.id, nome: v.nome });
+        if (v.email) vendByEmail.set(v.email.toLowerCase(), v.nome);
       }
+      // Inclui TODOS os profiles (mesmo que não estejam em vendedores), usando full_name como fallback
+      const result: { user_id: string; nome: string }[] = [];
+      for (const p of profRes.data || []) {
+        const emailKey = p.email?.toLowerCase();
+        const nome = (emailKey && vendByEmail.get(emailKey)) || p.full_name || p.email || `Usuário ${p.id.slice(0, 8)}`;
+        result.push({ user_id: p.id, nome });
+      }
+      result.sort((a, b) => a.nome.localeCompare(b.nome));
       return result;
     },
   });
