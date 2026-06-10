@@ -33,12 +33,14 @@ import {
   AlertTriangle,
   Gift,
   MessageCircle,
+  Shield,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { UserProfileDropdown } from "@/components/layout/UserProfileDropdown";
 import { ImplementacoesButton } from "@/components/implementacoes/ImplementacoesButton";
 import { useAuth } from "@/hooks/useAuth";
+import { useIsSuperadmin } from "@/hooks/useIsSuperadmin";
 import { NavLink as RouterNavLink } from "@/components/NavLink";
 import {
   Sidebar,
