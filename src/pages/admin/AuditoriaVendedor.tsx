@@ -276,7 +276,7 @@ export default function AuditoriaVendedor() {
         vendorName.includes(s)
       );
     });
-  }, [rows, search, propostas, selectedVendor]);
+  }, [rows, search, propostas, selectedVendor, vendorMap, vendorEmailMap]);
 
   const actions = useMemo(() => {
     const set = new Set<string>();
