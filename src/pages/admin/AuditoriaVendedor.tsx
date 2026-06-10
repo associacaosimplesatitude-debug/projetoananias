@@ -25,21 +25,24 @@ interface AuditRow {
   created_at: string;
 }
 
-const ACTION_COLORS: Record<string, string> = {
-  CREATE: "bg-blue-500",
-  MARCAR_PAGO: "bg-red-600",
-  CANCELAR: "bg-orange-500",
-  EDIT_VALOR: "bg-amber-500",
-  EDIT_PRAZO_FATURAMENTO: "bg-amber-500",
-  BLING_LINK: "bg-emerald-600",
-  DUPLICATA_SUSPEITA: "bg-red-700",
-  UPDATE: "bg-slate-500",
-  DELETE: "bg-black",
+const ACTION_LABELS: Record<string, { label: string; color: string }> = {
+  CREATE: { label: "Criou proposta", color: "bg-blue-500" },
+  MARCAR_PAGO: { label: "Marcou como PAGO", color: "bg-red-600" },
+  CANCELAR: { label: "Cancelou", color: "bg-orange-500" },
+  EDIT_VALOR: { label: "Editou valor", color: "bg-amber-500" },
+  EDIT_PRAZO_FATURAMENTO: { label: "Definiu prazo de faturamento", color: "bg-amber-500" },
+  BLING_LINK: { label: "Vinculou ao Bling", color: "bg-emerald-600" },
+  DUPLICATA_SUSPEITA: { label: "⚠️ Duplicata suspeita", color: "bg-red-700" },
+  UPDATE: { label: "Editou", color: "bg-slate-500" },
+  DELETE: { label: "Excluiu", color: "bg-black" },
 };
 
-function actionColor(action: string) {
-  if (action.startsWith("STATUS_CHANGE")) return "bg-purple-500";
-  return ACTION_COLORS[action] || "bg-slate-500";
+function actionInfo(action: string) {
+  if (action.startsWith("STATUS_CHANGE")) {
+    const parts = action.replace("STATUS_CHANGE:", "").split("->");
+    return { label: `Status: ${parts[0]} → ${parts[1]}`, color: "bg-purple-500" };
+  }
+  return ACTION_LABELS[action] || { label: action, color: "bg-slate-500" };
 }
 
 function fmtDate(d: string) {
@@ -49,43 +52,51 @@ function fmtDate(d: string) {
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
-    second: "2-digit",
   });
 }
 
-function DiffViewer({ oldData, newData }: { oldData: any; newData: any }) {
-  if (!oldData && !newData) return null;
-  const keys = Array.from(
-    new Set([...Object.keys(oldData || {}), ...Object.keys(newData || {})])
-  ).filter((k) => k !== "updated_at");
-
-  if (keys.length === 0) return null;
-
-  return (
-    <div className="mt-2 space-y-1 text-xs">
-      {keys.map((k) => {
-        const ov = oldData?.[k];
-        const nv = newData?.[k];
-        return (
-          <div key={k} className="flex flex-wrap gap-1 items-baseline">
-            <span className="font-mono font-semibold text-muted-foreground">{k}:</span>
-            {ov !== undefined && (
-              <span className="line-through text-red-600 break-all">
-                {typeof ov === "object" ? JSON.stringify(ov) : String(ov)}
-              </span>
-            )}
-            {ov !== undefined && nv !== undefined && <span>→</span>}
-            {nv !== undefined && (
-              <span className="text-emerald-700 font-medium break-all">
-                {typeof nv === "object" ? JSON.stringify(nv) : String(nv)}
-              </span>
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
+function fmtMoney(v: any) {
+  const n = Number(v);
+  if (isNaN(n)) return String(v);
+  return `R$ ${n.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
 }
+
+// Campos legíveis para humanos com label e formatador
+const FRIENDLY_FIELDS: Record<string, { label: string; format?: (v: any) => string }> = {
+  status: { label: "Status" },
+  valor_total: { label: "Valor total", format: fmtMoney },
+  valor_produtos: { label: "Valor produtos", format: fmtMoney },
+  valor_frete: { label: "Frete", format: fmtMoney },
+  desconto_percentual: { label: "Desconto %", format: (v) => `${v}%` },
+  prazo_faturamento_selecionado: { label: "Prazo faturamento" },
+  bling_order_number: { label: "Pedido Bling" },
+  bling_status: { label: "Status Bling" },
+  comissao_aprovada: { label: "Comissão aprovada", format: (v) => (v ? "Sim" : "Não") },
+  metodo_frete: { label: "Método frete" },
+  pode_faturar: { label: "Pode faturar", format: (v) => (v ? "Sim" : "Não") },
+};
+
+function buildSummary(action: string, oldData: any, newData: any): string[] {
+  const lines: string[] = [];
+  for (const [key, cfg] of Object.entries(FRIENDLY_FIELDS)) {
+    const ov = oldData?.[key];
+    const nv = newData?.[key];
+    if (nv === undefined && ov === undefined) continue;
+    if (action === "CREATE") {
+      if (nv !== undefined && nv !== null && nv !== "") {
+        lines.push(`${cfg.label}: ${cfg.format ? cfg.format(nv) : String(nv)}`);
+      }
+    } else if (ov !== undefined && nv !== undefined) {
+      const ovs = cfg.format ? cfg.format(ov) : String(ov);
+      const nvs = cfg.format ? cfg.format(nv) : String(nv);
+      lines.push(`${cfg.label}: ${ovs} → ${nvs}`);
+    } else if (nv !== undefined) {
+      lines.push(`${cfg.label}: ${cfg.format ? cfg.format(nv) : String(nv)}`);
+    }
+  }
+  return lines;
+}
+
 
 export default function AuditoriaVendedor() {
   const [actionFilter, setActionFilter] = useState<string>("all");
