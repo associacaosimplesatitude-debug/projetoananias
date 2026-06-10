@@ -33,12 +33,14 @@ import {
   AlertTriangle,
   Gift,
   MessageCircle,
+  Shield,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { UserProfileDropdown } from "@/components/layout/UserProfileDropdown";
 import { ImplementacoesButton } from "@/components/implementacoes/ImplementacoesButton";
 import { useAuth } from "@/hooks/useAuth";
+import { useIsSuperadmin } from "@/hooks/useIsSuperadmin";
 import { NavLink as RouterNavLink } from "@/components/NavLink";
 import {
   Sidebar,
@@ -67,6 +69,7 @@ import { BarChart3, Link2 } from "lucide-react";
 
 function AdminSidebar() {
   const { role } = useAuth();
+  const { isSuperadmin } = useIsSuperadmin();
   const location = useLocation();
   const isGerenteEbd = role === 'gerente_ebd';
   const isFinanceiro = role === 'financeiro';
@@ -298,6 +301,17 @@ function AdminSidebar() {
                   </RouterNavLink>
                 </SidebarMenuButton>
               </SidebarMenuItem>
+
+              {isSuperadmin && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={isActive('/admin/ebd/auditoria-vendedor')}>
+                    <RouterNavLink to="/admin/ebd/auditoria-vendedor">
+                      <Shield className="h-4 w-4" />
+                      <span>Auditoria Vendedores</span>
+                    </RouterNavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
 
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={isActive('/admin/ebd/retencao')}>

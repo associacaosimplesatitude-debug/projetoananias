@@ -52,6 +52,7 @@ import AdminEBD from "./pages/admin/AdminEBD";
 import ResumoDiario from "./pages/admin/ResumoDiario";
 import ResumoDiarioDestinatarios from "./pages/admin/ResumoDiarioDestinatarios";
 import AdminEBDPropostasPage from "./pages/admin/AdminEBDPropostasPage";
+import AuditoriaVendedor from "./pages/admin/AuditoriaVendedor";
 import AprovacaoFaturamento from "./pages/admin/AprovacaoFaturamento";
 import GestaoComissoes from "./pages/admin/GestaoComissoes";
 import ComissaoAlfaMarketing from "./pages/admin/ComissaoAlfaMarketing";
@@ -583,6 +584,7 @@ const App = () => (
                     >
                       <Route index element={<AdminEBD />} />
                       <Route path="propostas" element={<AdminEBDPropostasPage />} />
+                      <Route path="auditoria-vendedor" element={<RequireSuperadmin><AuditoriaVendedor /></RequireSuperadmin>} />
                       <Route path="aprovacao-faturamento" element={<AprovacaoFaturamento />} />
                       <Route path="comissoes" element={<GestaoComissoes />} />
                       <Route path="comissao-alfamarketing" element={<ComissaoAlfaMarketing />} />
