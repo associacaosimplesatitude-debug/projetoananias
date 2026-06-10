@@ -69,6 +69,7 @@ import { BarChart3, Link2 } from "lucide-react";
 
 function AdminSidebar() {
   const { role } = useAuth();
+  const { isSuperadmin } = useIsSuperadmin();
   const location = useLocation();
   const isGerenteEbd = role === 'gerente_ebd';
   const isFinanceiro = role === 'financeiro';
