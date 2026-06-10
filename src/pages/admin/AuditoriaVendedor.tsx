@@ -258,34 +258,39 @@ export default function AuditoriaVendedor() {
                   (r.action === "MARCAR_PAGO" &&
                     !r.new_data?.prazo_faturamento_selecionado &&
                     !r.old_data?.prazo_faturamento_selecionado);
+                const info = actionInfo(r.action);
+                const summary = buildSummary(r.action, r.old_data, r.new_data);
                 return (
                   <div
                     key={r.id}
-                    className={`py-3 px-2 ${isAlert ? "bg-red-50 dark:bg-red-950/20" : ""}`}
+                    className={`py-3 px-3 rounded-md ${isAlert ? "bg-red-50 dark:bg-red-950/20 border-l-4 border-red-500" : ""}`}
                   >
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Badge className={`${actionColor(r.action)} text-white`}>
-                        {r.action}
-                      </Badge>
+                    <div className="flex flex-wrap items-center gap-2 mb-1">
+                      <Badge className={`${info.color} text-white`}>{info.label}</Badge>
                       {isAlert && <AlertTriangle className="h-4 w-4 text-red-600" />}
-                      <span className="text-sm font-medium">{userName}</span>
+                      <span className="text-sm font-semibold">{userName}</span>
                       <span className="text-xs text-muted-foreground">{fmtDate(r.created_at)}</span>
-                      {p && (
-                        <Link
-                          to={`/admin/ebd/propostas?id=${r.proposta_id}`}
-                          className="text-xs text-primary hover:underline inline-flex items-center gap-1"
-                        >
-                          {p.cliente_nome} · R$ {Number(p.valor_total || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })} · {p.status}
-                          <ExternalLink className="h-3 w-3" />
-                        </Link>
-                      )}
-                      {!p && (
-                        <span className="text-xs text-muted-foreground font-mono">
-                          {r.proposta_id?.slice(0, 8)}
-                        </span>
-                      )}
                     </div>
-                    <DiffViewer oldData={r.old_data} newData={r.new_data} />
+                    {p && (
+                      <Link
+                        to={`/admin/ebd/propostas?id=${r.proposta_id}`}
+                        className="text-sm text-foreground hover:text-primary inline-flex items-center gap-1"
+                      >
+                        <span className="font-medium">{p.cliente_nome}</span>
+                        <span className="text-muted-foreground">·</span>
+                        <span>{fmtMoney(p.valor_total)}</span>
+                        <span className="text-muted-foreground">·</span>
+                        <span className="text-xs">{p.status}</span>
+                        <ExternalLink className="h-3 w-3 opacity-50" />
+                      </Link>
+                    )}
+                    {summary.length > 0 && (
+                      <ul className="mt-1 text-sm text-muted-foreground space-y-0.5">
+                        {summary.map((line, i) => (
+                          <li key={i}>• {line}</li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
                 );
               })}
