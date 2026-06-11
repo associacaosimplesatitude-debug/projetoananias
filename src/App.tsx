@@ -584,7 +584,7 @@ const App = () => (
                     >
                       <Route index element={<AdminEBD />} />
                       <Route path="propostas" element={<AdminEBDPropostasPage />} />
-                      <Route path="auditoria-vendedor" element={<RequireSuperadmin><AuditoriaVendedor /></RequireSuperadmin>} />
+                      <Route path="auditoria-vendedor" element={<RequireAuditoriaAccess><AuditoriaVendedor /></RequireAuditoriaAccess>} />
                       <Route path="aprovacao-faturamento" element={<AprovacaoFaturamento />} />
                       <Route path="comissoes" element={<GestaoComissoes />} />
                       <Route path="comissao-alfamarketing" element={<ComissaoAlfaMarketing />} />
