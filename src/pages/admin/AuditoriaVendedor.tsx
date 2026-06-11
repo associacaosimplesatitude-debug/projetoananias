@@ -328,7 +328,7 @@ export default function AuditoriaVendedor() {
             <SelectTrigger><SelectValue placeholder="Ação" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todas as ações</SelectItem>
-              {actions.map((a) => (
+              {(distinctActions || []).map((a) => (
                 <SelectItem key={a} value={a}>{a}</SelectItem>
               ))}
             </SelectContent>
