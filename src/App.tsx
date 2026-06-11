@@ -12,6 +12,7 @@ import { PwaInstallBanner } from "@/components/PwaInstallBanner";
 import { EBDTrimesterBanner } from "@/components/ebd/EBDTrimesterBanner";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import RequireSuperadmin from "@/components/RequireSuperadmin";
+import RequireAuditoriaAccess from "@/components/RequireAuditoriaAccess";
 import ModuleProtectedRoute from "@/components/ModuleProtectedRoute";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
