@@ -278,11 +278,20 @@ export default function AuditoriaVendedor() {
     });
   }, [rows, search, propostas, selectedVendor, vendorMap, vendorEmailMap]);
 
-  const actions = useMemo(() => {
-    const set = new Set<string>();
-    (rows || []).forEach((r) => set.add(r.action));
-    return Array.from(set).sort();
-  }, [rows]);
+  const { data: distinctActions } = useQuery({
+    queryKey: ["auditoria-distinct-actions"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("vendedor_propostas_audit")
+        .select("action")
+        .limit(5000);
+      if (error) throw error;
+      const set = new Set<string>();
+      (data || []).forEach((r: any) => r.action && set.add(r.action));
+      return Array.from(set).sort();
+    },
+  });
+
 
   return (
     <div className="space-y-6">
@@ -319,8 +328,8 @@ export default function AuditoriaVendedor() {
             <SelectTrigger><SelectValue placeholder="Ação" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todas as ações</SelectItem>
-              {actions.map((a) => (
-                <SelectItem key={a} value={a}>{a}</SelectItem>
+              {(distinctActions || []).map((a) => (
+                <SelectItem key={a} value={a}>{actionInfo(a).label}</SelectItem>
               ))}
             </SelectContent>
           </Select>
