@@ -329,7 +329,7 @@ export default function AuditoriaVendedor() {
             <SelectContent>
               <SelectItem value="all">Todas as ações</SelectItem>
               {(distinctActions || []).map((a) => (
-                <SelectItem key={a} value={a}>{a}</SelectItem>
+                <SelectItem key={a} value={a}>{actionInfo(a).label}</SelectItem>
               ))}
             </SelectContent>
           </Select>
