@@ -995,18 +995,23 @@ Deno.serve(async (req) => {
 
     if (error) throw error;
 
-    // ─── Provisionamento SE ───
-    // O pedido já está gravado em ebd_loja_pedidos_cg; se o provisionamento falhar,
-    // o registro fica com provisionamento_status='erro' para reprocessamento posterior.
-    // Retornamos 500 para a loja CG saber que deve retentar.
+    // ─── Persistir itens do pedido (idempotente) ───
+    await persistOrderItems(supabase, payload, data.id);
+
+    // ─── Provisionamento Superintendente (pacotes multi-licença) ───
     const provisionamentoResult = await provisionSuperintendente(supabase, payload, data.id);
     const provisionamentoOk = !provisionamentoResult || provisionamentoResult.ok !== false;
+
+    // ─── Provisionamento Digital Direto (infográficos) ───
+    // Roda independente do SE; pedido pode ter ambos.
+    const digitalResult = await provisionDigitalDireto(supabase, payload, data.id);
 
     return new Response(
       JSON.stringify({
         ok: provisionamentoOk,
         loja_order_id: payload.order_id,
         provisionamento_status: provisionamentoOk ? "ok" : "erro",
+        digital_direto: digitalResult,
         error: provisionamentoOk ? undefined : provisionamentoResult?.error,
       }),
       {
