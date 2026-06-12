@@ -611,6 +611,287 @@ async function provisionSuperintendente(
   }
 }
 
+// ============================================================
+// Provisionamento de produtos DIGITAIS DIRETOS (ex.: infográficos)
+// — Cria revista_licencas_shopify quando o pedido tem itens cujo SKU
+//   mapeia para uma revistas_digitais com tipo_conteudo='infografico'.
+// — Idempotente: respeita UNIQUE(shopify_order_id, whatsapp, revista_id).
+// — Dispara WhatsApp (revista_acesso_liberado_v2) e email Resend por revista.
+// — Só atualiza provisionamento_status='ok' se realmente criar licença
+//   (não sobrescreve 'ok' nem 'erro' do fluxo superintendente).
+// ============================================================
+const LOG_DIGITAL = "[receive-order-from-store-cg][digital-direto]";
+
+function normalizeBrPhone11(raw: string): string {
+  const digits = String(raw || "").replace(/\D/g, "");
+  if (digits.startsWith("55") && digits.length >= 12) return digits.slice(2);
+  return digits;
+}
+
+async function persistOrderItems(
+  supabase: ReturnType<typeof createClient>,
+  payload: any,
+  lojaOrderRowId: string,
+): Promise<void> {
+  try {
+    const items: any[] = Array.isArray(payload.items) ? payload.items : [];
+    if (items.length === 0) return;
+    const rows = items.map((it) => ({
+      pedido_id: lojaOrderRowId,
+      shopify_line_item_id: it?.line_item_id ? String(it.line_item_id) : null,
+      product_title: it?.product_title ?? it?.title ?? null,
+      variant_title: it?.variant_title ?? null,
+      sku: it?.sku ? String(it.sku) : null,
+      quantity: Number(it?.quantity ?? 1) || 1,
+      price: it?.price ?? null,
+      total_discount: it?.total_discount ?? null,
+    }));
+    // Idempotência: deleta itens prévios deste pedido antes de inserir
+    await supabase.from("ebd_shopify_pedidos_cg_itens").delete().eq("pedido_id", lojaOrderRowId);
+    const { error } = await supabase.from("ebd_shopify_pedidos_cg_itens").insert(rows);
+    if (error) console.warn(`${LOG_DIGITAL} falha gravando itens: ${error.message}`);
+    else console.log(`${LOG_DIGITAL} ${rows.length} itens gravados`);
+  } catch (e) {
+    console.warn(`${LOG_DIGITAL} exception gravando itens:`, e);
+  }
+}
+
+async function sendDigitalWhatsApp(
+  supabase: ReturnType<typeof createClient>,
+  phoneBr11: string,
+  nome: string,
+  tituloRevista: string,
+  ctx: { loja_order_id: string; revista_id: string },
+): Promise<void> {
+  try {
+    const { data: settings } = await supabase
+      .from("system_settings")
+      .select("key, value")
+      .in("key", ["whatsapp_phone_number_id", "whatsapp_access_token"]);
+    const map: Record<string, string> = {};
+    (settings || []).forEach((s: any) => { map[s.key] = s.value; });
+    const phoneNumberId = map["whatsapp_phone_number_id"];
+    const accessToken = map["whatsapp_access_token"];
+    if (!phoneNumberId || !accessToken || !phoneBr11) {
+      console.warn(`${LOG_DIGITAL} WhatsApp pulado (credenciais/telefone ausentes)`);
+      return;
+    }
+    const metaPhone = `55${phoneBr11}`;
+    const waRes = await fetch(
+      `https://graph.facebook.com/v22.0/${phoneNumberId}/messages`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({
+          messaging_product: "whatsapp",
+          to: metaPhone,
+          type: "template",
+          template: {
+            name: "revista_acesso_liberado_v2",
+            language: { code: "pt_BR" },
+            components: [
+              {
+                type: "body",
+                parameters: [
+                  { type: "text", text: nome || "Leitor" },
+                  { type: "text", text: tituloRevista },
+                ],
+              },
+            ],
+          },
+        }),
+      },
+    );
+    const waData = await waRes.json();
+    await supabase.from("whatsapp_mensagens").insert({
+      tipo_mensagem: "revista_acesso_liberado",
+      telefone_destino: phoneBr11,
+      nome_destino: nome,
+      mensagem: `Template revista_acesso_liberado_v2 (digital direto) — ${tituloRevista}`,
+      status: waRes.ok ? "enviado" : "erro",
+      erro_detalhes: waRes.ok ? null : JSON.stringify(waData),
+      payload_enviado: { ...ctx, source: "receive-order-from-store-cg:digital-direto" },
+      resposta_recebida: waData,
+    });
+    if (!waRes.ok) console.warn(`${LOG_DIGITAL} WhatsApp falhou:`, JSON.stringify(waData));
+  } catch (e) {
+    console.error(`${LOG_DIGITAL} WhatsApp exception:`, e);
+  }
+}
+
+async function sendDigitalEmail(
+  email: string,
+  nome: string,
+  tituloRevista: string,
+): Promise<void> {
+  try {
+    const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
+    if (!RESEND_API_KEY || !email) return;
+    const urlAcessoEmail = "https://gestaoebd.com.br/revista/acesso";
+    const resp = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        from: "Central Gospel <relatorios@painel.editoracentralgospel.com.br>",
+        to: [email],
+        subject: `Seu acesso ao ${tituloRevista} está liberado!`,
+        html: `
+          <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px">
+            <h2 style="color:#1B3A5C">Olá, ${nome || "Leitor"}!</h2>
+            <p style="font-size:16px">Seu acesso ao <strong>${tituloRevista}</strong> foi liberado com sucesso!</p>
+            <p style="text-align:center;margin:24px 0">
+              <a href="${urlAcessoEmail}" style="display:inline-block;padding:14px 32px;background:#1B3A5C;color:#fff;text-decoration:none;border-radius:8px;font-size:16px;font-weight:bold">
+                Acessar agora
+              </a>
+            </p>
+            <p style="font-size:14px;color:#666">
+              Você vai precisar do seu WhatsApp para entrar — enviaremos um código de confirmação.
+            </p>
+            <hr style="border:none;border-top:1px solid #eee;margin:24px 0"/>
+            <p style="font-size:13px;color:#999">Ou acesse: <a href="${urlAcessoEmail}" style="color:#1B3A5C">${urlAcessoEmail}</a></p>
+          </div>
+        `,
+      }),
+    });
+    if (!resp.ok) console.warn(`${LOG_DIGITAL} Resend falhou:`, await resp.text());
+  } catch (e) {
+    console.error(`${LOG_DIGITAL} email exception:`, e);
+  }
+}
+
+async function provisionDigitalDireto(
+  supabase: ReturnType<typeof createClient>,
+  payload: any,
+  lojaOrderRowId: string,
+): Promise<{ created: number; total_digital_items: number; error?: string }> {
+  try {
+    const items: any[] = Array.isArray(payload.items) ? payload.items : [];
+    if (items.length === 0) return { created: 0, total_digital_items: 0 };
+
+    const customer = payload.customer ?? {};
+    const email = (customer.email ?? "").trim().toLowerCase() || null;
+    const nome = (customer.name ?? "").trim() || "Leitor";
+    const phoneBr11 = normalizeBrPhone11(customer.phone ?? "");
+    const orderId = String(payload.order_id);
+    const orderNumber = payload.order_number !== undefined && payload.order_number !== null
+      ? String(payload.order_number)
+      : null;
+
+    if (!phoneBr11 && !email) {
+      console.warn(`${LOG_DIGITAL} sem telefone nem email — pulando`);
+      return { created: 0, total_digital_items: 0 };
+    }
+
+    const skus = [...new Set(items.map((it) => String(it?.sku ?? "")).filter(Boolean))];
+    if (skus.length === 0) return { created: 0, total_digital_items: 0 };
+
+    // SKU → revista_digital_id
+    const { data: mappings } = await supabase
+      .from("ebd_produto_revista_mapping")
+      .select("sku, revista_digital_id")
+      .in("sku", skus);
+
+    const revistaIds = [...new Set((mappings ?? [])
+      .map((m: any) => m.revista_digital_id)
+      .filter(Boolean))];
+    if (revistaIds.length === 0) return { created: 0, total_digital_items: 0 };
+
+    // Filtrar SOMENTE infográficos (digital direto)
+    const { data: revistas } = await supabase
+      .from("revistas_digitais")
+      .select("id, titulo, tipo_conteudo")
+      .in("id", revistaIds);
+
+    const infograficos = new Map<string, { titulo: string }>();
+    for (const r of revistas ?? []) {
+      if (r.tipo_conteudo === "infografico") {
+        infograficos.set(r.id, { titulo: r.titulo ?? "Infográfico" });
+      }
+    }
+    if (infograficos.size === 0) return { created: 0, total_digital_items: 0 };
+
+    // Conjunto único (revista_id) a provisionar — qty>=1 já basta
+    const revistasParaProvisionar = new Set<string>();
+    for (const m of mappings ?? []) {
+      if (m.revista_digital_id && infograficos.has(m.revista_digital_id)) {
+        revistasParaProvisionar.add(m.revista_digital_id);
+      }
+    }
+
+    let created = 0;
+    const whatsappKey = phoneBr11 || (email ?? "");
+
+    for (const revistaId of revistasParaProvisionar) {
+      const titulo = infograficos.get(revistaId)!.titulo;
+
+      // Idempotência: verifica se já existe licença para este pedido+revista (ou cliente+revista)
+      const { data: jaExiste } = await supabase
+        .from("revista_licencas_shopify")
+        .select("id")
+        .eq("revista_id", revistaId)
+        .or(
+          phoneBr11
+            ? `whatsapp.eq.${phoneBr11}${email ? `,email.eq.${email}` : ""}`
+            : `email.eq.${email}`,
+        )
+        .eq("ativo", true)
+        .limit(1)
+        .maybeSingle();
+
+      if (jaExiste) {
+        console.log(`${LOG_DIGITAL} licença já existe para revista=${revistaId} — skip`);
+        continue;
+      }
+
+      const { error: insErr } = await supabase
+        .from("revista_licencas_shopify")
+        .insert({
+          revista_id: revistaId,
+          shopify_order_id: orderId,
+          shopify_order_number: orderNumber,
+          nome_comprador: nome,
+          whatsapp: whatsappKey,
+          email,
+          ativo: true,
+          expira_em: null,
+          origem: "nova_loja_cg:digital_direto",
+        });
+
+      if (insErr) {
+        console.error(`${LOG_DIGITAL} erro insert licença revista=${revistaId}:`, insErr.message);
+        continue;
+      }
+
+      created++;
+      console.log(`${LOG_DIGITAL} licença criada revista=${revistaId} (${titulo})`);
+
+      // Notificar (best-effort)
+      if (phoneBr11) {
+        await sendDigitalWhatsApp(supabase, phoneBr11, nome, titulo, {
+          loja_order_id: orderId,
+          revista_id: revistaId,
+        });
+      }
+      if (email) {
+        await sendDigitalEmail(email, nome, titulo);
+      }
+    }
+
+    if (created > 0) {
+      await supabase
+        .from("ebd_loja_pedidos_cg")
+        .update({ provisionamento_status: "ok", provisionamento_erro: null })
+        .eq("id", lojaOrderRowId);
+    }
+
+    return { created, total_digital_items: revistasParaProvisionar.size };
+  } catch (err) {
+    const msg = (err as Error).message ?? "erro desconhecido";
+    console.error(`${LOG_DIGITAL} ERRO:`, msg, err);
+    return { created: 0, total_digital_items: 0, error: msg };
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
