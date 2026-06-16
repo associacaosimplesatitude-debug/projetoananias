@@ -1467,6 +1467,13 @@ export default function ShopifyPedidos() {
               </Card>
             ))}
           </div>
+        ) : !hasValidSearch ? (
+          <div className="text-center py-12">
+            <Search className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+            <p className="text-muted-foreground">
+              Digite pelo menos 2 caracteres para buscar produtos
+            </p>
+          </div>
         ) : filteredProducts.length === 0 ? (
           <div className="text-center py-12">
             <ShoppingCart className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
