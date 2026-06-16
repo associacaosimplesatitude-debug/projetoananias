@@ -24,7 +24,8 @@ import {
   CheckCircle,
   FileText,
 } from "lucide-react";
-import { fetchShopifyProducts, ShopifyProduct, CartItem, createStorefrontCheckout, BuyerInfo } from "@/lib/shopify";
+import { ShopifyProduct, CartItem, createStorefrontCheckout, BuyerInfo } from "@/lib/shopify";
+import { fetchBlingProducts } from "@/lib/bling";
 import { useShopifyCartStore } from "@/stores/shopifyCartStore";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate, useSearchParams } from "react-router-dom";
