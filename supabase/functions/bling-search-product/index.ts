@@ -222,12 +222,22 @@ serve(async (req) => {
       const details = await fetchProductDetails(accessToken, Number(product.id));
       
       if (details) {
+        // Bling v3 retorna imagens em vários caminhos diferentes dependendo
+        // do produto. Tentamos todos os fallbacks conhecidos.
+        const imagemURL =
+          details.imagemURL ||
+          details.imagem?.link ||
+          details.midia?.imagens?.externas?.[0]?.link ||
+          details.midia?.imagens?.internas?.[0]?.link ||
+          details.anexos?.[0]?.url ||
+          '';
+
         detailedProducts.push({
           id: details.id,
           codigo: details.codigo || '',
           nome: details.nome || '',
           preco: details.preco || 0,
-          imagemURL: details.imagemURL || details.imagem?.link || '',
+          imagemURL,
           descricao: stripHtmlTags(details.descricaoCurta || details.descricao || ''),
           estoque: details.estoque?.saldoVirtualTotal ?? details.estoqueAtual ?? 0,
           tipo: details.tipo || 'P',
