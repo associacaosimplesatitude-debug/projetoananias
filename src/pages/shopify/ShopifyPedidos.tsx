@@ -24,7 +24,8 @@ import {
   CheckCircle,
   FileText,
 } from "lucide-react";
-import { fetchShopifyProducts, ShopifyProduct, CartItem, createStorefrontCheckout, BuyerInfo } from "@/lib/shopify";
+import { ShopifyProduct, CartItem, createStorefrontCheckout, BuyerInfo } from "@/lib/shopify";
+import { fetchBlingProducts } from "@/lib/bling";
 import { useShopifyCartStore } from "@/stores/shopifyCartStore";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -103,6 +104,13 @@ export default function ShopifyPedidos() {
   const urlClienteNome = searchParams.get('clienteNome');
   
   const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
+
+  // Debounce de 400ms no termo de busca para evitar chamadas excessivas ao Bling
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearchTerm(searchTerm.trim()), 400);
+    return () => clearTimeout(t);
+  }, [searchTerm]);
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [selectedSubcategory, setSelectedSubcategory] = useState<string>("all");
   const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null);
@@ -304,9 +312,52 @@ export default function ShopifyPedidos() {
     isLoading: isCheckoutLoading 
   } = useShopifyCartStore();
 
+  // Catálogo agora vem do Bling (Shopify foi descontinuada).
+  // A Edge Function `bling-search-product` exige >= 2 caracteres,
+  // então só dispara a query quando houver termo válido.
+  const hasValidSearch = debouncedSearchTerm.length >= 2;
   const { data: products, isLoading: isLoadingProducts } = useQuery({
-    queryKey: ['shopify-products-all'],
-    queryFn: () => fetchShopifyProducts(500), // Buscar até 500 produtos (paginação automática)
+    queryKey: ['bling-products', debouncedSearchTerm],
+    enabled: hasValidSearch,
+    queryFn: async (): Promise<ShopifyProduct[]> => {
+      const blingProducts = await fetchBlingProducts(debouncedSearchTerm);
+      // Adapta o shape flat do Bling para o shape Shopify GraphQL
+      // (edges/node) que o restante do PDV já consome.
+      return blingProducts.map((p) => ({
+        node: {
+          id: p.id,
+          title: p.title,
+          description: '',
+          handle: p.id,
+          priceRange: {
+            minVariantPrice: {
+              amount: p.variants[0]?.price ?? '0',
+              currencyCode: 'BRL',
+            },
+          },
+          images: {
+            edges: p.images.map((img) => ({
+              node: { url: img.url, altText: null },
+            })),
+          },
+          variants: {
+            edges: p.variants.map((v) => ({
+              node: {
+                id: v.id,
+                title: v.title,
+                price: { amount: v.price, currencyCode: 'BRL' },
+                availableForSale: v.availableForSale,
+                selectedOptions: [],
+                sku: v.sku,
+                // Campo extra usado apenas para badge de estoque no PDV
+                stockTotal: v.stockTotal,
+              } as any,
+            })),
+          },
+          options: [],
+        } as any,
+      }));
+    },
   });
 
   // Fetch client from URL param (for vendedor flow)
@@ -1416,6 +1467,13 @@ export default function ShopifyPedidos() {
               </Card>
             ))}
           </div>
+        ) : !hasValidSearch ? (
+          <div className="text-center py-12">
+            <Search className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+            <p className="text-muted-foreground">
+              Digite pelo menos 2 caracteres para buscar produtos
+            </p>
+          </div>
         ) : filteredProducts.length === 0 ? (
           <div className="text-center py-12">
             <ShoppingCart className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
@@ -1483,9 +1541,13 @@ export default function ShopifyPedidos() {
                         Adicionar
                       </Button>
                     </div>
-                    {!variant?.availableForSale && (
+                    {!variant?.availableForSale ? (
                       <p className="text-xs text-destructive mt-2">Indisponível</p>
-                    )}
+                    ) : (variant as any)?.stockTotal > 0 ? (
+                      <Badge variant="secondary" className="mt-2 text-xs font-normal">
+                        Em estoque: {(variant as any).stockTotal} un.
+                      </Badge>
+                    ) : null}
                   </CardContent>
                 </Card>
               );
