@@ -312,9 +312,52 @@ export default function ShopifyPedidos() {
     isLoading: isCheckoutLoading 
   } = useShopifyCartStore();
 
+  // Catálogo agora vem do Bling (Shopify foi descontinuada).
+  // A Edge Function `bling-search-product` exige >= 2 caracteres,
+  // então só dispara a query quando houver termo válido.
+  const hasValidSearch = debouncedSearchTerm.length >= 2;
   const { data: products, isLoading: isLoadingProducts } = useQuery({
-    queryKey: ['shopify-products-all'],
-    queryFn: () => fetchShopifyProducts(500), // Buscar até 500 produtos (paginação automática)
+    queryKey: ['bling-products', debouncedSearchTerm],
+    enabled: hasValidSearch,
+    queryFn: async (): Promise<ShopifyProduct[]> => {
+      const blingProducts = await fetchBlingProducts(debouncedSearchTerm);
+      // Adapta o shape flat do Bling para o shape Shopify GraphQL
+      // (edges/node) que o restante do PDV já consome.
+      return blingProducts.map((p) => ({
+        node: {
+          id: p.id,
+          title: p.title,
+          description: '',
+          handle: p.id,
+          priceRange: {
+            minVariantPrice: {
+              amount: p.variants[0]?.price ?? '0',
+              currencyCode: 'BRL',
+            },
+          },
+          images: {
+            edges: p.images.map((img) => ({
+              node: { url: img.url, altText: null },
+            })),
+          },
+          variants: {
+            edges: p.variants.map((v) => ({
+              node: {
+                id: v.id,
+                title: v.title,
+                price: { amount: v.price, currencyCode: 'BRL' },
+                availableForSale: v.availableForSale,
+                selectedOptions: [],
+                sku: v.sku,
+                // Campo extra usado apenas para badge de estoque no PDV
+                stockTotal: v.stockTotal,
+              } as any,
+            })),
+          },
+          options: [],
+        } as any,
+      }));
+    },
   });
 
   // Fetch client from URL param (for vendedor flow)
