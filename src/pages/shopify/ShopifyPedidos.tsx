@@ -104,6 +104,13 @@ export default function ShopifyPedidos() {
   const urlClienteNome = searchParams.get('clienteNome');
   
   const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
+
+  // Debounce de 400ms no termo de busca para evitar chamadas excessivas ao Bling
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearchTerm(searchTerm.trim()), 400);
+    return () => clearTimeout(t);
+  }, [searchTerm]);
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [selectedSubcategory, setSelectedSubcategory] = useState<string>("all");
   const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null);
