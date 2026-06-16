@@ -1376,11 +1376,15 @@ export default function ShopifyPedidos() {
                   <SelectValue placeholder="Categoria" />
                 </SelectTrigger>
                 <SelectContent>
-                  {categories.map((cat) => (
-                    <SelectItem key={cat.id} value={cat.id}>
-                      {cat.name} ({countByCategory(cat.id)})
-                    </SelectItem>
-                  ))}
+                  {categories.map((cat) => {
+                    const count = countByCategory(cat.id);
+                    const hasProducts = (products?.length ?? 0) > 0;
+                    return (
+                      <SelectItem key={cat.id} value={cat.id}>
+                        {cat.name}{hasProducts ? ` (${count})` : ''}
+                      </SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
 
