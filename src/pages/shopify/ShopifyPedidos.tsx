@@ -1541,9 +1541,13 @@ export default function ShopifyPedidos() {
                         Adicionar
                       </Button>
                     </div>
-                    {!variant?.availableForSale && (
+                    {!variant?.availableForSale ? (
                       <p className="text-xs text-destructive mt-2">Indisponível</p>
-                    )}
+                    ) : (variant as any)?.stockTotal > 0 ? (
+                      <Badge variant="secondary" className="mt-2 text-xs font-normal">
+                        Em estoque: {(variant as any).stockTotal} un.
+                      </Badge>
+                    ) : null}
                   </CardContent>
                 </Card>
               );
