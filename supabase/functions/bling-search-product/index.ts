@@ -147,21 +147,37 @@ async function searchProducts(accessToken: string, query: string): Promise<any[]
     console.log('Nenhum por codigo, tentando pesquisa...');
   }
 
-  // 2) Broad text search (name + code + description) - active
+  // 2) Text with spaces: try product name first. Bling's broad `pesquisa`
+  // can return matches from descriptions before the actual digital product,
+  // and the PDV then filters them out locally by title/SKU.
+  if (trimmedQuery.includes(' ')) {
+    let nameResults = await fetchBling(`${base}?nome=${encodedQuery}&limite=10`, accessToken);
+    if (nameResults.length > 0) {
+      console.log(`Encontrados ${nameResults.length} por nome (ativos)`);
+      return nameResults;
+    }
+    nameResults = await fetchBling(`${base}?nome=${encodedQuery}&limite=10${allStatuses}`, accessToken);
+    if (nameResults.length > 0) {
+      console.log(`Encontrados ${nameResults.length} por nome (todas situações)`);
+      return nameResults;
+    }
+  }
+
+  // 3) Broad text search (name + code + description) - active
   let results = await fetchBling(`${base}?pesquisa=${encodedQuery}&limite=10`, accessToken);
   if (results.length > 0) {
     console.log(`Encontrados ${results.length} por pesquisa (ativos)`);
     return results;
   }
 
-  // 3) Broad text search - all statuses (includes digitais inativos)
+  // 4) Broad text search - all statuses (includes digitais inativos)
   results = await fetchBling(`${base}?pesquisa=${encodedQuery}&limite=10${allStatuses}`, accessToken);
   if (results.length > 0) {
     console.log(`Encontrados ${results.length} por pesquisa (todas situações)`);
     return results;
   }
 
-  // 4) Fallback: search by name (all statuses)
+  // 5) Fallback: search by name (all statuses)
   results = await fetchBling(`${base}?nome=${encodedQuery}&limite=10${allStatuses}`, accessToken);
   if (results.length > 0) {
     console.log(`Encontrados ${results.length} por nome (todas situações)`);
