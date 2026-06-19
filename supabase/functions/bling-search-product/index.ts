@@ -98,10 +98,13 @@ async function fetchProductDetails(accessToken: string, productId: number): Prom
   return json?.data ?? json;
 }
 
-// Detect if query looks like a SKU/code (numeric, or alphanumeric without spaces)
+// Detect if query looks like a SKU/code: no spaces, only code-safe chars,
+// and either contains a digit OR a hyphen/underscore/dot/slash (typical SKU separators).
 function looksLikeCode(query: string): boolean {
   const q = query.trim();
-  return !q.includes(' ') && /[0-9]/.test(q) && /^[A-Za-z0-9._\-\/]+$/.test(q);
+  if (q.includes(' ')) return false;
+  if (!/^[A-Za-z0-9._\-\/]+$/.test(q)) return false;
+  return /[0-9]/.test(q) || /[-_.\/]/.test(q);
 }
 
 async function fetchBling(url: string, accessToken: string): Promise<any[]> {
