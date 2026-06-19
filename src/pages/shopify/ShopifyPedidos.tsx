@@ -1362,50 +1362,9 @@ export default function ShopifyPedidos() {
               />
             </div>
 
-            {/* Category Filter */}
+            {/* Category Filter hidden for vendor PDV */}
             <div className="flex gap-2 items-center">
-              <Filter className="h-4 w-4 text-muted-foreground" />
-              <Select
-                value={selectedCategory}
-                onValueChange={(value) => {
-                  setSelectedCategory(value);
-                  setSelectedSubcategory('all');
-                }}
-              >
-                <SelectTrigger className="w-[200px]">
-                  <SelectValue placeholder="Categoria" />
-                </SelectTrigger>
-                <SelectContent>
-                  {categories.map((cat) => {
-                    const count = countByCategory(cat.id);
-                    const hasProducts = (products?.length ?? 0) > 0;
-                    return (
-                      <SelectItem key={cat.id} value={cat.id}>
-                        {cat.name}{hasProducts ? ` (${count})` : ''}
-                      </SelectItem>
-                    );
-                  })}
-                </SelectContent>
-              </Select>
 
-              {/* Subcategory Filter - Only show if category has subcategories */}
-              {currentSubcategories.length > 0 && (
-                <Select
-                  value={selectedSubcategory}
-                  onValueChange={setSelectedSubcategory}
-                >
-                  <SelectTrigger className="w-[200px]">
-                    <SelectValue placeholder="Subcategoria" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {currentSubcategories.map((sub) => (
-                      <SelectItem key={sub.id} value={sub.id}>
-                        {sub.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
 
               {/* Clear Filters */}
               {(selectedCategory !== 'all' || searchTerm) && (
