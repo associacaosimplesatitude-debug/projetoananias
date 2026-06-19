@@ -132,7 +132,31 @@ async function searchProducts(accessToken: string, query: string): Promise<any[]
     console.log('Nenhum produto encontrado por codigo, tentando por nome...');
   }
   
-  // Search by name (default or fallback)
+  // Search by broad text (pesquisa) - matches name, code, description
+  const urlByPesquisa = `https://api.bling.com.br/Api/v3/produtos?pesquisa=${encodedQuery}&limite=10`;
+  console.log(`Buscando por pesquisa: ${urlByPesquisa}`);
+
+  const respPesquisa = await fetch(urlByPesquisa, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Accept': 'application/json',
+    },
+  });
+
+  if (respPesquisa.ok) {
+    const json = await respPesquisa.json();
+    const results = json?.data ?? [];
+    if (results.length > 0) {
+      console.log(`Encontrados ${results.length} produtos por pesquisa`);
+      return results;
+    }
+    console.log('Nenhum produto por pesquisa, tentando por nome...');
+  } else {
+    console.warn('Erro na busca por pesquisa:', respPesquisa.status);
+  }
+
+  // Fallback: search by name
   const urlByNome = `https://api.bling.com.br/Api/v3/produtos?nome=${encodedQuery}&limite=10`;
   console.log(`Buscando por nome: ${urlByNome}`);
 
