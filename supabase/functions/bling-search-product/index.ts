@@ -147,21 +147,37 @@ async function searchProducts(accessToken: string, query: string): Promise<any[]
     console.log('Nenhum por codigo, tentando pesquisa...');
   }
 
-  // 2) Broad text search (name + code + description) - active
+  // 2) Text with spaces: try product name first. Bling's broad `pesquisa`
+  // can return matches from descriptions before the actual digital product,
+  // and the PDV then filters them out locally by title/SKU.
+  if (trimmedQuery.includes(' ')) {
+    let nameResults = await fetchBling(`${base}?nome=${encodedQuery}&limite=10`, accessToken);
+    if (nameResults.length > 0) {
+      console.log(`Encontrados ${nameResults.length} por nome (ativos)`);
+      return nameResults;
+    }
+    nameResults = await fetchBling(`${base}?nome=${encodedQuery}&limite=10${allStatuses}`, accessToken);
+    if (nameResults.length > 0) {
+      console.log(`Encontrados ${nameResults.length} por nome (todas situações)`);
+      return nameResults;
+    }
+  }
+
+  // 3) Broad text search (name + code + description) - active
   let results = await fetchBling(`${base}?pesquisa=${encodedQuery}&limite=10`, accessToken);
   if (results.length > 0) {
     console.log(`Encontrados ${results.length} por pesquisa (ativos)`);
     return results;
   }
 
-  // 3) Broad text search - all statuses (includes digitais inativos)
+  // 4) Broad text search - all statuses (includes digitais inativos)
   results = await fetchBling(`${base}?pesquisa=${encodedQuery}&limite=10${allStatuses}`, accessToken);
   if (results.length > 0) {
     console.log(`Encontrados ${results.length} por pesquisa (todas situações)`);
     return results;
   }
 
-  // 4) Fallback: search by name (all statuses)
+  // 5) Fallback: search by name (all statuses)
   results = await fetchBling(`${base}?nome=${encodedQuery}&limite=10${allStatuses}`, accessToken);
   if (results.length > 0) {
     console.log(`Encontrados ${results.length} por nome (todas situações)`);
@@ -230,33 +246,36 @@ serve(async (req) => {
       });
     }
 
-    // Buscar detalhes de cada produto (com rate limiting)
+    // Buscar detalhes de cada produto (com rate limiting).
+    // Se a chamada de detalhes falhar/intermitir, mantém o produto retornado
+    // pela busca base para não sumir do PDV.
     const detailedProducts = [];
     for (const product of products.slice(0, 10)) {
       await delay(350); // 350ms entre chamadas (Bling permite 3 req/s)
       
       const details = await fetchProductDetails(accessToken, Number(product.id));
+      const source = details || product;
       
-      if (details) {
+      if (source) {
         // Bling v3 retorna imagens em vários caminhos diferentes dependendo
         // do produto. Tentamos todos os fallbacks conhecidos.
         const imagemURL =
-          details.imagemURL ||
-          details.imagem?.link ||
-          details.midia?.imagens?.externas?.[0]?.link ||
-          details.midia?.imagens?.internas?.[0]?.link ||
-          details.anexos?.[0]?.url ||
+          source.imagemURL ||
+          source.imagem?.link ||
+          source.midia?.imagens?.externas?.[0]?.link ||
+          source.midia?.imagens?.internas?.[0]?.link ||
+          source.anexos?.[0]?.url ||
           '';
 
         detailedProducts.push({
-          id: details.id,
-          codigo: details.codigo || '',
-          nome: details.nome || '',
-          preco: details.preco || 0,
+          id: source.id,
+          codigo: source.codigo || '',
+          nome: source.nome || '',
+          preco: source.preco || 0,
           imagemURL,
-          descricao: stripHtmlTags(details.descricaoCurta || details.descricao || ''),
-          estoque: details.estoque?.saldoVirtualTotal ?? details.estoqueAtual ?? 0,
-          tipo: details.tipo || 'P',
+          descricao: stripHtmlTags(source.descricaoCurta || source.descricao || ''),
+          estoque: source.estoque?.saldoVirtualTotal ?? source.estoqueAtual ?? source.estoque ?? 0,
+          tipo: source.tipo || 'P',
         });
       }
     }
