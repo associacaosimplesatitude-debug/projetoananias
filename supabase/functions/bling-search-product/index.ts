@@ -98,83 +98,72 @@ async function fetchProductDetails(accessToken: string, productId: number): Prom
   return json?.data ?? json;
 }
 
-// Detect if query is a numeric code (SKU)
-function isNumericCode(query: string): boolean {
-  return /^\d+$/.test(query.trim());
+// Detect if query looks like a SKU/code (numeric, or alphanumeric without spaces)
+function looksLikeCode(query: string): boolean {
+  const q = query.trim();
+  return !q.includes(' ') && /[0-9]/.test(q) && /^[A-Za-z0-9._\-\/]+$/.test(q);
 }
 
-// Search products in Bling - supports both code (SKU) and name
+async function fetchBling(url: string, accessToken: string): Promise<any[]> {
+  const resp = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Accept': 'application/json',
+    },
+  });
+  if (!resp.ok) {
+    console.warn(`Bling search failed (${resp.status}) for ${url}`);
+    return [];
+  }
+  const json = await resp.json();
+  return json?.data ?? [];
+}
+
+// Search products in Bling - supports SKU (numeric & alphanumeric like DG31788) and name.
+// Includes inactive/all statuses (criterio=5) so digital products (revistas, livros) appear.
 async function searchProducts(accessToken: string, query: string): Promise<any[]> {
   const trimmedQuery = query.trim();
   const encodedQuery = encodeURIComponent(trimmedQuery);
-  
-  // If query is numeric, search by code first
-  if (isNumericCode(trimmedQuery)) {
-    const urlByCodigo = `https://api.bling.com.br/Api/v3/produtos?codigo=${encodedQuery}&limite=10`;
-    console.log(`Buscando por codigo (SKU): ${urlByCodigo}`);
-    
-    const respCodigo = await fetch(urlByCodigo, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Accept': 'application/json',
-      },
-    });
-    
-    if (respCodigo.ok) {
-      const json = await respCodigo.json();
-      const results = json?.data ?? [];
-      if (results.length > 0) {
-        console.log(`Encontrados ${results.length} produtos por codigo`);
-        return results;
-      }
-    }
-    console.log('Nenhum produto encontrado por codigo, tentando por nome...');
-  }
-  
-  // Search by broad text (pesquisa) - matches name, code, description
-  const urlByPesquisa = `https://api.bling.com.br/Api/v3/produtos?pesquisa=${encodedQuery}&limite=10`;
-  console.log(`Buscando por pesquisa: ${urlByPesquisa}`);
+  const base = 'https://api.bling.com.br/Api/v3/produtos';
+  // criterio=5 -> todas as situações (ativos, inativos, etc.)
+  const allStatuses = '&criterio=5';
 
-  const respPesquisa = await fetch(urlByPesquisa, {
-    method: 'GET',
-    headers: {
-      'Authorization': `Bearer ${accessToken}`,
-      'Accept': 'application/json',
-    },
-  });
-
-  if (respPesquisa.ok) {
-    const json = await respPesquisa.json();
-    const results = json?.data ?? [];
+  // 1) If looks like a code/SKU, try by codigo (active + all-statuses)
+  if (looksLikeCode(trimmedQuery)) {
+    let results = await fetchBling(`${base}?codigo=${encodedQuery}&limite=10`, accessToken);
     if (results.length > 0) {
-      console.log(`Encontrados ${results.length} produtos por pesquisa`);
+      console.log(`Encontrados ${results.length} por codigo (ativos)`);
       return results;
     }
-    console.log('Nenhum produto por pesquisa, tentando por nome...');
-  } else {
-    console.warn('Erro na busca por pesquisa:', respPesquisa.status);
+    results = await fetchBling(`${base}?codigo=${encodedQuery}&limite=10${allStatuses}`, accessToken);
+    if (results.length > 0) {
+      console.log(`Encontrados ${results.length} por codigo (todas situações)`);
+      return results;
+    }
+    console.log('Nenhum por codigo, tentando pesquisa...');
   }
 
-  // Fallback: search by name
-  const urlByNome = `https://api.bling.com.br/Api/v3/produtos?nome=${encodedQuery}&limite=10`;
-  console.log(`Buscando por nome: ${urlByNome}`);
-
-  const resp = await fetch(urlByNome, {
-    method: 'GET',
-    headers: {
-      'Authorization': `Bearer ${accessToken}`,
-      'Accept': 'application/json',
-    },
-  });
-
-  if (!resp.ok) {
-    console.error('Erro na busca de produtos:', resp.status);
-    return [];
+  // 2) Broad text search (name + code + description) - active
+  let results = await fetchBling(`${base}?pesquisa=${encodedQuery}&limite=10`, accessToken);
+  if (results.length > 0) {
+    console.log(`Encontrados ${results.length} por pesquisa (ativos)`);
+    return results;
   }
 
-  const json = await resp.json();
-  return json?.data ?? [];
+  // 3) Broad text search - all statuses (includes digitais inativos)
+  results = await fetchBling(`${base}?pesquisa=${encodedQuery}&limite=10${allStatuses}`, accessToken);
+  if (results.length > 0) {
+    console.log(`Encontrados ${results.length} por pesquisa (todas situações)`);
+    return results;
+  }
+
+  // 4) Fallback: search by name (all statuses)
+  results = await fetchBling(`${base}?nome=${encodedQuery}&limite=10${allStatuses}`, accessToken);
+  if (results.length > 0) {
+    console.log(`Encontrados ${results.length} por nome (todas situações)`);
+  }
+  return results;
 }
 
 serve(async (req) => {
