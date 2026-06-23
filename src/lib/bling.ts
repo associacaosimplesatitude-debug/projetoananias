@@ -86,69 +86,67 @@ export async function fetchBlingProducts(query?: string): Promise<BlingProduct[]
   }
 
   const rawProducts = searchData.products;
+  if (rawProducts.length === 0) return [];
 
-  // Para cada produto, consulta saldo consolidado.
-  // Tolerante a falhas: se o estoque falhar para um SKU, marca como
-  // indisponível mas mantém o restante da lista.
-  const enriched = await Promise.all(
-    rawProducts.map(async (p): Promise<BlingProduct> => {
-      const sku = String(p.codigo ?? p.id ?? "");
-      const blingProdutoId = p.id;
-      const title = p.nome ?? sku;
-      const priceNumber =
-        typeof p.preco === "number" ? p.preco : parseFloat(String(p.preco ?? "0")) || 0;
-      const price = priceNumber.toFixed(2);
-      const imageUrl = p.imagemURL?.trim();
+  // Confia no estoque retornado pela busca (search-product já consolida
+  // `saldoVirtualTotal`). Só dispara o `bling-check-stock` — em UMA chamada
+  // batched — para os SKUs que vieram sem estoque, para confirmar antes de
+  // marcar como indisponível.
+  const stockMap = new Map<string, number>();
+  const needCheck = rawProducts.filter((p) => !(typeof p.estoque === "number" && p.estoque > 0));
 
-      let stockTotal = 0;
-      try {
-        const { data: stockData, error: stockError } = await supabase.functions.invoke<BlingStockResponse>(
-          "bling-check-stock",
-          {
-            body: {
-              produtos: [
-                {
-                  bling_produto_id: blingProdutoId,
-                  quantidade: 1,
-                  titulo: title,
-                },
-              ],
-            },
-          }
-        );
-
-        if (stockError) throw stockError;
-
-        if (stockData?.success && Array.isArray(stockData.produtos) && stockData.produtos.length > 0) {
-          stockTotal = Number(stockData.produtos[0].estoque_disponivel ?? 0) || 0;
-        } else if (typeof p.estoque === "number") {
-          // Fallback para o saldo já retornado pelo search-product.
-          stockTotal = p.estoque;
-        }
-      } catch (err) {
-        console.warn(`[fetchBlingProducts] estoque indisponível para SKU ${sku}:`, err);
-        stockTotal = 0;
-      }
-
-      const availableForSale = stockTotal > 0;
-
-      return {
-        id: sku,
-        title,
-        images: imageUrl ? [{ url: imageUrl }] : [],
-        variants: [
-          {
-            id: sku,
-            title: "Único",
-            price,
-            availableForSale,
-            sku,
-            stockTotal,
+  if (needCheck.length > 0) {
+    try {
+      const { data: stockData, error: stockError } = await supabase.functions.invoke<BlingStockResponse>(
+        "bling-check-stock",
+        {
+          body: {
+            produtos: needCheck.map((p) => ({
+              bling_produto_id: p.id,
+              quantidade: 1,
+              titulo: p.nome ?? String(p.codigo ?? p.id),
+            })),
           },
-        ],
-      };
-    })
-  );
+        }
+      );
+      if (stockError) throw stockError;
+      if (stockData?.success && Array.isArray(stockData.produtos)) {
+        for (const item of stockData.produtos) {
+          stockMap.set(String(item.bling_produto_id), Number(item.estoque_disponivel ?? 0) || 0);
+        }
+      }
+    } catch (err) {
+      console.warn("[fetchBlingProducts] estoque batched indisponível:", err);
+    }
+  }
 
-  return enriched;
+  return rawProducts.map((p): BlingProduct => {
+    const sku = String(p.codigo ?? p.id ?? "");
+    const title = p.nome ?? sku;
+    const priceNumber =
+      typeof p.preco === "number" ? p.preco : parseFloat(String(p.preco ?? "0")) || 0;
+    const price = priceNumber.toFixed(2);
+    const imageUrl = p.imagemURL?.trim();
+
+    const stockFromSearch = typeof p.estoque === "number" ? p.estoque : 0;
+    const stockFromCheck = stockMap.get(String(p.id));
+    const stockTotal = stockFromSearch > 0 ? stockFromSearch : (stockFromCheck ?? 0);
+    const availableForSale = stockTotal > 0;
+
+    return {
+      id: sku,
+      title,
+      images: imageUrl ? [{ url: imageUrl }] : [],
+      variants: [
+        {
+          id: sku,
+          title: "Único",
+          price,
+          availableForSale,
+          sku,
+          stockTotal,
+        },
+      ],
+    };
+  });
 }

@@ -319,6 +319,9 @@ export default function ShopifyPedidos() {
   const { data: products, isLoading: isLoadingProducts } = useQuery({
     queryKey: ['bling-products', debouncedSearchTerm],
     enabled: hasValidSearch,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+    placeholderData: (prev) => prev,
     queryFn: async (): Promise<ShopifyProduct[]> => {
       const blingProducts = await fetchBlingProducts(debouncedSearchTerm);
       // Adapta o shape flat do Bling para o shape Shopify GraphQL
