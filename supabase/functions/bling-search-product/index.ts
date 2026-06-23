@@ -6,16 +6,31 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
-// Função para renovar o token do Bling
-async function refreshBlingToken(supabase: any, config: any): Promise<string> {
-  if (!config.refresh_token) {
-    throw new Error('Refresh token não disponível');
-  }
+// ===== Caches em memória (best-effort, vivem enquanto a função estiver "warm") =====
+interface TokenCache {
+  accessToken: string;
+  expiresAt: number; // epoch ms
+  configId: string;
+}
+let tokenCache: TokenCache | null = null;
 
-  console.log('Renovando token do Bling...');
-  
+interface SearchCacheEntry {
+  ts: number;
+  products: any[];
+}
+const searchCache = new Map<string, SearchCacheEntry>();
+const SEARCH_TTL_MS = 60_000;
+
+function stripHtmlTags(html: string | null | undefined): string {
+  if (!html) return '';
+  return html.replace(/<[^>]*>/g, '').trim();
+}
+
+// ===== Token =====
+async function refreshBlingToken(supabase: any, config: any): Promise<string> {
+  if (!config.refresh_token) throw new Error('Refresh token não disponível');
+
   const credentials = btoa(`${config.client_id}:${config.client_secret}`);
-  
   const tokenResponse = await fetch('https://api.bling.com.br/Api/v3/oauth/token', {
     method: 'POST',
     headers: {
@@ -29,21 +44,21 @@ async function refreshBlingToken(supabase: any, config: any): Promise<string> {
   });
 
   const tokenData = await tokenResponse.json();
-
   if (!tokenResponse.ok || tokenData.error) {
     console.error('Erro ao renovar token:', tokenData);
     throw new Error(tokenData.error_description || 'Erro ao renovar token do Bling');
   }
 
-  const expiresAt = new Date();
-  expiresAt.setSeconds(expiresAt.getSeconds() + (tokenData.expires_in || 21600));
+  const expiresInSec = tokenData.expires_in || 21600;
+  const expiresAtDate = new Date();
+  expiresAtDate.setSeconds(expiresAtDate.getSeconds() + expiresInSec);
 
   const { error: updateError } = await supabase
     .from('bling_config')
     .update({
       access_token: tokenData.access_token,
       refresh_token: tokenData.refresh_token,
-      token_expires_at: expiresAt.toISOString(),
+      token_expires_at: expiresAtDate.toISOString(),
     })
     .eq('id', config.id);
 
@@ -52,54 +67,48 @@ async function refreshBlingToken(supabase: any, config: any): Promise<string> {
     throw new Error('Erro ao salvar tokens renovados');
   }
 
-  console.log('Token renovado com sucesso! Expira em:', expiresAt.toISOString());
+  tokenCache = {
+    accessToken: tokenData.access_token,
+    expiresAt: Date.now() + expiresInSec * 1000 - 5 * 60_000,
+    configId: config.id,
+  };
   return tokenData.access_token;
 }
 
-function isTokenExpired(tokenExpiresAt: string | null): boolean {
-  if (!tokenExpiresAt) return true;
-
-  const expiresAt = new Date(tokenExpiresAt);
-  const now = new Date();
-  const bufferMs = 5 * 60 * 1000;
-  return now.getTime() >= expiresAt.getTime() - bufferMs;
-}
-
-// Remove HTML tags from string
-function stripHtmlTags(html: string | null | undefined): string {
-  if (!html) return '';
-  return html.replace(/<[^>]*>/g, '').trim();
-}
-
-// Delay utility for rate limiting
-function delay(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-// Fetch product details from Bling
-async function fetchProductDetails(accessToken: string, productId: number): Promise<any | null> {
-  const url = `https://api.bling.com.br/Api/v3/produtos/${productId}`;
-  console.log(`Buscando detalhes do produto: ${url}`);
-
-  const resp = await fetch(url, {
-    method: 'GET',
-    headers: {
-      'Authorization': `Bearer ${accessToken}`,
-      'Accept': 'application/json',
-    },
-  });
-
-  if (!resp.ok) {
-    console.warn(`Falha ao buscar detalhes do produto ${productId}:`, resp.status);
-    return null;
+async function getAccessToken(supabase: any): Promise<{ token: string; config: any }> {
+  if (tokenCache && tokenCache.expiresAt > Date.now()) {
+    // Ainda precisamos do config para um eventual refresh em caso de 401.
+    // Buscamos lazy só quando necessário.
+    return {
+      token: tokenCache.accessToken,
+      config: { id: tokenCache.configId, __lazy: true },
+    };
   }
 
-  const json = await resp.json();
-  return json?.data ?? json;
+  const { data: blingConfig, error } = await supabase
+    .from('bling_config')
+    .select('*')
+    .single();
+  if (error || !blingConfig) throw new Error('Configuração do Bling não encontrada');
+
+  const expiresAtMs = blingConfig.token_expires_at
+    ? new Date(blingConfig.token_expires_at).getTime() - 5 * 60_000
+    : 0;
+
+  if (expiresAtMs > Date.now()) {
+    tokenCache = {
+      accessToken: blingConfig.access_token,
+      expiresAt: expiresAtMs,
+      configId: blingConfig.id,
+    };
+    return { token: blingConfig.access_token, config: blingConfig };
+  }
+
+  const token = await refreshBlingToken(supabase, blingConfig);
+  return { token, config: blingConfig };
 }
 
-// Detect if query looks like a SKU/code: no spaces, only code-safe chars,
-// and either contains a digit OR a hyphen/underscore/dot/slash (typical SKU separators).
+// ===== Busca =====
 function looksLikeCode(query: string): boolean {
   const q = query.trim();
   if (q.includes(' ')) return false;
@@ -107,7 +116,13 @@ function looksLikeCode(query: string): boolean {
   return /[0-9]/.test(q) || /[-_.\/]/.test(q);
 }
 
-async function fetchBling(url: string, accessToken: string): Promise<any[]> {
+interface FetchResult {
+  ok: boolean;
+  status: number;
+  data: any[];
+}
+
+async function fetchBling(url: string, accessToken: string): Promise<FetchResult> {
   const resp = await fetch(url, {
     method: 'GET',
     headers: {
@@ -116,77 +131,89 @@ async function fetchBling(url: string, accessToken: string): Promise<any[]> {
     },
   });
   if (!resp.ok) {
-    console.warn(`Bling search failed (${resp.status}) for ${url}`);
-    return [];
+    // Consumir o body para evitar leak
+    try { await resp.text(); } catch { /* ignore */ }
+    return { ok: false, status: resp.status, data: [] };
   }
   const json = await resp.json();
-  return json?.data ?? [];
+  return { ok: true, status: 200, data: json?.data ?? [] };
 }
 
-// Search products in Bling - supports SKU (numeric & alphanumeric like DG31788) and name.
-// Includes inactive/all statuses (criterio=5) so digital products (revistas, livros) appear.
-async function searchProducts(accessToken: string, query: string): Promise<any[]> {
-  const trimmedQuery = query.trim();
-  const encodedQuery = encodeURIComponent(trimmedQuery);
+function dedupeById(items: any[]): any[] {
+  const seen = new Set<string | number>();
+  const out: any[] = [];
+  for (const it of items) {
+    const id = it?.id;
+    if (id == null || seen.has(id)) continue;
+    seen.add(id);
+    out.push(it);
+  }
+  return out;
+}
+
+interface SearchOutcome {
+  products: any[];
+  unauthorized: boolean;
+}
+
+// Busca em paralelo (sem cascata sequencial). Mescla resultados deduplicando por id.
+async function searchProducts(accessToken: string, query: string): Promise<SearchOutcome> {
+  const q = query.trim();
+  const encoded = encodeURIComponent(q);
   const base = 'https://api.bling.com.br/Api/v3/produtos';
-  // criterio=5 -> todas as situações (ativos, inativos, etc.)
   const allStatuses = '&criterio=5';
 
-  // 1) If looks like a code/SKU, try by codigo (active + all-statuses)
-  if (looksLikeCode(trimmedQuery)) {
-    let results = await fetchBling(`${base}?codigo=${encodedQuery}&limite=10`, accessToken);
-    if (results.length > 0) {
-      console.log(`Encontrados ${results.length} por codigo (ativos)`);
-      return results;
-    }
-    results = await fetchBling(`${base}?codigo=${encodedQuery}&limite=10${allStatuses}`, accessToken);
-    if (results.length > 0) {
-      console.log(`Encontrados ${results.length} por codigo (todas situações)`);
-      return results;
-    }
-    console.log('Nenhum por codigo, tentando pesquisa...');
+  const urls: string[] = [];
+  if (looksLikeCode(q)) {
+    urls.push(`${base}?codigo=${encoded}&limite=10`);
+    urls.push(`${base}?codigo=${encoded}&limite=10${allStatuses}`);
   }
+  if (q.includes(' ')) {
+    urls.push(`${base}?nome=${encoded}&limite=10`);
+    urls.push(`${base}?nome=${encoded}&limite=10${allStatuses}`);
+  }
+  // Pesquisa ampla sempre como rede de segurança
+  urls.push(`${base}?pesquisa=${encoded}&limite=10${allStatuses}`);
 
-  // 2) Text with spaces: try product name first. Bling's broad `pesquisa`
-  // can return matches from descriptions before the actual digital product,
-  // and the PDV then filters them out locally by title/SKU.
-  if (trimmedQuery.includes(' ')) {
-    let nameResults = await fetchBling(`${base}?nome=${encodedQuery}&limite=10`, accessToken);
-    if (nameResults.length > 0) {
-      console.log(`Encontrados ${nameResults.length} por nome (ativos)`);
-      return nameResults;
-    }
-    nameResults = await fetchBling(`${base}?nome=${encodedQuery}&limite=10${allStatuses}`, accessToken);
-    if (nameResults.length > 0) {
-      console.log(`Encontrados ${nameResults.length} por nome (todas situações)`);
-      return nameResults;
-    }
-  }
+  const results = await Promise.all(urls.map((u) => fetchBling(u, accessToken)));
 
-  // 3) Broad text search (name + code + description) - active
-  let results = await fetchBling(`${base}?pesquisa=${encodedQuery}&limite=10`, accessToken);
-  if (results.length > 0) {
-    console.log(`Encontrados ${results.length} por pesquisa (ativos)`);
-    return results;
-  }
+  const unauthorized = results.some((r) => r.status === 401);
+  const merged = dedupeById(results.flatMap((r) => r.data)).slice(0, 10);
 
-  // 4) Broad text search - all statuses (includes digitais inativos)
-  results = await fetchBling(`${base}?pesquisa=${encodedQuery}&limite=10${allStatuses}`, accessToken);
-  if (results.length > 0) {
-    console.log(`Encontrados ${results.length} por pesquisa (todas situações)`);
-    return results;
-  }
+  return { products: merged, unauthorized };
+}
 
-  // 5) Fallback: search by name (all statuses)
-  results = await fetchBling(`${base}?nome=${encodedQuery}&limite=10${allStatuses}`, accessToken);
-  if (results.length > 0) {
-    console.log(`Encontrados ${results.length} por nome (todas situações)`);
-  }
-  return results;
+// Mapeia diretamente do retorno da busca (sem hit extra em /produtos/{id})
+function mapBlingProduct(source: any) {
+  const imagemURL =
+    source.imagemURL ||
+    source.imagem?.link ||
+    source.midia?.imagens?.externas?.[0]?.link ||
+    source.midia?.imagens?.internas?.[0]?.link ||
+    source.anexos?.[0]?.url ||
+    '';
+
+  const estoque =
+    (typeof source.estoque === 'object' && source.estoque
+      ? (source.estoque.saldoVirtualTotal ?? source.estoque.saldoVirtual ?? 0)
+      : null) ??
+    source.estoqueAtual ??
+    (typeof source.estoque === 'number' ? source.estoque : 0) ??
+    0;
+
+  return {
+    id: source.id,
+    codigo: source.codigo || '',
+    nome: source.nome || '',
+    preco: source.preco || 0,
+    imagemURL,
+    descricao: stripHtmlTags(source.descricaoCurta || source.descricao || ''),
+    estoque,
+    tipo: source.tipo || 'P',
+  };
 }
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
@@ -204,83 +231,46 @@ serve(async (req) => {
       });
     }
 
-    console.log(`Buscando produtos no Bling com termo: "${query}"`);
+    const normalized = query.trim().toLowerCase();
 
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
-    // Buscar configuração do Bling
-    const { data: blingConfig, error: configError } = await supabase
-      .from('bling_config')
-      .select('*')
-      .single();
-
-    if (configError || !blingConfig) {
-      throw new Error('Configuração do Bling não encontrada');
-    }
-
-    // Verificar se o token está expirado e renovar se necessário
-    let accessToken = blingConfig.access_token;
-    if (isTokenExpired(blingConfig.token_expires_at)) {
-      accessToken = await refreshBlingToken(supabase, blingConfig);
-    }
-
-    // Buscar produtos
-    let products = await searchProducts(accessToken, query.trim());
-
-    // Se erro de autenticação, renovar e tentar novamente
-    if (products.length === 0) {
-      // Tentar com token renovado
-      accessToken = await refreshBlingToken(supabase, blingConfig);
-      products = await searchProducts(accessToken, query.trim());
-    }
-
-    if (products.length === 0) {
+    // Cache hit (60s)
+    const cached = searchCache.get(normalized);
+    if (cached && Date.now() - cached.ts < SEARCH_TTL_MS) {
       return new Response(JSON.stringify({
         success: true,
-        products: [],
-        message: 'Nenhum produto encontrado'
+        products: cached.products,
+        cached: true,
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    // Buscar detalhes de cada produto (com rate limiting).
-    // Se a chamada de detalhes falhar/intermitir, mantém o produto retornado
-    // pela busca base para não sumir do PDV.
-    const detailedProducts = [];
-    for (const product of products.slice(0, 10)) {
-      await delay(350); // 350ms entre chamadas (Bling permite 3 req/s)
-      
-      const details = await fetchProductDetails(accessToken, Number(product.id));
-      const source = details || product;
-      
-      if (source) {
-        // Bling v3 retorna imagens em vários caminhos diferentes dependendo
-        // do produto. Tentamos todos os fallbacks conhecidos.
-        const imagemURL =
-          source.imagemURL ||
-          source.imagem?.link ||
-          source.midia?.imagens?.externas?.[0]?.link ||
-          source.midia?.imagens?.internas?.[0]?.link ||
-          source.anexos?.[0]?.url ||
-          '';
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-        detailedProducts.push({
-          id: source.id,
-          codigo: source.codigo || '',
-          nome: source.nome || '',
-          preco: source.preco || 0,
-          imagemURL,
-          descricao: stripHtmlTags(source.descricaoCurta || source.descricao || ''),
-          estoque: source.estoque?.saldoVirtualTotal ?? source.estoqueAtual ?? source.estoque ?? 0,
-          tipo: source.tipo || 'P',
-        });
+    let { token, config } = await getAccessToken(supabase);
+    let outcome = await searchProducts(token, query.trim());
+
+    // Só renova token em caso de 401 explícito (não em "0 resultados").
+    if (outcome.unauthorized) {
+      if (config?.__lazy) {
+        const { data: full } = await supabase.from('bling_config').select('*').single();
+        if (full) config = full;
       }
+      token = await refreshBlingToken(supabase, config);
+      outcome = await searchProducts(token, query.trim());
     }
 
-    console.log(`Encontrados ${detailedProducts.length} produtos com detalhes`);
+    const detailedProducts = outcome.products.map(mapBlingProduct);
+
+    // Atualiza cache
+    searchCache.set(normalized, { ts: Date.now(), products: detailedProducts });
+    // Limita o tamanho do cache para não crescer indefinidamente
+    if (searchCache.size > 200) {
+      const firstKey = searchCache.keys().next().value;
+      if (firstKey) searchCache.delete(firstKey);
+    }
 
     return new Response(JSON.stringify({
       success: true,
