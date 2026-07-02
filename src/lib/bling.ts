@@ -120,7 +120,7 @@ export async function fetchBlingProducts(query?: string): Promise<BlingProduct[]
     }
   }
 
-  return rawProducts.map((p): BlingProduct => {
+  const mapped = rawProducts.map((p): BlingProduct => {
     const sku = String(p.codigo ?? p.id ?? "");
     const title = p.nome ?? sku;
     const priceNumber =
@@ -149,4 +149,29 @@ export async function fetchBlingProducts(query?: string): Promise<BlingProduct[]
       ],
     };
   });
+
+  // Dedupe por SKU: o Bling pode ter mais de um cadastro com o mesmo `codigo`
+  // (IDs internos diferentes, geralmente um antigo e outro novo). Mostramos
+  // apenas UM card no PDV, priorizando o de maior estoque e preservando a
+  // imagem do outro cadastro se o vencedor não tiver.
+  const bySku = new Map<string, BlingProduct>();
+  for (const prod of mapped) {
+    const key = prod.variants[0]?.sku || prod.id;
+    if (!key) continue;
+    const existing = bySku.get(key);
+    if (!existing) {
+      bySku.set(key, prod);
+      continue;
+    }
+    const existingStock = existing.variants[0]?.stockTotal ?? 0;
+    const currentStock = prod.variants[0]?.stockTotal ?? 0;
+    const winner = currentStock > existingStock ? prod : existing;
+    const loser = winner === prod ? existing : prod;
+    if (winner.images.length === 0 && loser.images.length > 0) {
+      winner.images = loser.images;
+    }
+    bySku.set(key, winner);
+  }
+
+  return Array.from(bySku.values());
 }
