@@ -1837,6 +1837,37 @@ export default function ShopifyPedidos() {
         />
       )}
 
+      {/* Dividir por depósito */}
+      {dividirContext && (
+        <DividirDepositoDialog
+          open={showDividirDialog}
+          onOpenChange={(o) => {
+            setShowDividirDialog(o);
+            if (!o) setDividirContext(null);
+          }}
+          produtoTitulo={dividirContext.product.node.title}
+          sku={(dividirContext.product.node.variants.edges[0]?.node as any)?.sku || ''}
+          quantidadeSolicitada={dividirContext.quantidade}
+          saldosPorDeposito={dividirContext.saldos}
+          onConfirm={handleConfirmDivisao}
+        />
+      )}
+
+      {/* Propostas geradas (uma ou várias, agrupadas por depósito) */}
+      <PropostasGeradasDialog
+        open={showPropostasGeradasDialog}
+        onOpenChange={setShowPropostasGeradasDialog}
+        clienteNome={propostaClienteNome}
+        propostas={propostasGeradas}
+        onClose={() => {
+          setShowPropostasGeradasDialog(false);
+          setPropostasGeradas([]);
+          setPropostaClienteNome("");
+          clearCart();
+          setIsCartOpen(false);
+        }}
+      />
+
       {/* Proposta Link Dialog */}
       <Dialog open={showPropostaLinkDialog} onOpenChange={setShowPropostaLinkDialog}>
         <DialogContent className="sm:max-w-lg">
