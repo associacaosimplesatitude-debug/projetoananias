@@ -68,6 +68,9 @@ export interface CartItem {
     name: string;
     value: string;
   }>;
+  // Depósito Bling de onde o item vai sair (opcional para compat.)
+  depositoId?: number;
+  depositoNome?: string;
 }
 
 const STOREFRONT_QUERY = `

@@ -1,62 +1,66 @@
 
-## Diagnóstico
+## Objetivo
 
-A lentidão vem quase toda do **backend** (`supabase/functions/bling-search-product`), não do frontend. Para cada busca acontece o seguinte:
+No PDV do vendedor (`/vendedor/shopify`), permitir escolher de qual depósito do Bling o produto sai. Quando a quantidade solicitada exceder o saldo de um depósito, o sistema sugere dividir automaticamente entre depósitos disponíveis, gerando **uma proposta por depósito**, cada uma com o frete calculado a partir do CEP daquela origem.
 
-1. Até **4 chamadas sequenciais** ao Bling tentando `?codigo=`, `?nome=`, `?pesquisa=` (ativos e depois "todas situações") antes de retornar.
-2. Para cada um dos até **10 produtos retornados**, o backend faz uma chamada extra `GET /produtos/{id}` com **`delay(350ms)` entre elas** → no pior caso ~3,5s + 10 requisições HTTP só nessa etapa.
-3. Se a primeira busca vier vazia, o código **renova o token e refaz a busca**, dobrando o tempo.
+## Como vai funcionar (fluxo do vendedor)
 
-Resultado típico: 4–8 segundos por digitação. O frontend já tem debounce de 400ms e React Query, então o gargalo real está no edge function.
+1. **Busca de produto** — cada card passa a mostrar o saldo por depósito (Geral 437, LOJA PENHA 61, PERNANBUCO [ALFA] 424, etc.), listando dinamicamente qualquer depósito com saldo > 0.
+2. **Adicionar ao carrinho**
+   - Se a quantidade cabe em um único depósito → escolhe o depósito num dropdown ao lado do "Adicionar" (padrão: o de maior saldo). Uma linha no carrinho.
+   - Se a quantidade excede o maior depósito → abre um **diálogo de divisão** sugerindo automaticamente a distribuição (ex.: 480 = 437 Geral + 43 Penha). Vendedor pode ajustar antes de confirmar. Isso cria N linhas no carrinho (uma por depósito).
+3. **Sobrescrever manualmente** — cada linha do carrinho tem um dropdown de depósito, permitindo mudar depois; se o novo depósito não tem saldo suficiente, avisa e sugere dividir.
+4. **Gerar proposta** — ao confirmar, o sistema **agrupa itens por depósito** e gera **uma proposta separada por depósito**. Cada proposta:
+   - Contém somente os itens daquele depósito
+   - Calcula frete usando o CEP de origem cadastrado para aquele depósito
+   - Mostra ao vendedor um resumo ("2 propostas serão geradas — Matriz RJ (437 un, frete R$ X) e LOJA PENHA (43 un, frete R$ Y)") para confirmar antes de disparar
+5. Cada proposta segue o fluxo atual (link para cliente, WhatsApp, faturamento, etc.).
 
-## O que mudar
+## Escopo técnico
 
-### 1. Eliminar o loop de "detalhes" sequencial (maior ganho)
-A resposta de `/produtos?pesquisa=...` já traz `id`, `codigo`, `nome`, `preco`, `tipo` e `situacao` — o suficiente para listar no PDV. A chamada por item só era usada para tentar pegar `imagemURL` e descrição.
+### Backend (Edge Functions)
 
-- Remover o `for` com `await delay(350)` + `fetchProductDetails` na resposta da busca.
-- Mapear direto do resultado da busca para o shape que o frontend espera (`imagemURL` opcional, vazio quando não vier).
-- Carregar a imagem de forma **lazy**, apenas quando o usuário clicar/adicionar um item — criar (ou reutilizar) endpoint dedicado `bling-product-details` chamado sob demanda pelo card.
+- **`bling-search-product`**: hoje devolve só `estoque` consolidado. Passar a devolver também `saldosPorDeposito: [{ id, nome, saldo }]` chamando `/estoques/saldos?idsProdutos[]=` já no fluxo de busca (ou lazy no primeiro `add`). Já usamos esse endpoint em `bling-check-stock`, então é copiar a lógica de `item.saldos[]`.
+- **`bling-check-stock`**: adicionar campo opcional `deposito_id` no input e retornar saldo do depósito específico (para revalidar no `add`).
+- Nenhuma outra edge function precisa mudar; a criação de propostas é feita client-side em `handleGeneratePropostaLink`.
 
-Sozinho isso reduz a busca de ~4–7s para ~300–800ms.
+### Banco (migração)
 
-### 2. Paralelizar as tentativas de busca
-Em vez de cair em cascata `codigo → nome → pesquisa → todas-situações`:
+- Nova tabela `bling_depositos_config` (id_bling, nome, cep_origem, cidade, uf, ativo_pdv, ordem). Popular inicialmente com Geral (CEP matriz RJ), LOJA PENHA (CEP Penha) e PERNANBUCO [ALFA] (CEP PE). Editável só por superadmin.
+- Coluna `deposito_id` e `deposito_nome` em `vendedor_propostas` (para rastrear origem da proposta e usar no cálculo de comissão/logística).
 
-- Quando parece SKU: disparar `codigo` (ativos) **e** `codigo` (criterio=5) em paralelo via `Promise.all`, retornar o primeiro não-vazio.
-- Quando é texto: disparar `nome` e `pesquisa` (ambos com `criterio=5`) em paralelo e mesclar deduplicando por `id`.
+### Frontend
 
-Reduz latência da busca em si pela metade nas queries que hoje precisam de fallback.
+- `src/lib/bling.ts` — extender `BlingVariant` com `saldosPorDeposito: {depositoId, nome, saldo}[]`. Manter `stockTotal` para compatibilidade.
+- `src/pages/shopify/ShopifyPedidos.tsx`
+  - Card do produto: badge "Em estoque: 922 un." vira lista compacta (Geral 437 · Penha 61 · PE 424).
+  - Handler de "Adicionar": se qty ≤ maior saldo, adiciona com dropdown; se qty > maior saldo, abre novo `DividirDepositoDialog`.
+  - Cart item: novo campo `depositoId`/`depositoNome`; dropdown inline para trocar; agrupar visualmente por depósito.
+  - `handleGeneratePropostaLink`: iterar sobre grupos por depósito, criar N registros em `vendedor_propostas`, calcular frete de cada uma usando o CEP do depósito (chamando a rota de cotação já existente com origem sobrescrita).
+  - Novo diálogo `ConfirmarSplitPropostasDialog` antes de disparar, mostrando as N propostas com frete de cada.
+- Novo componente `src/components/shopify/DividirDepositoDialog.tsx` — sugere distribuição, permite editar quantidades por depósito, valida soma == qty pedida.
+- Frete: onde hoje calculamos frete (transportadora/PAC), passar `cepOrigem` do depósito em vez do CEP fixo da matriz. Se o serviço de cotação for chamado por edge function, adicionar parâmetro `cep_origem` opcional.
 
-### 3. Não renovar token em caso de "0 resultados"
-Hoje, quando a busca volta vazia, o código assume que é erro de auth e força `refreshBlingToken` + nova busca, custando mais ~1–2s à toa.
+### Fora de escopo
 
-- Só renovar se `fetchBling` receber **HTTP 401**. Propagar o status do fetch para detectar isso.
+- Reserva de estoque no Bling (continua sendo saldo consultivo).
+- Alteração no fluxo de "Pagar na loja / retirada" existente — apenas reaproveita o mesmo conceito de `deposito_origem`.
+- Vendedor não filtra depósitos por polo — todos os depósitos com saldo aparecem para todos os vendedores.
 
-### 4. Cache leve em memória no edge function
-Edge functions ficam "warm" por algum tempo.
+## Entregáveis
 
-- Adicionar um `Map<string, { products, ts }>` com TTL de 60s indexado pelo `query.toLowerCase()`. Buscas repetidas (usuário apagando/redigitando) viram instantâneas.
-- Cachear também `accessToken` + `expires_at` em variável de módulo para evitar `select * from bling_config` em toda chamada.
+```text
+supabase/migrations/<ts>_bling_depositos_config.sql
+supabase/functions/bling-search-product/index.ts   (retornar saldosPorDeposito)
+supabase/functions/bling-check-stock/index.ts      (aceitar deposito_id)
+src/lib/bling.ts                                    (novo tipo)
+src/pages/shopify/ShopifyPedidos.tsx                (card, carrinho, split)
+src/components/shopify/DividirDepositoDialog.tsx    (novo)
+src/components/shopify/ConfirmarSplitPropostasDialog.tsx (novo)
+src/components/shopify/FormaEnvioSection.tsx        (origem por depósito)
+```
 
-### 5. Ajustes finos no frontend (`ShopifyPedidos.tsx`)
-- Aumentar `staleTime` do `useQuery(['bling-products', termo])` para ~5 min e `gcTime` para 10 min — evita refetch ao voltar do carrinho ou re-renderizar.
-- Manter `keepPreviousData: true` para não piscar/recarregar enquanto o usuário digita.
-- Debounce de 400ms está bom; manter.
+## Perguntas em aberto (posso assumir defaults na implementação)
 
-## Arquivos afetados
-
-- `supabase/functions/bling-search-product/index.ts` — itens 1, 2, 3, 4.
-- `supabase/functions/bling-product-details/index.ts` — criar (ou já existe? confirmar) para carregamento lazy da imagem.
-- `src/pages/shopify/ShopifyPedidos.tsx` — item 5 e, no card do produto, chamar o endpoint de detalhe sob demanda quando `imagemURL` vier vazio.
-
-## Ganho esperado
-
-- Busca típica: **~500ms** (de 4–7s hoje).
-- Buscas repetidas dentro de 1 min: **<100ms** (cache).
-- Cliques em "Adicionar" continuam instantâneos; a imagem aparece com um pequeno fade quando o detalhe chega.
-
-## Riscos
-
-- Sem a chamada de detalhes, alguns produtos podem aparecer inicialmente sem imagem — mitigado pelo fetch lazy.
-- Cache em memória do edge function não é compartilhado entre instâncias; é apenas otimização best-effort, sem impacto em correção.
+- CEPs de origem: assumo que você me passa os 3 CEPs (Matriz RJ, Loja Penha, PE Alfa) ou cadastro placeholders e você preenche depois pela UI de admin.
+- Comissão/relatórios: cada proposta filha entra normal nos relatórios do vendedor (não vou criar agrupamento "proposta-mãe" — se quiser depois, é um follow-up).

@@ -11,6 +11,12 @@ import { supabase } from "@/integrations/supabase/client";
  * (Geral / PE / Penha) via `bling-callback*`.
  */
 
+export interface BlingSaldoDeposito {
+  depositoId: number;
+  nome: string;
+  saldo: number;
+}
+
 export interface BlingVariant {
   id: string;
   title: string;
@@ -18,6 +24,7 @@ export interface BlingVariant {
   availableForSale: boolean;
   sku: string;
   stockTotal: number;
+  saldosPorDeposito: BlingSaldoDeposito[];
 }
 
 export interface BlingProduct {
@@ -36,6 +43,7 @@ interface BlingSearchProduct {
   descricao?: string;
   estoque?: number;
   tipo?: string;
+  saldosPorDeposito?: BlingSaldoDeposito[];
 }
 
 interface BlingSearchResponse {
@@ -145,6 +153,7 @@ export async function fetchBlingProducts(query?: string): Promise<BlingProduct[]
           availableForSale,
           sku,
           stockTotal,
+          saldosPorDeposito: Array.isArray(p.saldosPorDeposito) ? p.saldosPorDeposito : [],
         },
       ],
     };
@@ -169,6 +178,19 @@ export async function fetchBlingProducts(query?: string): Promise<BlingProduct[]
     const loser = winner === prod ? existing : prod;
     if (winner.images.length === 0 && loser.images.length > 0) {
       winner.images = loser.images;
+    }
+    // Merge saldos por depósito (soma por depositoId)
+    const merged = new Map<number, BlingSaldoDeposito>();
+    for (const s of [
+      ...(winner.variants[0]?.saldosPorDeposito ?? []),
+      ...(loser.variants[0]?.saldosPorDeposito ?? []),
+    ]) {
+      const prev = merged.get(s.depositoId);
+      if (prev) prev.saldo = Math.max(prev.saldo, s.saldo);
+      else merged.set(s.depositoId, { ...s });
+    }
+    if (winner.variants[0]) {
+      winner.variants[0].saldosPorDeposito = Array.from(merged.values());
     }
     bySku.set(key, winner);
   }

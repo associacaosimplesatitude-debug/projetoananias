@@ -25,8 +25,8 @@ import {
   FileText,
 } from "lucide-react";
 import { ShopifyProduct, CartItem, createStorefrontCheckout, BuyerInfo } from "@/lib/shopify";
-import { fetchBlingProducts } from "@/lib/bling";
-import { useShopifyCartStore } from "@/stores/shopifyCartStore";
+import { fetchBlingProducts, type BlingSaldoDeposito } from "@/lib/bling";
+import { useShopifyCartStore, lineKey } from "@/stores/shopifyCartStore";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useVendedor } from "@/hooks/useVendedor";
@@ -36,6 +36,8 @@ import { VendaConcluidaDialog } from "@/components/shopify/VendaConcluidaDialog"
 import { DescontoRevendedorBanner } from "@/components/shopify/DescontoRevendedorBanner";
 import { CartQuantityField } from "@/components/shopify/CartQuantityField";
 import { EnderecoEntregaSection } from "@/components/shopify/EnderecoEntregaSection";
+import { DividirDepositoDialog } from "@/components/shopify/DividirDepositoDialog";
+import { PropostasGeradasDialog, type PropostaGerada } from "@/components/shopify/PropostasGeradasDialog";
 
 import { DescontoBanner } from "@/components/shopify/DescontoBanner";
 import { calcularDescontosCarrinho, calcularDescontoRevendedor, isProdutoAdvec50, isClienteRepresentante } from "@/lib/descontosShopify";
@@ -143,6 +145,16 @@ export default function ShopifyPedidos() {
   // Estados para endereço
   const [selectedEndereco, setSelectedEndereco] = useState<any>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
+  // Estados para split por depósito
+  const [showDividirDialog, setShowDividirDialog] = useState(false);
+  const [dividirContext, setDividirContext] = useState<{
+    product: ShopifyProduct;
+    quantidade: number;
+    saldos: BlingSaldoDeposito[];
+  } | null>(null);
+  const [showPropostasGeradasDialog, setShowPropostasGeradasDialog] = useState(false);
+  const [propostasGeradas, setPropostasGeradas] = useState<PropostaGerada[]>([]);
 
   // Fetch current user ID
   useEffect(() => {
@@ -307,10 +319,32 @@ export default function ShopifyPedidos() {
     items, 
     addItem, 
     updateQuantity, 
+    updateDeposito,
     removeItem, 
     clearCart,
     isLoading: isCheckoutLoading 
   } = useShopifyCartStore();
+
+  // Config de depósitos do Bling (id -> CEP de origem)
+  const { data: depositosConfig } = useQuery({
+    queryKey: ['bling-depositos-config'],
+    staleTime: 10 * 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('bling_depositos_config')
+        .select('bling_deposito_id, nome, cep_origem, cidade, estado, ativo_pdv, ordem')
+        .eq('ativo_pdv', true)
+        .order('ordem', { ascending: true });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  // Helper: retorna o CEP de origem do depósito, ou o CEP da matriz como fallback
+  const getCepOrigem = (depositoId?: number | null): string => {
+    const cfg = depositosConfig?.find(d => Number(d.bling_deposito_id) === Number(depositoId ?? 0));
+    return cfg?.cep_origem || '22713-001';
+  };
 
   // Catálogo agora vem do Bling (Shopify foi descontinuada).
   // A Edge Function `bling-search-product` exige >= 2 caracteres,
@@ -352,8 +386,9 @@ export default function ShopifyPedidos() {
                 availableForSale: v.availableForSale,
                 selectedOptions: [],
                 sku: v.sku,
-                // Campo extra usado apenas para badge de estoque no PDV
+                // Campos extras usados apenas no PDV
                 stockTotal: v.stockTotal,
+                saldosPorDeposito: v.saldosPorDeposito ?? [],
               } as any,
             })),
           },
@@ -493,26 +528,89 @@ export default function ShopifyPedidos() {
   const [productQuantities, setProductQuantities] = useState<Record<string, number>>({});
 
   const handleAddToCart = (product: ShopifyProduct, quantity: number = 1) => {
-    const variant = product.node.variants.edges[0]?.node;
+    const variant = product.node.variants.edges[0]?.node as any;
     if (!variant) {
       toast.error("Produto sem variante disponível");
       return;
     }
 
+    const saldos: BlingSaldoDeposito[] = Array.isArray(variant.saldosPorDeposito)
+      ? variant.saldosPorDeposito.filter((s: BlingSaldoDeposito) => s.saldo > 0)
+      : [];
+
+    // Se temos saldo por depósito, decide entre selecionar direto ou dividir
+    if (saldos.length > 0) {
+      const ordenados = [...saldos].sort((a, b) => b.saldo - a.saldo);
+      const maior = ordenados[0];
+      // Se a qty cabe no maior depósito, usa ele automaticamente (vendedor pode trocar depois)
+      if (quantity <= maior.saldo) {
+        const cartItem: CartItem = {
+          product,
+          variantId: variant.id,
+          variantTitle: variant.title,
+          sku: variant.sku || null,
+          price: variant.price,
+          quantity,
+          selectedOptions: variant.selectedOptions || [],
+          depositoId: maior.depositoId,
+          depositoNome: maior.nome,
+        };
+        addItem(cartItem);
+        setProductQuantities(prev => ({ ...prev, [product.node.id]: 1 }));
+        toast.success(
+          `${quantity}x adicionado (${maior.nome})`,
+          { position: "top-center" },
+        );
+        return;
+      }
+      // Se não cabe no maior: abre diálogo de divisão
+      setDividirContext({ product, quantidade: quantity, saldos });
+      setShowDividirDialog(true);
+      return;
+    }
+
+    // Fallback (sem info de depósito): adiciona sem depósito
     const cartItem: CartItem = {
       product,
       variantId: variant.id,
       variantTitle: variant.title,
       sku: variant.sku || null,
       price: variant.price,
-      quantity: quantity,
-      selectedOptions: variant.selectedOptions || []
+      quantity,
+      selectedOptions: variant.selectedOptions || [],
     };
-    
     addItem(cartItem);
-    // Limpar quantidade digitada após adicionar
     setProductQuantities(prev => ({ ...prev, [product.node.id]: 1 }));
     toast.success(`${quantity}x ${product.node.title.substring(0, 30)}... adicionado`, { position: "top-center" });
+  };
+
+  // Confirmação da divisão vinda do DividirDepositoDialog
+  const handleConfirmDivisao = (
+    distribuicao: Array<{ depositoId: number; nome: string; quantidade: number }>,
+  ) => {
+    if (!dividirContext) return;
+    const { product } = dividirContext;
+    const variant = product.node.variants.edges[0]?.node as any;
+    for (const d of distribuicao) {
+      const cartItem: CartItem = {
+        product,
+        variantId: variant.id,
+        variantTitle: variant.title,
+        sku: variant.sku || null,
+        price: variant.price,
+        quantity: d.quantidade,
+        selectedOptions: variant.selectedOptions || [],
+        depositoId: d.depositoId,
+        depositoNome: d.nome,
+      };
+      addItem(cartItem);
+    }
+    setProductQuantities(prev => ({ ...prev, [product.node.id]: 1 }));
+    toast.success(
+      `Adicionado em ${distribuicao.length} depósito(s)`,
+      { position: "top-center" },
+    );
+    setDividirContext(null);
   };
 
   const handleCheckoutClick = async () => {
@@ -656,102 +754,50 @@ export default function ShopifyPedidos() {
     setIsGeneratingProposta(true);
 
     try {
-      // Gerar token único
-      const token = crypto.randomUUID();
-      
       // Verificar tipo de cliente para aplicar regras específicas
       const shouldAutoCalcAdvec = (selectedCliente.tipo_cliente || "").toLowerCase().includes("advec");
-      const isRepresentanteCliente = isClienteRepresentante(selectedCliente.tipo_cliente);
 
-      const calcularTotaisAdvec = () => {
-        const subtotal = items.reduce(
-          (sum, item) => sum + parseFloat(item.price.amount) * item.quantity,
-          0
-        );
+      // Percentual médio (usado como fallback quando sem descontoCalculado)
+      const globalPercent = descontoCalculado?.descontoPercentual ?? descontoPercent;
 
-        const totalComDesconto = items.reduce((sum, item) => {
-          const percentual = isProdutoAdvec50(item.product.node.title, item.product.node.id) ? 50 : 40;
-          const preco = parseFloat(item.price.amount);
-          return sum + preco * item.quantity * (1 - percentual / 100);
-        }, 0);
-
-        const descontoValor = subtotal - totalComDesconto;
-        const descontoPercentual = subtotal > 0 ? (descontoValor / subtotal) * 100 : 0;
-
-        return {
-          subtotal,
-          descontoValor,
-          total: totalComDesconto,
-          descontoPercentual: Math.round(descontoPercentual * 100) / 100,
-          tipoDesconto: "advec_50" as const,
-        };
-      };
-
-      const autoCalcAdvec = !descontoCalculado && shouldAutoCalcAdvec ? calcularTotaisAdvec() : undefined;
-
-      const descontoFinal = descontoCalculado ?? autoCalcAdvec;
-
-      // Calcular valores - SEMPRE usar subtotal original sem desconto
-      let valorFrete = frete?.cost || 0;
-      
-      // Subtotal original (sem desconto) - sempre calculado da mesma forma
-      const valorProdutos = items.reduce((sum, item) => sum + (parseFloat(item.price.amount) * item.quantity), 0);
-      
-      let valorDesconto: number;
-      let valorTotal: number;
-
-      if (descontoFinal) {
-        // Usar valor de desconto do cálculo específico (ADVEC, Representante, etc.)
-        valorDesconto = descontoFinal.descontoValor;
-        valorTotal = valorProdutos - valorDesconto + valorFrete;
-      } else {
-        // Cálculo tradicional com percentual fixo
-        valorDesconto = valorProdutos * (descontoPercent / 100);
-        valorTotal = valorProdutos - valorDesconto + valorFrete;
-      }
-
-      // Preparar itens para salvar (incluindo desconto por item para ADVEC ou Representante)
-      const itensParaSalvar = items.map((item) => {
-        // Desconto padrão
-        let descontoItem = descontoPercent;
-
-        // Para ADVEC: apenas 2 produtos 50%, o restante 40%
+      // Helper: calcular preço já com desconto para um item
+      const precoComDescontoDoItem = (item: CartItem): number => {
+        const precoOriginal = parseFloat(item.price.amount);
+        let percentual = descontoPercent;
         if (shouldAutoCalcAdvec) {
-          descontoItem = isProdutoAdvec50(item.product.node.title, item.product.node.id) ? 50 : 40;
+          percentual = isProdutoAdvec50(item.product.node.title, item.product.node.id) ? 50 : 40;
         }
-        
-        // Para qualquer cliente com descontos por categoria (Representante OU cliente com descontos cadastrados)
         const hasDescontoCategoria = descontoCalculado?.itensComDescontoCategoria && descontoCalculado.itensComDescontoCategoria.length > 0;
         if (hasDescontoCategoria) {
-          const itemDesconto = descontoCalculado.itensComDescontoCategoria.find(
-            d => d.titulo === item.product.node.title
-          );
-          if (itemDesconto) {
-            descontoItem = itemDesconto.percentual;
-          }
+          const found = descontoCalculado.itensComDescontoCategoria.find(d => d.titulo === item.product.node.title);
+          if (found) percentual = found.percentual;
         }
+        return precoOriginal * (1 - percentual / 100);
+      };
 
-        return {
-          variantId: item.variantId,
-          quantity: item.quantity,
-          title: item.product.node.title,
-          price: item.price.amount,
-          imageUrl: item.product.node.images?.edges?.[0]?.node?.url || null,
-          sku: item.sku || null,
-          descontoItem,
-          // Adicionar categoria para qualquer cliente com descontos por categoria
-          ...(hasDescontoCategoria && {
-            categoria: descontoCalculado.itensComDescontoCategoria.find(
-              d => d.titulo === item.product.node.title
-            )?.categoriaLabel
-          }),
-        };
-      });
+      // Agrupar itens por depósito (chave: depositoId ?? -1 = sem depósito)
+      const grupos = new Map<number, { depositoId: number | null; depositoNome: string; itens: CartItem[] }>();
+      for (const item of items) {
+        const key = item.depositoId ?? -1;
+        if (!grupos.has(key)) {
+          grupos.set(key, {
+            depositoId: item.depositoId ?? null,
+            depositoNome: item.depositoNome || 'Padrão',
+            itens: [],
+          });
+        }
+        grupos.get(key)!.itens.push(item);
+      }
 
-      // Calcular o percentual de desconto real a salvar
-      const descontoPercentualFinal = descontoFinal ? descontoFinal.descontoPercentual : descontoPercent;
+      const totalGeralProdutos = items.reduce((s, i) => s + parseFloat(i.price.amount) * i.quantity, 0);
+      const valorFreteTotal = frete?.cost || 0;
+      const proposta_grupo_id = grupos.size > 1 ? crypto.randomUUID() : null;
 
-      // Preparar endereço - usar o endereço selecionado se existir, senão usar endereço do cliente
+      const { data: userData } = await supabase.auth.getUser();
+      const baseUrl = 'https://gestaoebd.com.br';
+      const propostasResultado: PropostaGerada[] = [];
+
+      // Endereço do cliente
       const clienteEndereco = selectedEndereco
         ? {
             rua: selectedEndereco.rua,
@@ -772,66 +818,121 @@ export default function ShopifyPedidos() {
             cep: selectedCliente.endereco_cep,
           };
 
-      // Salvar proposta no banco
-      const { data: userData } = await supabase.auth.getUser();
-      
-      const { data, error } = await supabase
-        .from("vendedor_propostas")
-        .insert({
-          vendedor_id: vendedorParaProposta.id,
-          vendedor_email: vendedorParaProposta.email || null,
-          cliente_id: selectedCliente.id,
-          cliente_nome: selectedCliente.nome_igreja,
-          cliente_cnpj: selectedCliente.cnpj,
-          cliente_endereco: clienteEndereco,
-          itens: itensParaSalvar,
-          valor_produtos: valorProdutos,
-          valor_frete: valorFrete,
-          valor_total: valorTotal,
-          desconto_percentual: descontoPercentualFinal,
-          status: "PROPOSTA_PENDENTE",
-          token: token,
-          metodo_frete: freteManual ? 'manual' : null, // null = cliente escolherá
-          pode_faturar: isFaturamentoB2B,
-          vendedor_nome: vendedorParaProposta.nome || null,
-          prazos_disponiveis: isFaturamentoB2B && faturamentoPrazos ? faturamentoPrazos : null,
-          // Campos de frete manual
-          frete_tipo: freteManual ? 'manual' : null, // null = cliente escolherá na proposta
-          frete_transportadora: freteManual?.transportadora || null,
-          frete_observacao: freteManual?.observacao || null,
-          frete_prazo_estimado: freteManual?.prazoEstimado || null,
-          frete_definido_por: freteManual ? userData?.user?.id : null,
-        })
-        .select()
-        .single();
+      for (const grupo of grupos.values()) {
+        const token = crypto.randomUUID();
 
-      if (error) throw error;
+        // Subtotal e desconto do grupo
+        const subtotalGrupo = grupo.itens.reduce(
+          (s, i) => s + parseFloat(i.price.amount) * i.quantity, 0,
+        );
+        const totalComDescontoGrupo = grupo.itens.reduce(
+          (s, i) => s + precoComDescontoDoItem(i) * i.quantity, 0,
+        );
+        const descontoValorGrupo = subtotalGrupo - totalComDescontoGrupo;
+        const descontoPercentualGrupo = subtotalGrupo > 0
+          ? Math.round((descontoValorGrupo / subtotalGrupo) * 10000) / 100
+          : globalPercent;
 
-      // Sempre usar domínio oficial de produção
-      const baseUrl = 'https://gestaoebd.com.br';
-      
-      // TODOS os vendedores (incluindo vendedor teste) usam link de proposta
-      // O redirecionamento para checkout MP acontece quando o CLIENTE clica "Confirmar Compra"
-      // na página da proposta (PropostaDigital.tsx)
-      const link = `${baseUrl}/proposta/${token}`;
-      
-      // Se NÃO é vendedor (é cliente/superintendente fazendo pedido), navegar direto para proposta
-      // Não mostrar modal de mensagem - cliente vai direto escolher frete e confirmar
-      if (!isVendedor) {
+        // Frete: se split, distribui proporcionalmente pelo peso em produtos
+        const freteGrupo = grupos.size === 1
+          ? valorFreteTotal
+          : totalGeralProdutos > 0
+            ? Math.round((valorFreteTotal * subtotalGrupo / totalGeralProdutos) * 100) / 100
+            : 0;
+
+        const valorTotalGrupo = totalComDescontoGrupo + freteGrupo;
+
+        // Itens salvos
+        const itensParaSalvar = grupo.itens.map((item) => {
+          let descontoItem = descontoPercent;
+          if (shouldAutoCalcAdvec) {
+            descontoItem = isProdutoAdvec50(item.product.node.title, item.product.node.id) ? 50 : 40;
+          }
+          const hasDescontoCategoria = descontoCalculado?.itensComDescontoCategoria && descontoCalculado.itensComDescontoCategoria.length > 0;
+          if (hasDescontoCategoria) {
+            const itemDesconto = descontoCalculado.itensComDescontoCategoria.find(
+              d => d.titulo === item.product.node.title,
+            );
+            if (itemDesconto) descontoItem = itemDesconto.percentual;
+          }
+          return {
+            variantId: item.variantId,
+            quantity: item.quantity,
+            title: item.product.node.title,
+            price: item.price.amount,
+            imageUrl: item.product.node.images?.edges?.[0]?.node?.url || null,
+            sku: item.sku || null,
+            depositoId: item.depositoId ?? null,
+            depositoNome: item.depositoNome ?? null,
+            descontoItem,
+            ...(hasDescontoCategoria && {
+              categoria: descontoCalculado.itensComDescontoCategoria.find(
+                d => d.titulo === item.product.node.title,
+              )?.categoriaLabel,
+            }),
+          };
+        });
+
+        const cepOrigem = getCepOrigem(grupo.depositoId);
+
+        const { error } = await supabase
+          .from("vendedor_propostas")
+          .insert({
+            vendedor_id: vendedorParaProposta.id,
+            vendedor_email: vendedorParaProposta.email || null,
+            cliente_id: selectedCliente.id,
+            cliente_nome: selectedCliente.nome_igreja,
+            cliente_cnpj: selectedCliente.cnpj,
+            cliente_endereco: clienteEndereco,
+            itens: itensParaSalvar,
+            valor_produtos: subtotalGrupo,
+            valor_frete: freteGrupo,
+            valor_total: valorTotalGrupo,
+            desconto_percentual: descontoPercentualGrupo,
+            status: "PROPOSTA_PENDENTE",
+            token,
+            metodo_frete: freteManual ? 'manual' : null,
+            pode_faturar: isFaturamentoB2B,
+            vendedor_nome: vendedorParaProposta.nome || null,
+            prazos_disponiveis: isFaturamentoB2B && faturamentoPrazos ? faturamentoPrazos : null,
+            frete_tipo: freteManual ? 'manual' : null,
+            frete_transportadora: freteManual?.transportadora || null,
+            frete_observacao: freteManual?.observacao || null,
+            frete_prazo_estimado: freteManual?.prazoEstimado || null,
+            frete_definido_por: freteManual ? userData?.user?.id : null,
+            deposito_id: grupo.depositoId,
+            deposito_nome: grupo.depositoNome,
+            cep_origem_frete: cepOrigem,
+            proposta_grupo_id,
+          } as any);
+
+        if (error) throw error;
+
+        propostasResultado.push({
+          token,
+          link: `${baseUrl}/proposta/${token}`,
+          depositoNome: grupo.depositoNome,
+          totalItens: grupo.itens.reduce((s, i) => s + i.quantity, 0),
+          cepOrigem,
+        });
+      }
+
+      // Se NÃO é vendedor: navega direto para primeira proposta
+      if (!isVendedor && propostasResultado.length > 0) {
         clearCart();
         setIsCartOpen(false);
         toast.success("Proposta criada! Escolha a forma de entrega.");
-        navigate(`/proposta/${token}`);
+        navigate(`/proposta/${propostasResultado[0].token}`);
       } else {
-        // Vendedor: mostrar modal com mensagem para copiar e enviar ao cliente
-        setPropostaLink(link);
+        setPropostasGeradas(propostasResultado);
         setPropostaClienteNome(selectedCliente.nome_igreja);
-        setShowPropostaLinkDialog(true);
-        setLinkCopied(false);
-        setMessageCopied(false);
-        toast.success("Proposta gerada com sucesso!");
+        setShowPropostasGeradasDialog(true);
+        toast.success(
+          propostasResultado.length > 1
+            ? `${propostasResultado.length} propostas geradas (uma por depósito)`
+            : "Proposta gerada com sucesso!",
+        );
       }
-      
     } catch (error: any) {
       console.error("Erro ao gerar proposta:", error);
       toast.error("Erro ao gerar proposta: " + error.message);
@@ -1170,8 +1271,15 @@ export default function ShopifyPedidos() {
 
                       {/* Lista de produtos */}
                       <div className="space-y-3">
-                        {items.map((item) => (
-                          <div key={item.variantId} className="flex gap-3 p-2 border rounded-lg">
+                        {items.map((item) => {
+                          const variantAny = item.product.node.variants.edges[0]?.node as any;
+                          const saldosVariant: BlingSaldoDeposito[] = Array.isArray(variantAny?.saldosPorDeposito)
+                            ? variantAny.saldosPorDeposito
+                            : [];
+                          const opcoesDeposito = saldosVariant.filter(s => s.saldo > 0);
+                          const key = lineKey(item.variantId, item.depositoId);
+                          return (
+                          <div key={key} className="flex gap-3 p-2 border rounded-lg">
                             <div className="w-12 h-12 bg-secondary/20 rounded-md overflow-hidden flex-shrink-0">
                               {item.product.node.images?.edges?.[0]?.node && (
                                 <img
@@ -1190,6 +1298,40 @@ export default function ShopifyPedidos() {
                               <p className="text-xs text-muted-foreground">
                                 SKU: {item.sku ? item.sku : "não informado"}
                               </p>
+                              {/* Seletor de depósito por linha */}
+                              {(opcoesDeposito.length > 0 || item.depositoNome) && (
+                                <div className="mt-1">
+                                  {opcoesDeposito.length > 1 ? (
+                                    <Select
+                                      value={String(item.depositoId ?? '')}
+                                      onValueChange={(v) => {
+                                        const dep = opcoesDeposito.find(d => String(d.depositoId) === v);
+                                        if (!dep) return;
+                                        if (item.quantity > dep.saldo) {
+                                          toast.error(`Saldo insuficiente em ${dep.nome} (${dep.saldo} un.)`);
+                                          return;
+                                        }
+                                        updateDeposito(item.variantId, item.depositoId, dep.depositoId, dep.nome);
+                                      }}
+                                    >
+                                      <SelectTrigger className="h-6 text-xs px-2">
+                                        <SelectValue placeholder="Depósito" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {opcoesDeposito.map((d) => (
+                                          <SelectItem key={d.depositoId} value={String(d.depositoId)}>
+                                            {d.nome} · {d.saldo} un.
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  ) : (
+                                    <Badge variant="outline" className="text-[10px] font-normal">
+                                      Sai de: {item.depositoNome || opcoesDeposito[0]?.nome || '—'}
+                                    </Badge>
+                                  )}
+                                </div>
+                              )}
                             </div>
                             
                             <div className="flex flex-col items-end gap-2 flex-shrink-0">
@@ -1197,7 +1339,7 @@ export default function ShopifyPedidos() {
                                 variant="ghost"
                                 size="icon"
                                 className="h-6 w-6"
-                                onClick={() => removeItem(item.variantId)}
+                                onClick={() => removeItem(item.variantId, item.depositoId)}
                               >
                                 <Trash2 className="h-3 w-3" />
                               </Button>
@@ -1207,28 +1349,29 @@ export default function ShopifyPedidos() {
                                   variant="outline"
                                   size="icon"
                                   className="h-6 w-6"
-                                  onClick={() => updateQuantity(item.variantId, item.quantity - 1)}
+                                  onClick={() => updateQuantity(item.variantId, item.quantity - 1, item.depositoId)}
                                 >
                                   <Minus className="h-3 w-3" />
                                 </Button>
                                 <CartQuantityField
                                   value={item.quantity}
                                   min={1}
-                                  onCommit={(next) => updateQuantity(item.variantId, next)}
+                                  onCommit={(next) => updateQuantity(item.variantId, next, item.depositoId)}
                                   className="w-12 h-6 text-center text-sm px-1 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                 />
                                 <Button
                                   variant="outline"
                                   size="icon"
                                   className="h-6 w-6"
-                                  onClick={() => updateQuantity(item.variantId, item.quantity + 1)}
+                                  onClick={() => updateQuantity(item.variantId, item.quantity + 1, item.depositoId)}
                                 >
                                   <Plus className="h-3 w-3" />
                                 </Button>
                               </div>
                             </div>
                           </div>
-                        ))}
+                          );
+                        })}
                       </div>
 
                       {/* Endereço de Entrega - dentro do scroll */}
@@ -1509,11 +1652,33 @@ export default function ShopifyPedidos() {
                     </div>
                     {!variant?.availableForSale ? (
                       <p className="text-xs text-destructive mt-2">Indisponível</p>
-                    ) : (variant as any)?.stockTotal > 0 ? (
-                      <Badge variant="secondary" className="mt-2 text-xs font-normal">
-                        Em estoque: {(variant as any).stockTotal} un.
-                      </Badge>
-                    ) : null}
+                    ) : (() => {
+                      const saldos: BlingSaldoDeposito[] = Array.isArray((variant as any)?.saldosPorDeposito)
+                        ? (variant as any).saldosPorDeposito.filter((s: BlingSaldoDeposito) => s.saldo > 0)
+                        : [];
+                      const total = (variant as any)?.stockTotal || saldos.reduce((s, d) => s + d.saldo, 0);
+                      if (total <= 0) return null;
+                      return (
+                        <div className="mt-2 space-y-1">
+                          <Badge variant="secondary" className="text-xs font-normal">
+                            Em estoque: {total} un.
+                          </Badge>
+                          {saldos.length > 0 && (
+                            <div className="flex flex-wrap gap-1">
+                              {saldos.map(d => (
+                                <span
+                                  key={d.depositoId}
+                                  className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground"
+                                  title={`Depósito ${d.nome}`}
+                                >
+                                  {d.nome}: {d.saldo}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </CardContent>
                 </Card>
               );
@@ -1671,6 +1836,37 @@ export default function ShopifyPedidos() {
           }}
         />
       )}
+
+      {/* Dividir por depósito */}
+      {dividirContext && (
+        <DividirDepositoDialog
+          open={showDividirDialog}
+          onOpenChange={(o) => {
+            setShowDividirDialog(o);
+            if (!o) setDividirContext(null);
+          }}
+          produtoTitulo={dividirContext.product.node.title}
+          sku={(dividirContext.product.node.variants.edges[0]?.node as any)?.sku || ''}
+          quantidadeSolicitada={dividirContext.quantidade}
+          saldosPorDeposito={dividirContext.saldos}
+          onConfirm={handleConfirmDivisao}
+        />
+      )}
+
+      {/* Propostas geradas (uma ou várias, agrupadas por depósito) */}
+      <PropostasGeradasDialog
+        open={showPropostasGeradasDialog}
+        onOpenChange={setShowPropostasGeradasDialog}
+        clienteNome={propostaClienteNome}
+        propostas={propostasGeradas}
+        onClose={() => {
+          setShowPropostasGeradasDialog(false);
+          setPropostasGeradas([]);
+          setPropostaClienteNome("");
+          clearCart();
+          setIsCartOpen(false);
+        }}
+      />
 
       {/* Proposta Link Dialog */}
       <Dialog open={showPropostaLinkDialog} onOpenChange={setShowPropostaLinkDialog}>

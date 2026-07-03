@@ -210,7 +210,167 @@ function mapBlingProduct(source: any) {
     descricao: stripHtmlTags(source.descricaoCurta || source.descricao || ''),
     estoque,
     tipo: source.tipo || 'P',
+    saldosPorDeposito: [] as Array<{ depositoId: number; nome: string; saldo: number }>,
   };
+}
+
+// Busca saldos por depósito para uma lista de produtos em UMA chamada.
+// Cache em memória: id do depósito -> descrição
+let depositosNomeCache: Map<number, string> | null = null;
+let depositosNomeCacheAt = 0;
+const DEPOSITOS_TTL_MS = 10 * 60 * 1000;
+
+async function loadDepositosNome(accessToken: string): Promise<Map<number, string>> {
+  if (depositosNomeCache && Date.now() - depositosNomeCacheAt < DEPOSITOS_TTL_MS) {
+    return depositosNomeCache;
+  }
+  const map = new Map<number, string>();
+  try {
+    const doFetch = () => fetch('https://api.bling.com.br/Api/v3/depositos?limite=100', {
+      headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
+    });
+    let resp = await doFetch();
+    if (resp.status === 429) {
+      await new Promise((r) => setTimeout(r, 1200));
+      resp = await doFetch();
+    }
+    if (resp.ok) {
+      const json = await resp.json();
+      for (const d of json?.data ?? []) {
+        const id = Number(d?.id ?? 0);
+        const nome = String(d?.descricao ?? d?.nome ?? `Depósito ${id}`);
+        if (id > 0) map.set(id, nome);
+      }
+    } else {
+      console.warn('[loadDepositosNome] http', resp.status);
+    }
+  } catch (e) {
+    console.warn('[loadDepositosNome] erro:', e);
+  }
+  // Só grava cache se conseguiu nomes reais (evita cachear map vazio)
+  if (map.size > 0) {
+    depositosNomeCache = map;
+    depositosNomeCacheAt = Date.now();
+  }
+  return map;
+}
+
+// Retorna Map<produtoId, [{depositoId, nome, saldo}]>.
+async function fetchSaldosPorDeposito(
+  accessToken: string,
+  productIds: Array<number | string>,
+): Promise<Map<string, Array<{ depositoId: number; nome: string; saldo: number }>>> {
+  const map = new Map<string, Array<{ depositoId: number; nome: string; saldo: number }>>();
+  if (productIds.length === 0) return map;
+
+  const params = productIds.map((id) => `idsProdutos[]=${encodeURIComponent(String(id))}`).join('&');
+  const url = `https://api.bling.com.br/Api/v3/estoques/saldos?${params}`;
+
+  // Nomes primeiro (cacheado após 1ª chamada, geralmente hit imediato)
+  const nomes = await loadDepositosNome(accessToken);
+
+  const doFetch = async () => {
+    const r = await fetch(url, {
+      headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
+    });
+    return r;
+  };
+
+  try {
+    // pequena espera antes para não estourar o rate-limit (Bling permite 3 req/s)
+    await new Promise((r) => setTimeout(r, 350));
+    let resp = await doFetch();
+    if (resp.status === 429) {
+      await new Promise((r) => setTimeout(r, 900));
+      resp = await doFetch();
+    }
+    if (!resp.ok) {
+      const txt = await resp.text().catch(() => '');
+      console.warn('[fetchSaldosPorDeposito] http', resp.status, txt.slice(0, 300));
+      return map;
+    }
+    const json = await resp.json();
+    const items = json?.data ?? [];
+    for (const item of items) {
+      const prodId = String(item?.produto?.id ?? '');
+      if (!prodId) continue;
+      // Bling v3 usa `depositos: [{id, saldoFisico, saldoVirtual}]`
+      const raw: any[] = Array.isArray(item.depositos)
+        ? item.depositos
+        : Array.isArray(item.saldos)
+          ? item.saldos.map((s: any) => ({
+              id: s?.deposito?.id,
+              saldoFisico: s?.saldoFisico ?? s?.saldoFisicoTotal,
+              saldoVirtual: s?.saldoVirtual ?? s?.saldoVirtualTotal,
+              descricao: s?.deposito?.descricao,
+            }))
+          : [];
+      const list = raw
+        .map((s) => {
+          const id = Number(s?.id ?? s?.deposito?.id ?? 0);
+          return {
+            depositoId: id,
+            nome: String(s?.descricao ?? nomes.get(id) ?? `Depósito ${id}`),
+            saldo: Number(s?.saldoFisico ?? s?.saldoVirtual ?? 0) || 0,
+          };
+        })
+        .filter((s) => s.depositoId > 0);
+      map.set(prodId, list);
+    }
+  } catch (e) {
+    console.warn('[fetchSaldosPorDeposito] erro:', e);
+  }
+  return map;
+}
+
+// Sincroniza a tabela public.bling_depositos_config com os depósitos vistos,
+// para que o frontend consiga mapear nome -> CEP de origem sem intervenção manual.
+async function syncDepositosConfig(
+  supabase: any,
+  saldosMap: Map<string, Array<{ depositoId: number; nome: string; saldo: number }>>,
+) {
+  const seen = new Map<number, string>();
+  for (const list of saldosMap.values()) {
+    for (const s of list) {
+      if (s.depositoId > 0 && !seen.has(s.depositoId)) seen.set(s.depositoId, s.nome);
+    }
+  }
+  if (seen.size === 0) return;
+  try {
+    const { data: existing } = await supabase
+      .from('bling_depositos_config')
+      .select('id, bling_deposito_id, nome');
+    const existingById = new Map<number, any>();
+    const existingByNome = new Map<string, any>();
+    for (const row of existing ?? []) {
+      existingById.set(Number(row.bling_deposito_id), row);
+      existingByNome.set(String(row.nome).trim().toUpperCase(), row);
+    }
+    for (const [id, nome] of seen.entries()) {
+      if (existingById.has(id)) continue;
+      // Tenta casar por nome (linhas seed com IDs negativos)
+      const byName = existingByNome.get(nome.trim().toUpperCase());
+      if (byName) {
+        await supabase
+          .from('bling_depositos_config')
+          .update({ bling_deposito_id: id, nome })
+          .eq('id', byName.id);
+      } else {
+        // Insere novo depósito com CEP da matriz como default
+        await supabase.from('bling_depositos_config').insert({
+          bling_deposito_id: id,
+          nome,
+          cep_origem: '22713-001',
+          cidade: 'Rio de Janeiro',
+          estado: 'RJ',
+          ativo_pdv: true,
+          ordem: 99,
+        });
+      }
+    }
+  } catch (e) {
+    console.warn('[syncDepositosConfig] erro:', e);
+  }
 }
 
 serve(async (req) => {
@@ -263,6 +423,19 @@ serve(async (req) => {
     }
 
     const detailedProducts = outcome.products.map(mapBlingProduct);
+
+    // Buscar saldos por depósito e anexar em cada produto
+    if (detailedProducts.length > 0) {
+      const saldosMap = await fetchSaldosPorDeposito(
+        token,
+        detailedProducts.map((p) => p.id),
+      );
+      for (const p of detailedProducts) {
+        p.saldosPorDeposito = saldosMap.get(String(p.id)) || [];
+      }
+      // Sync opcional (fire-and-forget) dos depósitos vistos
+      syncDepositosConfig(supabase, saldosMap).catch(() => {});
+    }
 
     // Atualiza cache
     searchCache.set(normalized, { ts: Date.now(), products: detailedProducts });
