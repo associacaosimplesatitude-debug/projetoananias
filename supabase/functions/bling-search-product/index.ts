@@ -353,6 +353,19 @@ serve(async (req) => {
 
     const detailedProducts = outcome.products.map(mapBlingProduct);
 
+    // Buscar saldos por depósito e anexar em cada produto
+    if (detailedProducts.length > 0) {
+      const saldosMap = await fetchSaldosPorDeposito(
+        token,
+        detailedProducts.map((p) => p.id),
+      );
+      for (const p of detailedProducts) {
+        p.saldosPorDeposito = saldosMap.get(String(p.id)) || [];
+      }
+      // Sync opcional (fire-and-forget) dos depósitos vistos
+      syncDepositosConfig(supabase, saldosMap).catch(() => {});
+    }
+
     // Atualiza cache
     searchCache.set(normalized, { ts: Date.now(), products: detailedProducts });
     // Limita o tamanho do cache para não crescer indefinidamente
