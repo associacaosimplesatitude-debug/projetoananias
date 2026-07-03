@@ -230,9 +230,14 @@ async function fetchSaldosPorDeposito(
     const resp = await fetch(url, {
       headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
     });
-    if (!resp.ok) return map;
+    if (!resp.ok) {
+      const txt = await resp.text().catch(() => '');
+      console.warn('[fetchSaldosPorDeposito] http', resp.status, txt.slice(0, 300));
+      return map;
+    }
     const json = await resp.json();
     const items = json?.data ?? [];
+    console.log('[fetchSaldosPorDeposito] items:', items.length);
     for (const item of items) {
       const prodId = String(item?.produto?.id ?? '');
       if (!prodId) continue;
@@ -241,9 +246,18 @@ async function fetchSaldosPorDeposito(
         .map((s) => ({
           depositoId: Number(s?.deposito?.id ?? 0),
           nome: String(s?.deposito?.descricao ?? s?.deposito?.nome ?? 'Depósito'),
-          saldo: Number(s?.saldoFisico ?? s?.saldoFisicoTotal ?? 0) || 0,
+          saldo: Number(
+            s?.saldoFisico ??
+            s?.saldoFisicoTotal ??
+            s?.saldoVirtual ??
+            s?.saldoVirtualTotal ??
+            0,
+          ) || 0,
         }))
         .filter((s) => s.depositoId > 0);
+      if (list.length === 0 && saldos.length > 0) {
+        console.log('[fetchSaldosPorDeposito] saldos sem deposito.id:', JSON.stringify(saldos[0]).slice(0, 400));
+      }
       map.set(prodId, list);
     }
   } catch (e) {
