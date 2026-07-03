@@ -754,102 +754,50 @@ export default function ShopifyPedidos() {
     setIsGeneratingProposta(true);
 
     try {
-      // Gerar token único
-      const token = crypto.randomUUID();
-      
       // Verificar tipo de cliente para aplicar regras específicas
       const shouldAutoCalcAdvec = (selectedCliente.tipo_cliente || "").toLowerCase().includes("advec");
-      const isRepresentanteCliente = isClienteRepresentante(selectedCliente.tipo_cliente);
 
-      const calcularTotaisAdvec = () => {
-        const subtotal = items.reduce(
-          (sum, item) => sum + parseFloat(item.price.amount) * item.quantity,
-          0
-        );
+      // Percentual médio (usado como fallback quando sem descontoCalculado)
+      const globalPercent = descontoCalculado?.descontoPercentual ?? descontoPercent;
 
-        const totalComDesconto = items.reduce((sum, item) => {
-          const percentual = isProdutoAdvec50(item.product.node.title, item.product.node.id) ? 50 : 40;
-          const preco = parseFloat(item.price.amount);
-          return sum + preco * item.quantity * (1 - percentual / 100);
-        }, 0);
-
-        const descontoValor = subtotal - totalComDesconto;
-        const descontoPercentual = subtotal > 0 ? (descontoValor / subtotal) * 100 : 0;
-
-        return {
-          subtotal,
-          descontoValor,
-          total: totalComDesconto,
-          descontoPercentual: Math.round(descontoPercentual * 100) / 100,
-          tipoDesconto: "advec_50" as const,
-        };
-      };
-
-      const autoCalcAdvec = !descontoCalculado && shouldAutoCalcAdvec ? calcularTotaisAdvec() : undefined;
-
-      const descontoFinal = descontoCalculado ?? autoCalcAdvec;
-
-      // Calcular valores - SEMPRE usar subtotal original sem desconto
-      let valorFrete = frete?.cost || 0;
-      
-      // Subtotal original (sem desconto) - sempre calculado da mesma forma
-      const valorProdutos = items.reduce((sum, item) => sum + (parseFloat(item.price.amount) * item.quantity), 0);
-      
-      let valorDesconto: number;
-      let valorTotal: number;
-
-      if (descontoFinal) {
-        // Usar valor de desconto do cálculo específico (ADVEC, Representante, etc.)
-        valorDesconto = descontoFinal.descontoValor;
-        valorTotal = valorProdutos - valorDesconto + valorFrete;
-      } else {
-        // Cálculo tradicional com percentual fixo
-        valorDesconto = valorProdutos * (descontoPercent / 100);
-        valorTotal = valorProdutos - valorDesconto + valorFrete;
-      }
-
-      // Preparar itens para salvar (incluindo desconto por item para ADVEC ou Representante)
-      const itensParaSalvar = items.map((item) => {
-        // Desconto padrão
-        let descontoItem = descontoPercent;
-
-        // Para ADVEC: apenas 2 produtos 50%, o restante 40%
+      // Helper: calcular preço já com desconto para um item
+      const precoComDescontoDoItem = (item: CartItem): number => {
+        const precoOriginal = parseFloat(item.price.amount);
+        let percentual = descontoPercent;
         if (shouldAutoCalcAdvec) {
-          descontoItem = isProdutoAdvec50(item.product.node.title, item.product.node.id) ? 50 : 40;
+          percentual = isProdutoAdvec50(item.product.node.title, item.product.node.id) ? 50 : 40;
         }
-        
-        // Para qualquer cliente com descontos por categoria (Representante OU cliente com descontos cadastrados)
         const hasDescontoCategoria = descontoCalculado?.itensComDescontoCategoria && descontoCalculado.itensComDescontoCategoria.length > 0;
         if (hasDescontoCategoria) {
-          const itemDesconto = descontoCalculado.itensComDescontoCategoria.find(
-            d => d.titulo === item.product.node.title
-          );
-          if (itemDesconto) {
-            descontoItem = itemDesconto.percentual;
-          }
+          const found = descontoCalculado.itensComDescontoCategoria.find(d => d.titulo === item.product.node.title);
+          if (found) percentual = found.percentual;
         }
+        return precoOriginal * (1 - percentual / 100);
+      };
 
-        return {
-          variantId: item.variantId,
-          quantity: item.quantity,
-          title: item.product.node.title,
-          price: item.price.amount,
-          imageUrl: item.product.node.images?.edges?.[0]?.node?.url || null,
-          sku: item.sku || null,
-          descontoItem,
-          // Adicionar categoria para qualquer cliente com descontos por categoria
-          ...(hasDescontoCategoria && {
-            categoria: descontoCalculado.itensComDescontoCategoria.find(
-              d => d.titulo === item.product.node.title
-            )?.categoriaLabel
-          }),
-        };
-      });
+      // Agrupar itens por depósito (chave: depositoId ?? -1 = sem depósito)
+      const grupos = new Map<number, { depositoId: number | null; depositoNome: string; itens: CartItem[] }>();
+      for (const item of items) {
+        const key = item.depositoId ?? -1;
+        if (!grupos.has(key)) {
+          grupos.set(key, {
+            depositoId: item.depositoId ?? null,
+            depositoNome: item.depositoNome || 'Padrão',
+            itens: [],
+          });
+        }
+        grupos.get(key)!.itens.push(item);
+      }
 
-      // Calcular o percentual de desconto real a salvar
-      const descontoPercentualFinal = descontoFinal ? descontoFinal.descontoPercentual : descontoPercent;
+      const totalGeralProdutos = items.reduce((s, i) => s + parseFloat(i.price.amount) * i.quantity, 0);
+      const valorFreteTotal = frete?.cost || 0;
+      const proposta_grupo_id = grupos.size > 1 ? crypto.randomUUID() : null;
 
-      // Preparar endereço - usar o endereço selecionado se existir, senão usar endereço do cliente
+      const { data: userData } = await supabase.auth.getUser();
+      const baseUrl = 'https://gestaoebd.com.br';
+      const propostasResultado: PropostaGerada[] = [];
+
+      // Endereço do cliente
       const clienteEndereco = selectedEndereco
         ? {
             rua: selectedEndereco.rua,
@@ -870,66 +818,121 @@ export default function ShopifyPedidos() {
             cep: selectedCliente.endereco_cep,
           };
 
-      // Salvar proposta no banco
-      const { data: userData } = await supabase.auth.getUser();
-      
-      const { data, error } = await supabase
-        .from("vendedor_propostas")
-        .insert({
-          vendedor_id: vendedorParaProposta.id,
-          vendedor_email: vendedorParaProposta.email || null,
-          cliente_id: selectedCliente.id,
-          cliente_nome: selectedCliente.nome_igreja,
-          cliente_cnpj: selectedCliente.cnpj,
-          cliente_endereco: clienteEndereco,
-          itens: itensParaSalvar,
-          valor_produtos: valorProdutos,
-          valor_frete: valorFrete,
-          valor_total: valorTotal,
-          desconto_percentual: descontoPercentualFinal,
-          status: "PROPOSTA_PENDENTE",
-          token: token,
-          metodo_frete: freteManual ? 'manual' : null, // null = cliente escolherá
-          pode_faturar: isFaturamentoB2B,
-          vendedor_nome: vendedorParaProposta.nome || null,
-          prazos_disponiveis: isFaturamentoB2B && faturamentoPrazos ? faturamentoPrazos : null,
-          // Campos de frete manual
-          frete_tipo: freteManual ? 'manual' : null, // null = cliente escolherá na proposta
-          frete_transportadora: freteManual?.transportadora || null,
-          frete_observacao: freteManual?.observacao || null,
-          frete_prazo_estimado: freteManual?.prazoEstimado || null,
-          frete_definido_por: freteManual ? userData?.user?.id : null,
-        })
-        .select()
-        .single();
+      for (const grupo of grupos.values()) {
+        const token = crypto.randomUUID();
 
-      if (error) throw error;
+        // Subtotal e desconto do grupo
+        const subtotalGrupo = grupo.itens.reduce(
+          (s, i) => s + parseFloat(i.price.amount) * i.quantity, 0,
+        );
+        const totalComDescontoGrupo = grupo.itens.reduce(
+          (s, i) => s + precoComDescontoDoItem(i) * i.quantity, 0,
+        );
+        const descontoValorGrupo = subtotalGrupo - totalComDescontoGrupo;
+        const descontoPercentualGrupo = subtotalGrupo > 0
+          ? Math.round((descontoValorGrupo / subtotalGrupo) * 10000) / 100
+          : globalPercent;
 
-      // Sempre usar domínio oficial de produção
-      const baseUrl = 'https://gestaoebd.com.br';
-      
-      // TODOS os vendedores (incluindo vendedor teste) usam link de proposta
-      // O redirecionamento para checkout MP acontece quando o CLIENTE clica "Confirmar Compra"
-      // na página da proposta (PropostaDigital.tsx)
-      const link = `${baseUrl}/proposta/${token}`;
-      
-      // Se NÃO é vendedor (é cliente/superintendente fazendo pedido), navegar direto para proposta
-      // Não mostrar modal de mensagem - cliente vai direto escolher frete e confirmar
-      if (!isVendedor) {
+        // Frete: se split, distribui proporcionalmente pelo peso em produtos
+        const freteGrupo = grupos.size === 1
+          ? valorFreteTotal
+          : totalGeralProdutos > 0
+            ? Math.round((valorFreteTotal * subtotalGrupo / totalGeralProdutos) * 100) / 100
+            : 0;
+
+        const valorTotalGrupo = totalComDescontoGrupo + freteGrupo;
+
+        // Itens salvos
+        const itensParaSalvar = grupo.itens.map((item) => {
+          let descontoItem = descontoPercent;
+          if (shouldAutoCalcAdvec) {
+            descontoItem = isProdutoAdvec50(item.product.node.title, item.product.node.id) ? 50 : 40;
+          }
+          const hasDescontoCategoria = descontoCalculado?.itensComDescontoCategoria && descontoCalculado.itensComDescontoCategoria.length > 0;
+          if (hasDescontoCategoria) {
+            const itemDesconto = descontoCalculado.itensComDescontoCategoria.find(
+              d => d.titulo === item.product.node.title,
+            );
+            if (itemDesconto) descontoItem = itemDesconto.percentual;
+          }
+          return {
+            variantId: item.variantId,
+            quantity: item.quantity,
+            title: item.product.node.title,
+            price: item.price.amount,
+            imageUrl: item.product.node.images?.edges?.[0]?.node?.url || null,
+            sku: item.sku || null,
+            depositoId: item.depositoId ?? null,
+            depositoNome: item.depositoNome ?? null,
+            descontoItem,
+            ...(hasDescontoCategoria && {
+              categoria: descontoCalculado.itensComDescontoCategoria.find(
+                d => d.titulo === item.product.node.title,
+              )?.categoriaLabel,
+            }),
+          };
+        });
+
+        const cepOrigem = getCepOrigem(grupo.depositoId);
+
+        const { error } = await supabase
+          .from("vendedor_propostas")
+          .insert({
+            vendedor_id: vendedorParaProposta.id,
+            vendedor_email: vendedorParaProposta.email || null,
+            cliente_id: selectedCliente.id,
+            cliente_nome: selectedCliente.nome_igreja,
+            cliente_cnpj: selectedCliente.cnpj,
+            cliente_endereco: clienteEndereco,
+            itens: itensParaSalvar,
+            valor_produtos: subtotalGrupo,
+            valor_frete: freteGrupo,
+            valor_total: valorTotalGrupo,
+            desconto_percentual: descontoPercentualGrupo,
+            status: "PROPOSTA_PENDENTE",
+            token,
+            metodo_frete: freteManual ? 'manual' : null,
+            pode_faturar: isFaturamentoB2B,
+            vendedor_nome: vendedorParaProposta.nome || null,
+            prazos_disponiveis: isFaturamentoB2B && faturamentoPrazos ? faturamentoPrazos : null,
+            frete_tipo: freteManual ? 'manual' : null,
+            frete_transportadora: freteManual?.transportadora || null,
+            frete_observacao: freteManual?.observacao || null,
+            frete_prazo_estimado: freteManual?.prazoEstimado || null,
+            frete_definido_por: freteManual ? userData?.user?.id : null,
+            deposito_id: grupo.depositoId,
+            deposito_nome: grupo.depositoNome,
+            cep_origem_frete: cepOrigem,
+            proposta_grupo_id,
+          } as any);
+
+        if (error) throw error;
+
+        propostasResultado.push({
+          token,
+          link: `${baseUrl}/proposta/${token}`,
+          depositoNome: grupo.depositoNome,
+          totalItens: grupo.itens.reduce((s, i) => s + i.quantity, 0),
+          cepOrigem,
+        });
+      }
+
+      // Se NÃO é vendedor: navega direto para primeira proposta
+      if (!isVendedor && propostasResultado.length > 0) {
         clearCart();
         setIsCartOpen(false);
         toast.success("Proposta criada! Escolha a forma de entrega.");
-        navigate(`/proposta/${token}`);
+        navigate(`/proposta/${propostasResultado[0].token}`);
       } else {
-        // Vendedor: mostrar modal com mensagem para copiar e enviar ao cliente
-        setPropostaLink(link);
+        setPropostasGeradas(propostasResultado);
         setPropostaClienteNome(selectedCliente.nome_igreja);
-        setShowPropostaLinkDialog(true);
-        setLinkCopied(false);
-        setMessageCopied(false);
-        toast.success("Proposta gerada com sucesso!");
+        setShowPropostasGeradasDialog(true);
+        toast.success(
+          propostasResultado.length > 1
+            ? `${propostasResultado.length} propostas geradas (uma por depósito)`
+            : "Proposta gerada com sucesso!",
+        );
       }
-      
     } catch (error: any) {
       console.error("Erro ao gerar proposta:", error);
       toast.error("Erro ao gerar proposta: " + error.message);
