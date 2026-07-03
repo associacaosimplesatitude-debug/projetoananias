@@ -386,8 +386,9 @@ export default function ShopifyPedidos() {
                 availableForSale: v.availableForSale,
                 selectedOptions: [],
                 sku: v.sku,
-                // Campo extra usado apenas para badge de estoque no PDV
+                // Campos extras usados apenas no PDV
                 stockTotal: v.stockTotal,
+                saldosPorDeposito: v.saldosPorDeposito ?? [],
               } as any,
             })),
           },
