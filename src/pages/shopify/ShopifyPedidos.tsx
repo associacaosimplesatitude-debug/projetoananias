@@ -1268,8 +1268,15 @@ export default function ShopifyPedidos() {
 
                       {/* Lista de produtos */}
                       <div className="space-y-3">
-                        {items.map((item) => (
-                          <div key={item.variantId} className="flex gap-3 p-2 border rounded-lg">
+                        {items.map((item) => {
+                          const variantAny = item.product.node.variants.edges[0]?.node as any;
+                          const saldosVariant: BlingSaldoDeposito[] = Array.isArray(variantAny?.saldosPorDeposito)
+                            ? variantAny.saldosPorDeposito
+                            : [];
+                          const opcoesDeposito = saldosVariant.filter(s => s.saldo > 0);
+                          const key = lineKey(item.variantId, item.depositoId);
+                          return (
+                          <div key={key} className="flex gap-3 p-2 border rounded-lg">
                             <div className="w-12 h-12 bg-secondary/20 rounded-md overflow-hidden flex-shrink-0">
                               {item.product.node.images?.edges?.[0]?.node && (
                                 <img
@@ -1288,6 +1295,40 @@ export default function ShopifyPedidos() {
                               <p className="text-xs text-muted-foreground">
                                 SKU: {item.sku ? item.sku : "não informado"}
                               </p>
+                              {/* Seletor de depósito por linha */}
+                              {(opcoesDeposito.length > 0 || item.depositoNome) && (
+                                <div className="mt-1">
+                                  {opcoesDeposito.length > 1 ? (
+                                    <Select
+                                      value={String(item.depositoId ?? '')}
+                                      onValueChange={(v) => {
+                                        const dep = opcoesDeposito.find(d => String(d.depositoId) === v);
+                                        if (!dep) return;
+                                        if (item.quantity > dep.saldo) {
+                                          toast.error(`Saldo insuficiente em ${dep.nome} (${dep.saldo} un.)`);
+                                          return;
+                                        }
+                                        updateDeposito(item.variantId, item.depositoId, dep.depositoId, dep.nome);
+                                      }}
+                                    >
+                                      <SelectTrigger className="h-6 text-xs px-2">
+                                        <SelectValue placeholder="Depósito" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {opcoesDeposito.map((d) => (
+                                          <SelectItem key={d.depositoId} value={String(d.depositoId)}>
+                                            {d.nome} · {d.saldo} un.
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  ) : (
+                                    <Badge variant="outline" className="text-[10px] font-normal">
+                                      Sai de: {item.depositoNome || opcoesDeposito[0]?.nome || '—'}
+                                    </Badge>
+                                  )}
+                                </div>
+                              )}
                             </div>
                             
                             <div className="flex flex-col items-end gap-2 flex-shrink-0">
@@ -1295,7 +1336,7 @@ export default function ShopifyPedidos() {
                                 variant="ghost"
                                 size="icon"
                                 className="h-6 w-6"
-                                onClick={() => removeItem(item.variantId)}
+                                onClick={() => removeItem(item.variantId, item.depositoId)}
                               >
                                 <Trash2 className="h-3 w-3" />
                               </Button>
@@ -1305,28 +1346,29 @@ export default function ShopifyPedidos() {
                                   variant="outline"
                                   size="icon"
                                   className="h-6 w-6"
-                                  onClick={() => updateQuantity(item.variantId, item.quantity - 1)}
+                                  onClick={() => updateQuantity(item.variantId, item.quantity - 1, item.depositoId)}
                                 >
                                   <Minus className="h-3 w-3" />
                                 </Button>
                                 <CartQuantityField
                                   value={item.quantity}
                                   min={1}
-                                  onCommit={(next) => updateQuantity(item.variantId, next)}
+                                  onCommit={(next) => updateQuantity(item.variantId, next, item.depositoId)}
                                   className="w-12 h-6 text-center text-sm px-1 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                 />
                                 <Button
                                   variant="outline"
                                   size="icon"
                                   className="h-6 w-6"
-                                  onClick={() => updateQuantity(item.variantId, item.quantity + 1)}
+                                  onClick={() => updateQuantity(item.variantId, item.quantity + 1, item.depositoId)}
                                 >
                                   <Plus className="h-3 w-3" />
                                 </Button>
                               </div>
                             </div>
                           </div>
-                        ))}
+                          );
+                        })}
                       </div>
 
                       {/* Endereço de Entrega - dentro do scroll */}
