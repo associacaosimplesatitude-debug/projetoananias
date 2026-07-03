@@ -146,6 +146,16 @@ export default function ShopifyPedidos() {
   const [selectedEndereco, setSelectedEndereco] = useState<any>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
+  // Estados para split por depósito
+  const [showDividirDialog, setShowDividirDialog] = useState(false);
+  const [dividirContext, setDividirContext] = useState<{
+    product: ShopifyProduct;
+    quantidade: number;
+    saldos: BlingSaldoDeposito[];
+  } | null>(null);
+  const [showPropostasGeradasDialog, setShowPropostasGeradasDialog] = useState(false);
+  const [propostasGeradas, setPropostasGeradas] = useState<PropostaGerada[]>([]);
+
   // Fetch current user ID
   useEffect(() => {
     const fetchUser = async () => {
