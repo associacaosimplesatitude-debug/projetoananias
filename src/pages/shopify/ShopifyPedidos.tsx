@@ -319,10 +319,32 @@ export default function ShopifyPedidos() {
     items, 
     addItem, 
     updateQuantity, 
+    updateDeposito,
     removeItem, 
     clearCart,
     isLoading: isCheckoutLoading 
   } = useShopifyCartStore();
+
+  // Config de depósitos do Bling (id -> CEP de origem)
+  const { data: depositosConfig } = useQuery({
+    queryKey: ['bling-depositos-config'],
+    staleTime: 10 * 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('bling_depositos_config')
+        .select('bling_deposito_id, nome, cep_origem, cidade, estado, ativo_pdv, ordem')
+        .eq('ativo_pdv', true)
+        .order('ordem', { ascending: true });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  // Helper: retorna o CEP de origem do depósito, ou o CEP da matriz como fallback
+  const getCepOrigem = (depositoId?: number | null): string => {
+    const cfg = depositosConfig?.find(d => Number(d.bling_deposito_id) === Number(depositoId ?? 0));
+    return cfg?.cep_origem || '22713-001';
+  };
 
   // Catálogo agora vem do Bling (Shopify foi descontinuada).
   // A Edge Function `bling-search-product` exige >= 2 caracteres,
