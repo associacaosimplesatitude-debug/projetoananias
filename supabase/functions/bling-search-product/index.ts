@@ -210,7 +210,96 @@ function mapBlingProduct(source: any) {
     descricao: stripHtmlTags(source.descricaoCurta || source.descricao || ''),
     estoque,
     tipo: source.tipo || 'P',
+    saldosPorDeposito: [] as Array<{ depositoId: number; nome: string; saldo: number }>,
   };
+}
+
+// Busca saldos por depósito para uma lista de produtos em UMA chamada.
+// Retorna Map<produtoId, [{depositoId, nome, saldo}]>.
+async function fetchSaldosPorDeposito(
+  accessToken: string,
+  productIds: Array<number | string>,
+): Promise<Map<string, Array<{ depositoId: number; nome: string; saldo: number }>>> {
+  const map = new Map<string, Array<{ depositoId: number; nome: string; saldo: number }>>();
+  if (productIds.length === 0) return map;
+
+  const params = productIds.map((id) => `idsProdutos[]=${encodeURIComponent(String(id))}`).join('&');
+  const url = `https://api.bling.com.br/Api/v3/estoques/saldos?${params}`;
+
+  try {
+    const resp = await fetch(url, {
+      headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
+    });
+    if (!resp.ok) return map;
+    const json = await resp.json();
+    const items = json?.data ?? [];
+    for (const item of items) {
+      const prodId = String(item?.produto?.id ?? '');
+      if (!prodId) continue;
+      const saldos: any[] = Array.isArray(item.saldos) ? item.saldos : [];
+      const list = saldos
+        .map((s) => ({
+          depositoId: Number(s?.deposito?.id ?? 0),
+          nome: String(s?.deposito?.descricao ?? s?.deposito?.nome ?? 'Depósito'),
+          saldo: Number(s?.saldoFisico ?? s?.saldoFisicoTotal ?? 0) || 0,
+        }))
+        .filter((s) => s.depositoId > 0);
+      map.set(prodId, list);
+    }
+  } catch (e) {
+    console.warn('[fetchSaldosPorDeposito] erro:', e);
+  }
+  return map;
+}
+
+// Sincroniza a tabela public.bling_depositos_config com os depósitos vistos,
+// para que o frontend consiga mapear nome -> CEP de origem sem intervenção manual.
+async function syncDepositosConfig(
+  supabase: any,
+  saldosMap: Map<string, Array<{ depositoId: number; nome: string; saldo: number }>>,
+) {
+  const seen = new Map<number, string>();
+  for (const list of saldosMap.values()) {
+    for (const s of list) {
+      if (s.depositoId > 0 && !seen.has(s.depositoId)) seen.set(s.depositoId, s.nome);
+    }
+  }
+  if (seen.size === 0) return;
+  try {
+    const { data: existing } = await supabase
+      .from('bling_depositos_config')
+      .select('id, bling_deposito_id, nome');
+    const existingById = new Map<number, any>();
+    const existingByNome = new Map<string, any>();
+    for (const row of existing ?? []) {
+      existingById.set(Number(row.bling_deposito_id), row);
+      existingByNome.set(String(row.nome).trim().toUpperCase(), row);
+    }
+    for (const [id, nome] of seen.entries()) {
+      if (existingById.has(id)) continue;
+      // Tenta casar por nome (linhas seed com IDs negativos)
+      const byName = existingByNome.get(nome.trim().toUpperCase());
+      if (byName) {
+        await supabase
+          .from('bling_depositos_config')
+          .update({ bling_deposito_id: id, nome })
+          .eq('id', byName.id);
+      } else {
+        // Insere novo depósito com CEP da matriz como default
+        await supabase.from('bling_depositos_config').insert({
+          bling_deposito_id: id,
+          nome,
+          cep_origem: '22713-001',
+          cidade: 'Rio de Janeiro',
+          estado: 'RJ',
+          ativo_pdv: true,
+          ordem: 99,
+        });
+      }
+    }
+  } catch (e) {
+    console.warn('[syncDepositosConfig] erro:', e);
+  }
 }
 
 serve(async (req) => {
