@@ -737,6 +737,45 @@ export type Database = {
         }
         Relationships: []
       }
+      bling_depositos_config: {
+        Row: {
+          ativo_pdv: boolean
+          bling_deposito_id: number
+          cep_origem: string
+          cidade: string | null
+          created_at: string
+          estado: string | null
+          id: string
+          nome: string
+          ordem: number
+          updated_at: string
+        }
+        Insert: {
+          ativo_pdv?: boolean
+          bling_deposito_id: number
+          cep_origem: string
+          cidade?: string | null
+          created_at?: string
+          estado?: string | null
+          id?: string
+          nome: string
+          ordem?: number
+          updated_at?: string
+        }
+        Update: {
+          ativo_pdv?: boolean
+          bling_deposito_id?: number
+          cep_origem?: string
+          cidade?: string | null
+          created_at?: string
+          estado?: string | null
+          id?: string
+          nome?: string
+          ordem?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       bling_marketplace_pedidos: {
         Row: {
           bling_order_id: number
@@ -8494,6 +8533,7 @@ export type Database = {
           bling_status: string | null
           bling_status_id: number | null
           bling_synced_at: string | null
+          cep_origem_frete: string | null
           cliente_cnpj: string | null
           cliente_endereco: Json | null
           cliente_id: string | null
@@ -8501,6 +8541,8 @@ export type Database = {
           comissao_aprovada: boolean | null
           confirmado_em: string | null
           created_at: string
+          deposito_id: number | null
+          deposito_nome: string | null
           desconto_percentual: number | null
           documento_invalido: boolean | null
           documento_invalido_motivo: string | null
@@ -8518,6 +8560,7 @@ export type Database = {
           pode_faturar: boolean | null
           prazo_faturamento_selecionado: string | null
           prazos_disponiveis: string[] | null
+          proposta_grupo_id: string | null
           status: string
           token: string
           updated_at: string
@@ -8534,6 +8577,7 @@ export type Database = {
           bling_status?: string | null
           bling_status_id?: number | null
           bling_synced_at?: string | null
+          cep_origem_frete?: string | null
           cliente_cnpj?: string | null
           cliente_endereco?: Json | null
           cliente_id?: string | null
@@ -8541,6 +8585,8 @@ export type Database = {
           comissao_aprovada?: boolean | null
           confirmado_em?: string | null
           created_at?: string
+          deposito_id?: number | null
+          deposito_nome?: string | null
           desconto_percentual?: number | null
           documento_invalido?: boolean | null
           documento_invalido_motivo?: string | null
@@ -8558,6 +8604,7 @@ export type Database = {
           pode_faturar?: boolean | null
           prazo_faturamento_selecionado?: string | null
           prazos_disponiveis?: string[] | null
+          proposta_grupo_id?: string | null
           status?: string
           token: string
           updated_at?: string
@@ -8574,6 +8621,7 @@ export type Database = {
           bling_status?: string | null
           bling_status_id?: number | null
           bling_synced_at?: string | null
+          cep_origem_frete?: string | null
           cliente_cnpj?: string | null
           cliente_endereco?: Json | null
           cliente_id?: string | null
@@ -8581,6 +8629,8 @@ export type Database = {
           comissao_aprovada?: boolean | null
           confirmado_em?: string | null
           created_at?: string
+          deposito_id?: number | null
+          deposito_nome?: string | null
           desconto_percentual?: number | null
           documento_invalido?: boolean | null
           documento_invalido_motivo?: string | null
@@ -8598,6 +8648,7 @@ export type Database = {
           pode_faturar?: boolean | null
           prazo_faturamento_selecionado?: string | null
           prazos_disponiveis?: string[] | null
+          proposta_grupo_id?: string | null
           status?: string
           token?: string
           updated_at?: string
