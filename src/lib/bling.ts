@@ -153,6 +153,7 @@ export async function fetchBlingProducts(query?: string): Promise<BlingProduct[]
           availableForSale,
           sku,
           stockTotal,
+          saldosPorDeposito: Array.isArray(p.saldosPorDeposito) ? p.saldosPorDeposito : [],
         },
       ],
     };
