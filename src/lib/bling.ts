@@ -11,6 +11,12 @@ import { supabase } from "@/integrations/supabase/client";
  * (Geral / PE / Penha) via `bling-callback*`.
  */
 
+export interface BlingSaldoDeposito {
+  depositoId: number;
+  nome: string;
+  saldo: number;
+}
+
 export interface BlingVariant {
   id: string;
   title: string;
@@ -18,6 +24,7 @@ export interface BlingVariant {
   availableForSale: boolean;
   sku: string;
   stockTotal: number;
+  saldosPorDeposito: BlingSaldoDeposito[];
 }
 
 export interface BlingProduct {
@@ -36,6 +43,7 @@ interface BlingSearchProduct {
   descricao?: string;
   estoque?: number;
   tipo?: string;
+  saldosPorDeposito?: BlingSaldoDeposito[];
 }
 
 interface BlingSearchResponse {
