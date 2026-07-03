@@ -238,6 +238,9 @@ async function fetchSaldosPorDeposito(
     const json = await resp.json();
     const items = json?.data ?? [];
     console.log('[fetchSaldosPorDeposito] items:', items.length);
+    if (items.length > 0) {
+      console.log('[fetchSaldosPorDeposito] sample:', JSON.stringify(items[0]).slice(0, 800));
+    }
     for (const item of items) {
       const prodId = String(item?.produto?.id ?? '');
       if (!prodId) continue;
