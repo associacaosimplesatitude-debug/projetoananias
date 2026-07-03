@@ -1,0 +1,3 @@
+CREATE POLICY "Admins can insert propostas" ON public.vendedor_propostas FOR INSERT TO authenticated WITH CHECK (has_role(auth.uid(), 'admin'::app_role));
+CREATE POLICY "Gerente EBD can insert propostas" ON public.vendedor_propostas FOR INSERT TO authenticated WITH CHECK (has_role(auth.uid(), 'gerente_ebd'::app_role));
+CREATE POLICY "Financeiro can insert propostas" ON public.vendedor_propostas FOR INSERT TO authenticated WITH CHECK (has_role(auth.uid(), 'financeiro'::app_role));
