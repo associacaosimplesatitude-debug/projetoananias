@@ -215,6 +215,38 @@ function mapBlingProduct(source: any) {
 }
 
 // Busca saldos por depósito para uma lista de produtos em UMA chamada.
+// Cache em memória: id do depósito -> descrição
+let depositosNomeCache: Map<number, string> | null = null;
+let depositosNomeCacheAt = 0;
+const DEPOSITOS_TTL_MS = 10 * 60 * 1000;
+
+async function loadDepositosNome(accessToken: string): Promise<Map<number, string>> {
+  if (depositosNomeCache && Date.now() - depositosNomeCacheAt < DEPOSITOS_TTL_MS) {
+    return depositosNomeCache;
+  }
+  const map = new Map<number, string>();
+  try {
+    const resp = await fetch('https://api.bling.com.br/Api/v3/depositos?limite=100', {
+      headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
+    });
+    if (resp.ok) {
+      const json = await resp.json();
+      for (const d of json?.data ?? []) {
+        const id = Number(d?.id ?? 0);
+        const nome = String(d?.descricao ?? d?.nome ?? `Depósito ${id}`);
+        if (id > 0) map.set(id, nome);
+      }
+    } else {
+      console.warn('[loadDepositosNome] http', resp.status);
+    }
+  } catch (e) {
+    console.warn('[loadDepositosNome] erro:', e);
+  }
+  depositosNomeCache = map;
+  depositosNomeCacheAt = Date.now();
+  return map;
+}
+
 // Retorna Map<produtoId, [{depositoId, nome, saldo}]>.
 async function fetchSaldosPorDeposito(
   accessToken: string,
@@ -227,9 +259,10 @@ async function fetchSaldosPorDeposito(
   const url = `https://api.bling.com.br/Api/v3/estoques/saldos?${params}`;
 
   try {
-    const resp = await fetch(url, {
-      headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
-    });
+    const [resp, nomes] = await Promise.all([
+      fetch(url, { headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' } }),
+      loadDepositosNome(accessToken),
+    ]);
     if (!resp.ok) {
       const txt = await resp.text().catch(() => '');
       console.warn('[fetchSaldosPorDeposito] http', resp.status, txt.slice(0, 300));
@@ -237,30 +270,30 @@ async function fetchSaldosPorDeposito(
     }
     const json = await resp.json();
     const items = json?.data ?? [];
-    console.log('[fetchSaldosPorDeposito] items:', items.length);
-    if (items.length > 0) {
-      console.log('[fetchSaldosPorDeposito] sample:', JSON.stringify(items[0]).slice(0, 800));
-    }
     for (const item of items) {
       const prodId = String(item?.produto?.id ?? '');
       if (!prodId) continue;
-      const saldos: any[] = Array.isArray(item.saldos) ? item.saldos : [];
-      const list = saldos
-        .map((s) => ({
-          depositoId: Number(s?.deposito?.id ?? 0),
-          nome: String(s?.deposito?.descricao ?? s?.deposito?.nome ?? 'Depósito'),
-          saldo: Number(
-            s?.saldoFisico ??
-            s?.saldoFisicoTotal ??
-            s?.saldoVirtual ??
-            s?.saldoVirtualTotal ??
-            0,
-          ) || 0,
-        }))
+      // Bling v3 usa `depositos: [{id, saldoFisico, saldoVirtual}]`
+      const raw: any[] = Array.isArray(item.depositos)
+        ? item.depositos
+        : Array.isArray(item.saldos)
+          ? item.saldos.map((s: any) => ({
+              id: s?.deposito?.id,
+              saldoFisico: s?.saldoFisico ?? s?.saldoFisicoTotal,
+              saldoVirtual: s?.saldoVirtual ?? s?.saldoVirtualTotal,
+              descricao: s?.deposito?.descricao,
+            }))
+          : [];
+      const list = raw
+        .map((s) => {
+          const id = Number(s?.id ?? s?.deposito?.id ?? 0);
+          return {
+            depositoId: id,
+            nome: String(s?.descricao ?? nomes.get(id) ?? `Depósito ${id}`),
+            saldo: Number(s?.saldoFisico ?? s?.saldoVirtual ?? 0) || 0,
+          };
+        })
         .filter((s) => s.depositoId > 0);
-      if (list.length === 0 && saldos.length > 0) {
-        console.log('[fetchSaldosPorDeposito] saldos sem deposito.id:', JSON.stringify(saldos[0]).slice(0, 400));
-      }
       map.set(prodId, list);
     }
   } catch (e) {
