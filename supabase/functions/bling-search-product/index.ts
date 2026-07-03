@@ -258,11 +258,24 @@ async function fetchSaldosPorDeposito(
   const params = productIds.map((id) => `idsProdutos[]=${encodeURIComponent(String(id))}`).join('&');
   const url = `https://api.bling.com.br/Api/v3/estoques/saldos?${params}`;
 
+  // Nomes primeiro (cacheado após 1ª chamada, geralmente hit imediato)
+  const nomes = await loadDepositosNome(accessToken);
+
+  const doFetch = async () => {
+    const r = await fetch(url, {
+      headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
+    });
+    return r;
+  };
+
   try {
-    const [resp, nomes] = await Promise.all([
-      fetch(url, { headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' } }),
-      loadDepositosNome(accessToken),
-    ]);
+    // pequena espera antes para não estourar o rate-limit (Bling permite 3 req/s)
+    await new Promise((r) => setTimeout(r, 350));
+    let resp = await doFetch();
+    if (resp.status === 429) {
+      await new Promise((r) => setTimeout(r, 900));
+      resp = await doFetch();
+    }
     if (!resp.ok) {
       const txt = await resp.text().catch(() => '');
       console.warn('[fetchSaldosPorDeposito] http', resp.status, txt.slice(0, 300));
