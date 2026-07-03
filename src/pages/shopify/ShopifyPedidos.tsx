@@ -528,26 +528,89 @@ export default function ShopifyPedidos() {
   const [productQuantities, setProductQuantities] = useState<Record<string, number>>({});
 
   const handleAddToCart = (product: ShopifyProduct, quantity: number = 1) => {
-    const variant = product.node.variants.edges[0]?.node;
+    const variant = product.node.variants.edges[0]?.node as any;
     if (!variant) {
       toast.error("Produto sem variante disponível");
       return;
     }
 
+    const saldos: BlingSaldoDeposito[] = Array.isArray(variant.saldosPorDeposito)
+      ? variant.saldosPorDeposito.filter((s: BlingSaldoDeposito) => s.saldo > 0)
+      : [];
+
+    // Se temos saldo por depósito, decide entre selecionar direto ou dividir
+    if (saldos.length > 0) {
+      const ordenados = [...saldos].sort((a, b) => b.saldo - a.saldo);
+      const maior = ordenados[0];
+      // Se a qty cabe no maior depósito, usa ele automaticamente (vendedor pode trocar depois)
+      if (quantity <= maior.saldo) {
+        const cartItem: CartItem = {
+          product,
+          variantId: variant.id,
+          variantTitle: variant.title,
+          sku: variant.sku || null,
+          price: variant.price,
+          quantity,
+          selectedOptions: variant.selectedOptions || [],
+          depositoId: maior.depositoId,
+          depositoNome: maior.nome,
+        };
+        addItem(cartItem);
+        setProductQuantities(prev => ({ ...prev, [product.node.id]: 1 }));
+        toast.success(
+          `${quantity}x adicionado (${maior.nome})`,
+          { position: "top-center" },
+        );
+        return;
+      }
+      // Se não cabe no maior: abre diálogo de divisão
+      setDividirContext({ product, quantidade: quantity, saldos });
+      setShowDividirDialog(true);
+      return;
+    }
+
+    // Fallback (sem info de depósito): adiciona sem depósito
     const cartItem: CartItem = {
       product,
       variantId: variant.id,
       variantTitle: variant.title,
       sku: variant.sku || null,
       price: variant.price,
-      quantity: quantity,
-      selectedOptions: variant.selectedOptions || []
+      quantity,
+      selectedOptions: variant.selectedOptions || [],
     };
-    
     addItem(cartItem);
-    // Limpar quantidade digitada após adicionar
     setProductQuantities(prev => ({ ...prev, [product.node.id]: 1 }));
     toast.success(`${quantity}x ${product.node.title.substring(0, 30)}... adicionado`, { position: "top-center" });
+  };
+
+  // Confirmação da divisão vinda do DividirDepositoDialog
+  const handleConfirmDivisao = (
+    distribuicao: Array<{ depositoId: number; nome: string; quantidade: number }>,
+  ) => {
+    if (!dividirContext) return;
+    const { product } = dividirContext;
+    const variant = product.node.variants.edges[0]?.node as any;
+    for (const d of distribuicao) {
+      const cartItem: CartItem = {
+        product,
+        variantId: variant.id,
+        variantTitle: variant.title,
+        sku: variant.sku || null,
+        price: variant.price,
+        quantity: d.quantidade,
+        selectedOptions: variant.selectedOptions || [],
+        depositoId: d.depositoId,
+        depositoNome: d.nome,
+      };
+      addItem(cartItem);
+    }
+    setProductQuantities(prev => ({ ...prev, [product.node.id]: 1 }));
+    toast.success(
+      `Adicionado em ${distribuicao.length} depósito(s)`,
+      { position: "top-center" },
+    );
+    setDividirContext(null);
   };
 
   const handleCheckoutClick = async () => {
