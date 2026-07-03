@@ -179,6 +179,19 @@ export async function fetchBlingProducts(query?: string): Promise<BlingProduct[]
     if (winner.images.length === 0 && loser.images.length > 0) {
       winner.images = loser.images;
     }
+    // Merge saldos por depósito (soma por depositoId)
+    const merged = new Map<number, BlingSaldoDeposito>();
+    for (const s of [
+      ...(winner.variants[0]?.saldosPorDeposito ?? []),
+      ...(loser.variants[0]?.saldosPorDeposito ?? []),
+    ]) {
+      const prev = merged.get(s.depositoId);
+      if (prev) prev.saldo = Math.max(prev.saldo, s.saldo);
+      else merged.set(s.depositoId, { ...s });
+    }
+    if (winner.variants[0]) {
+      winner.variants[0].saldosPorDeposito = Array.from(merged.values());
+    }
     bySku.set(key, winner);
   }
 
