@@ -226,9 +226,14 @@ async function loadDepositosNome(accessToken: string): Promise<Map<number, strin
   }
   const map = new Map<number, string>();
   try {
-    const resp = await fetch('https://api.bling.com.br/Api/v3/depositos?limite=100', {
+    const doFetch = () => fetch('https://api.bling.com.br/Api/v3/depositos?limite=100', {
       headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
     });
+    let resp = await doFetch();
+    if (resp.status === 429) {
+      await new Promise((r) => setTimeout(r, 1200));
+      resp = await doFetch();
+    }
     if (resp.ok) {
       const json = await resp.json();
       for (const d of json?.data ?? []) {
@@ -242,8 +247,11 @@ async function loadDepositosNome(accessToken: string): Promise<Map<number, strin
   } catch (e) {
     console.warn('[loadDepositosNome] erro:', e);
   }
-  depositosNomeCache = map;
-  depositosNomeCacheAt = Date.now();
+  // Só grava cache se conseguiu nomes reais (evita cachear map vazio)
+  if (map.size > 0) {
+    depositosNomeCache = map;
+    depositosNomeCacheAt = Date.now();
+  }
   return map;
 }
 
