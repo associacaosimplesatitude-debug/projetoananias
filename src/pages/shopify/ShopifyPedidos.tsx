@@ -25,8 +25,8 @@ import {
   FileText,
 } from "lucide-react";
 import { ShopifyProduct, CartItem, createStorefrontCheckout, BuyerInfo } from "@/lib/shopify";
-import { fetchBlingProducts } from "@/lib/bling";
-import { useShopifyCartStore } from "@/stores/shopifyCartStore";
+import { fetchBlingProducts, type BlingSaldoDeposito } from "@/lib/bling";
+import { useShopifyCartStore, lineKey } from "@/stores/shopifyCartStore";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useVendedor } from "@/hooks/useVendedor";
@@ -36,6 +36,8 @@ import { VendaConcluidaDialog } from "@/components/shopify/VendaConcluidaDialog"
 import { DescontoRevendedorBanner } from "@/components/shopify/DescontoRevendedorBanner";
 import { CartQuantityField } from "@/components/shopify/CartQuantityField";
 import { EnderecoEntregaSection } from "@/components/shopify/EnderecoEntregaSection";
+import { DividirDepositoDialog } from "@/components/shopify/DividirDepositoDialog";
+import { PropostasGeradasDialog, type PropostaGerada } from "@/components/shopify/PropostasGeradasDialog";
 
 import { DescontoBanner } from "@/components/shopify/DescontoBanner";
 import { calcularDescontosCarrinho, calcularDescontoRevendedor, isProdutoAdvec50, isClienteRepresentante } from "@/lib/descontosShopify";
