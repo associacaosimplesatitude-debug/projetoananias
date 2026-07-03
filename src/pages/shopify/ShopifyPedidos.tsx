@@ -1649,11 +1649,33 @@ export default function ShopifyPedidos() {
                     </div>
                     {!variant?.availableForSale ? (
                       <p className="text-xs text-destructive mt-2">Indisponível</p>
-                    ) : (variant as any)?.stockTotal > 0 ? (
-                      <Badge variant="secondary" className="mt-2 text-xs font-normal">
-                        Em estoque: {(variant as any).stockTotal} un.
-                      </Badge>
-                    ) : null}
+                    ) : (() => {
+                      const saldos: BlingSaldoDeposito[] = Array.isArray((variant as any)?.saldosPorDeposito)
+                        ? (variant as any).saldosPorDeposito.filter((s: BlingSaldoDeposito) => s.saldo > 0)
+                        : [];
+                      const total = (variant as any)?.stockTotal || saldos.reduce((s, d) => s + d.saldo, 0);
+                      if (total <= 0) return null;
+                      return (
+                        <div className="mt-2 space-y-1">
+                          <Badge variant="secondary" className="text-xs font-normal">
+                            Em estoque: {total} un.
+                          </Badge>
+                          {saldos.length > 0 && (
+                            <div className="flex flex-wrap gap-1">
+                              {saldos.map(d => (
+                                <span
+                                  key={d.depositoId}
+                                  className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground"
+                                  title={`Depósito ${d.nome}`}
+                                >
+                                  {d.nome}: {d.saldo}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </CardContent>
                 </Card>
               );
