@@ -549,7 +549,11 @@ function LicencaEditDrawer({ licenca, open, onClose, onSaved }: {
                   </Label>
                   <Input
                     value={formatWhatsappDisplay(editWhatsapp).formatted}
-                    onChange={(e) => setEditWhatsapp(e.target.value.replace(/\D/g, ""))}
+                    onChange={(e) => {
+                      let d = e.target.value.replace(/\D/g, "");
+                      if (d.length > 11 && d.startsWith("55")) d = d.slice(2);
+                      setEditWhatsapp(d);
+                    }}
                     placeholder="+55 (11) 98765-4321"
                     maxLength={24}
                   />
