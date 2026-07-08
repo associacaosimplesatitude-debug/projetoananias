@@ -44,7 +44,7 @@ export function normalizeWhatsappDigits(raw: string): string {
 }
 
 export function formatWhatsappDisplay(raw: string): FormattedWhatsapp {
-  const digits = (raw || "").replace(/\D/g, "");
+  const digits = normalizeWhatsappDigits(raw);
   if (!digits) return { country: null, formatted: "—" };
   const country = detectWhatsappCountry(digits);
 
