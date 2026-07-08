@@ -23,8 +23,28 @@ export interface FormattedWhatsapp {
   formatted: string;
 }
 
+export function normalizeWhatsappDigits(raw: string): string {
+  let digits = (raw || "").replace(/\D/g, "");
+
+  if (!digits) return "";
+
+  // O campo brasileiro é exibido com "+55". Ao digitar em um input controlado,
+  // esse prefixo aparece dentro do valor do evento e precisa ser removido sempre,
+  // não apenas quando já há 11 dígitos.
+  if ((raw || "").trim().startsWith("+55")) {
+    digits = digits.slice(2);
+  }
+
+  // Corrige valores antigos/sujos salvos com DDI brasileiro duplicado.
+  while (digits.length > 11 && digits.startsWith("55")) {
+    digits = digits.slice(2);
+  }
+
+  return digits;
+}
+
 export function formatWhatsappDisplay(raw: string): FormattedWhatsapp {
-  const digits = (raw || "").replace(/\D/g, "");
+  const digits = normalizeWhatsappDigits(raw);
   if (!digits) return { country: null, formatted: "—" };
   const country = detectWhatsappCountry(digits);
 

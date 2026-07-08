@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { formatWhatsappDisplay } from "@/lib/whatsappFormat";
+import { formatWhatsappDisplay, normalizeWhatsappDigits } from "@/lib/whatsappFormat";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -435,7 +435,7 @@ function LicencaEditDrawer({ licenca, open, onClose, onSaved }: {
   if (licId && licId !== prevId) {
     setPrevId(licId);
     setEditNome(licenca?.nome_comprador || "");
-    setEditWhatsapp((licenca?.whatsapp || "").replace(/\D/g, ""));
+    setEditWhatsapp(normalizeWhatsappDigits(licenca?.whatsapp || ""));
     setEditEmail(licenca?.email || "");
     setEditAtivo(licenca?.ativo ?? true);
   }
@@ -500,7 +500,7 @@ function LicencaEditDrawer({ licenca, open, onClose, onSaved }: {
         action: "update",
         id: licenca!.id,
         nome_comprador: editNome,
-        whatsapp: editWhatsapp.replace(/\D/g, ""),
+        whatsapp: normalizeWhatsappDigits(editWhatsapp),
         email: editEmail,
         ativo: editAtivo,
       });
@@ -549,11 +549,7 @@ function LicencaEditDrawer({ licenca, open, onClose, onSaved }: {
                   </Label>
                   <Input
                     value={formatWhatsappDisplay(editWhatsapp).formatted}
-                    onChange={(e) => {
-                      let d = e.target.value.replace(/\D/g, "");
-                      if (d.length > 11 && d.startsWith("55")) d = d.slice(2);
-                      setEditWhatsapp(d);
-                    }}
+                    onChange={(e) => setEditWhatsapp(normalizeWhatsappDigits(e.target.value))}
                     placeholder="+55 (11) 98765-4321"
                     maxLength={24}
                   />
