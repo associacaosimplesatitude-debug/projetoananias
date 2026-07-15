@@ -274,7 +274,10 @@ const buscar_catalogo: ToolHandler = async (input) => {
   let products: any[] = [];
   const erros: string[] = [];
   try {
-    const res = await fetch(NOVA_LOJA_CATALOGO_URL);
+    const url = termoLimpo
+      ? `${NOVA_LOJA_CATALOGO_URL}?q=${encodeURIComponent(termoLimpo)}`
+      : NOVA_LOJA_CATALOGO_URL;
+    const res = await fetch(url);
     if (res.ok) {
       const raw = await res.json();
       products = Array.isArray(raw) ? raw : (raw?.products || []);
