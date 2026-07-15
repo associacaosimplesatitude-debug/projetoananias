@@ -100,6 +100,7 @@ import AgenteIAConversas from "./pages/admin/agente-ia/Conversas";
 import AgenteIAConversaDetalhe from "./pages/admin/agente-ia/ConversaDetalhe";
 import AgenteIAEscalations from "./pages/admin/agente-ia/Escalations";
 import AgenteIAMetricas from "./pages/admin/agente-ia/Metricas";
+import AdminAgenteTeste from "./pages/admin/AdminAgenteTeste";
 
 // Royalties Pages
 import RoyaltiesDashboard from "./pages/royalties/Dashboard";
@@ -565,6 +566,7 @@ const App = () => (
                       <Route path="whatsapp" element={<RequireSuperadmin><WhatsAppPanel /></RequireSuperadmin>} />
                       <Route path="whatsapp/campanhas/:campanha_id/rastreamento" element={<RequireSuperadmin><CampaignTracking /></RequireSuperadmin>} />
                       <Route path="stripe-teste" element={<StripeTeste />} />
+                      <Route path="agente-teste" element={<RequireSuperadmin><AdminAgenteTeste /></RequireSuperadmin>} />
                       <Route path="agente-ia" element={<AgenteIALayout />}>
                         <Route index element={<AgenteIAIndex />} />
                         <Route path="aprovacoes" element={<AgenteIAAprovacoes />} />

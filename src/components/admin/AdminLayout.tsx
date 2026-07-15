@@ -185,6 +185,16 @@ function AdminSidebar() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               )}
+              {isSuperadmin && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={isActive('/admin/agente-teste')}>
+                    <RouterNavLink to="/admin/agente-teste">
+                      <Sparkles className="h-4 w-4" />
+                      <span>Agente IA — Teste</span>
+                    </RouterNavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={isActive('/admin/ebd/auditoria-vendedor')}>
                   <RouterNavLink to="/admin/ebd/auditoria-vendedor">
