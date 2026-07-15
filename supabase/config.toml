@@ -381,3 +381,6 @@ verify_jwt = true
 
 [functions.enviar-resumo-diario-whatsapp]
 verify_jwt = false
+
+[functions.agente-teste-proxy]
+verify_jwt = true
