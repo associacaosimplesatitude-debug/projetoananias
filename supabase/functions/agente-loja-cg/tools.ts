@@ -228,15 +228,47 @@ function normalizarBusca(s: string): string {
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
+    // separa letra grudada em número (n10 -> n 10) pra bater com "Nº 10" (normalizado vira "no 10")
+    .replace(/([a-z])(\d)/g, "$1 $2")
+    .replace(/(\d)([a-z])/g, "$1 $2")
     .replace(/[^a-z0-9\s]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
 
+// Se termo veio como URL/link de produto, extrai só o slug legível.
+function extrairSlugDeUrl(termo: string): string {
+  const t = String(termo || "").trim();
+  const pareceUrl =
+    /^https?:\/\//i.test(t) ||
+    t.includes("centralgospel.com.br/produto/") ||
+    t.includes("/produto/");
+  if (!pareceUrl) return t;
+
+  // pega o trecho depois de /produto/
+  let slug = t;
+  const idx = t.indexOf("/produto/");
+  if (idx >= 0) slug = t.slice(idx + "/produto/".length);
+  else {
+    // fallback: tira protocolo e domínio
+    slug = t.replace(/^https?:\/\/[^/]+\//i, "");
+  }
+  // remove query string e âncora
+  slug = slug.split("?")[0].split("#")[0];
+  // pega só o primeiro segmento (o slug do produto)
+  slug = slug.split("/")[0] || slug;
+  // remove sufixo numérico longo tipo -1783082755087 (ID interno da loja)
+  slug = slug.replace(/[-_]\d{6,}$/g, "");
+  // troca - e _ por espaço
+  slug = slug.replace(/[-_]+/g, " ").trim();
+  return slug || t;
+}
+
 const buscar_catalogo: ToolHandler = async (input) => {
   const max = Math.min(Number(input.max_resultados || 5), 10);
-  const termo = String(input.termo || "");
-  const termoNorm = normalizarBusca(termo);
+  const termoRaw = String(input.termo || "");
+  const termoLimpo = extrairSlugDeUrl(termoRaw);
+  const termoNorm = normalizarBusca(termoLimpo);
   const tokens = termoNorm.split(" ").filter((t) => t.length >= 2);
 
   let products: any[] = [];
@@ -253,11 +285,19 @@ const buscar_catalogo: ToolHandler = async (input) => {
     erros.push(`catalogo: ${e?.message || e}`);
   }
 
-  // Filtra por tokens (todos devem aparecer no título OU no SKU)
-  const filtrados = products.filter((p) => {
-    const haystack = normalizarBusca(`${p.title || ""} ${p.sku || ""}`);
-    return tokens.length === 0 || tokens.every((t) => haystack.includes(t));
-  });
+  // Pontuação: conta tokens que batem no título/SKU. Requer pelo menos
+  // max(2, ~50% dos tokens) — em vez de exigir 100% (que quebra links longos).
+  const minMatches = Math.max(2, Math.ceil(tokens.length * 0.5));
+  const scored = products
+    .map((p) => {
+      const haystack = normalizarBusca(`${p.title || ""} ${p.sku || ""}`);
+      const matched = tokens.filter((t) => haystack.includes(t)).length;
+      return { p, matched };
+    })
+    .filter((x) => tokens.length === 0 || x.matched >= Math.min(minMatches, tokens.length))
+    .sort((a, b) => b.matched - a.matched);
+
+  const filtrados = scored.map((x) => x.p);
 
   // Itens prontos pra usar em criar_proposta (variantId no formato canônico)
   const items = filtrados.slice(0, max).map((p) => ({
@@ -280,9 +320,11 @@ const buscar_catalogo: ToolHandler = async (input) => {
     items,
     total_encontrados: items.length,
     fontes_consultadas: ["nova_loja"],
+    termo_normalizado: termoNorm,
     erros,
   };
 };
+
 
 const calcular_preco: ToolHandler = async (input, supabase) => {
   const { data, error } = await supabase.rpc("calcular_preco_para_cliente", {
