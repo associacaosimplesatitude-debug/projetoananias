@@ -566,6 +566,7 @@ const App = () => (
                       <Route path="whatsapp" element={<RequireSuperadmin><WhatsAppPanel /></RequireSuperadmin>} />
                       <Route path="whatsapp/campanhas/:campanha_id/rastreamento" element={<RequireSuperadmin><CampaignTracking /></RequireSuperadmin>} />
                       <Route path="stripe-teste" element={<StripeTeste />} />
+                      <Route path="agente-teste" element={<RequireSuperadmin><AdminAgenteTeste /></RequireSuperadmin>} />
                       <Route path="agente-ia" element={<AgenteIALayout />}>
                         <Route index element={<AgenteIAIndex />} />
                         <Route path="aprovacoes" element={<AgenteIAAprovacoes />} />
