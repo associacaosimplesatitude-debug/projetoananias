@@ -71,12 +71,17 @@ export const TOOL_SCHEMAS = [
   {
     name: "buscar_catalogo",
     description:
-      "Busca produtos por palavras-chave. Encontra revistas físicas + digitais. Busca normalizada (ignora acentos, números com Nº, espaços extras). Aceita termos parciais ('Cartas Prisão' acha 'Revista EBD Cartas da Prisão').",
+      "Busca produtos por palavras-chave. Encontra revistas físicas + digitais. Busca normalizada (ignora acentos, números com Nº, espaços extras). Aceita termos parciais ('Cartas Prisão' acha 'Revista EBD Cartas da Prisão'). Use apenas_lancamentos=true quando cliente pedir explicitamente MAIS RECENTE / LANÇAMENTO / NOVIDADE.",
     input_schema: {
       type: "object",
       properties: {
         termo: { type: "string" },
         max_resultados: { type: "integer", default: 5, minimum: 1, maximum: 10 },
+        apenas_lancamentos: {
+          type: "boolean",
+          description:
+            "true quando o cliente pedir explicitamente a revista/produto MAIS RECENTE, LANÇAMENTO ou NOVIDADE — filtra só itens marcados como lançamento no sistema.",
+        },
       },
       required: ["termo"],
     },
