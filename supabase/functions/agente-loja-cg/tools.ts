@@ -279,9 +279,11 @@ const buscar_catalogo: ToolHandler = async (input) => {
   let products: any[] = [];
   const erros: string[] = [];
   try {
-    const url = termoLimpo
-      ? `${NOVA_LOJA_CATALOGO_URL}?q=${encodeURIComponent(termoLimpo)}`
-      : NOVA_LOJA_CATALOGO_URL;
+    const params = new URLSearchParams();
+    if (termoLimpo) params.set("q", termoLimpo);
+    if (input.apenas_lancamentos) params.set("novidade", "true");
+    const qs = params.toString();
+    const url = qs ? `${NOVA_LOJA_CATALOGO_URL}?${qs}` : NOVA_LOJA_CATALOGO_URL;
     const res = await fetch(url);
     if (res.ok) {
       const raw = await res.json();
