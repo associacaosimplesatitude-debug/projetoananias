@@ -48,7 +48,7 @@ Deno.serve(async (req) => {
     if (acao === "reiniciar") {
       const { error } = await supabase
         .from("agente_ia_conversas")
-        .update({ status: "encerrada" })
+        .update({ status: "fechada" })
         .eq("telefone", telefone)
         .eq("status", "ativa");
       if (error) return json({ error: error.message }, 500);
