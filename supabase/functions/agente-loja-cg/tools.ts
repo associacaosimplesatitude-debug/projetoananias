@@ -71,12 +71,17 @@ export const TOOL_SCHEMAS = [
   {
     name: "buscar_catalogo",
     description:
-      "Busca produtos por palavras-chave. Encontra revistas físicas + digitais. Busca normalizada (ignora acentos, números com Nº, espaços extras). Aceita termos parciais ('Cartas Prisão' acha 'Revista EBD Cartas da Prisão').",
+      "Busca produtos por palavras-chave. Encontra revistas físicas + digitais. Busca normalizada (ignora acentos, números com Nº, espaços extras). Aceita termos parciais ('Cartas Prisão' acha 'Revista EBD Cartas da Prisão'). Use apenas_lancamentos=true quando cliente pedir explicitamente MAIS RECENTE / LANÇAMENTO / NOVIDADE.",
     input_schema: {
       type: "object",
       properties: {
         termo: { type: "string" },
         max_resultados: { type: "integer", default: 5, minimum: 1, maximum: 10 },
+        apenas_lancamentos: {
+          type: "boolean",
+          description:
+            "true quando o cliente pedir explicitamente a revista/produto MAIS RECENTE, LANÇAMENTO ou NOVIDADE — filtra só itens marcados como lançamento no sistema.",
+        },
       },
       required: ["termo"],
     },
@@ -274,9 +279,11 @@ const buscar_catalogo: ToolHandler = async (input) => {
   let products: any[] = [];
   const erros: string[] = [];
   try {
-    const url = termoLimpo
-      ? `${NOVA_LOJA_CATALOGO_URL}?q=${encodeURIComponent(termoLimpo)}`
-      : NOVA_LOJA_CATALOGO_URL;
+    const params = new URLSearchParams();
+    if (termoLimpo) params.set("q", termoLimpo);
+    if (input.apenas_lancamentos) params.set("novidade", "true");
+    const qs = params.toString();
+    const url = qs ? `${NOVA_LOJA_CATALOGO_URL}?${qs}` : NOVA_LOJA_CATALOGO_URL;
     const res = await fetch(url);
     if (res.ok) {
       const raw = await res.json();
@@ -317,6 +324,7 @@ const buscar_catalogo: ToolHandler = async (input) => {
     estoque: typeof p.stock === "number" ? p.stock : null,
     disponivel: p.available ?? null,
     is_digital: !!p.is_digital,
+    is_new: !!p.is_new,
   }));
 
   return {
