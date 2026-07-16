@@ -324,6 +324,7 @@ const buscar_catalogo: ToolHandler = async (input) => {
     estoque: typeof p.stock === "number" ? p.stock : null,
     disponivel: p.available ?? null,
     is_digital: !!p.is_digital,
+    is_new: !!p.is_new,
   }));
 
   return {
