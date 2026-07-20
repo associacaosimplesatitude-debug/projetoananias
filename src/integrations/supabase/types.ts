@@ -9411,6 +9411,10 @@ export type Database = {
           is_igreja_cnpj: boolean | null
           is_igreja_cpf: boolean | null
           is_licenciado_revista: boolean | null
+          is_lojista: boolean | null
+          is_pessoa_fisica: boolean | null
+          is_representante: boolean | null
+          is_revendedor: boolean | null
           nome: string | null
           telefone: string | null
           tem_optout: boolean | null
