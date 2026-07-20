@@ -69,7 +69,11 @@ type SegmentoKey =
   | "igreja_cnpj"
   | "igreja_cpf"
   | "ecommerce"
-  | "licenciado_revista";
+  | "licenciado_revista"
+  | "pessoa_fisica"
+  | "revendedor"
+  | "lojista"
+  | "representante";
 
 const SEGMENTO_LABELS: Record<SegmentoKey, string> = {
   advec: "ADVEC",
@@ -77,6 +81,10 @@ const SEGMENTO_LABELS: Record<SegmentoKey, string> = {
   igreja_cpf: "Igreja CPF",
   ecommerce: "E-commerce",
   licenciado_revista: "Licenciado Revista",
+  pessoa_fisica: "Pessoa Física",
+  revendedor: "Revendedor",
+  lojista: "Lojista",
+  representante: "Representante",
 };
 
 const SEGMENTO_ORDER: SegmentoKey[] = [
@@ -85,6 +93,10 @@ const SEGMENTO_ORDER: SegmentoKey[] = [
   "igreja_cpf",
   "ecommerce",
   "licenciado_revista",
+  "pessoa_fisica",
+  "revendedor",
+  "lojista",
+  "representante",
 ];
 
 type RecenciaTipo = "qualquer" | "sem_comprar_ha" | "comprou_nos_ultimos";
