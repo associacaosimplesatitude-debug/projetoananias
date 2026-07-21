@@ -49,6 +49,30 @@ export default function TemplatePickerDialog({
   const [varValues, setVarValues] = useState<Record<string, string>>({});
   const [buttonSuffix, setButtonSuffix] = useState("");
   const [sending, setSending] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const qc = useQueryClient();
+
+  const handleSync = async () => {
+    setSyncing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke(
+        "whatsapp-sync-templates-from-meta",
+        { body: {} },
+      );
+      if (error) throw new Error(error.message);
+      if ((data as any)?.error) throw new Error((data as any).error);
+      const r = data as any;
+      toast.success(
+        `Sincronizado: ${r.inseridos ?? 0} novos, ${r.atualizados ?? 0} atualizados`,
+      );
+      qc.invalidateQueries({ queryKey: ["whatsapp-templates-aprovados"] });
+      qc.invalidateQueries({ queryKey: ["whatsapp-templates"] });
+    } catch (e: any) {
+      toast.error("Falha ao sincronizar: " + (e.message || e));
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const { data: templates = [], isLoading } = useQuery({
     queryKey: ["whatsapp-templates-aprovados"],
