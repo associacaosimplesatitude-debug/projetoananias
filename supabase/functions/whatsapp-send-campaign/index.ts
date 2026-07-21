@@ -311,13 +311,17 @@ Deno.serve(async (req) => {
 
         const forceImageHeader = usesLinkEscolhaVar || templateName === "utilidade";
         if (template?.cabecalho_tipo === "IMAGE" || forceImageHeader || campanhaHeaderMedia) {
-          // Priority: per-campaign override → template default → fallback
+          // Prefer permanent Meta media_id (avoids Meta re-fetching our Storage per send,
+          // which caused HTTP 500 / 131053 under campaign load). Fall back to link.
+          const templateMediaId: string | null = (template as any)?.cabecalho_media_id || null;
           const imageUrl = campanhaHeaderMedia || template?.cabecalho_midia_url || CAMPAIGN_IMAGE_URL;
           components.push({
             type: "header",
             parameters: [{
               type: "image",
-              image: { link: imageUrl },
+              image: templateMediaId && !campanhaHeaderMedia
+                ? { id: templateMediaId }
+                : { link: imageUrl },
             }],
           });
         }

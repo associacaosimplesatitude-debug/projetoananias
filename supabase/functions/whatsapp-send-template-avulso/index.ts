@@ -101,7 +101,10 @@ Deno.serve(async (req) => {
       }
     }
     const headerImageUrl = header_image_url || tpl.cabecalho_midia_url;
-    if (tpl.cabecalho_tipo === "IMAGE" && !headerImageUrl) {
+    const templateMediaId: string | null = (tpl as any).cabecalho_media_id || null;
+    // header_image_url passed explicitly by the caller overrides the stored media_id
+    const useMediaId = templateMediaId && !header_image_url;
+    if (tpl.cabecalho_tipo === "IMAGE" && !headerImageUrl && !useMediaId) {
       camposFaltando.push("imagem do cabeçalho (header_image_url)");
     }
     if (camposFaltando.length > 0) {
@@ -113,10 +116,13 @@ Deno.serve(async (req) => {
     }
 
     // ---- Header ----
-    if (tpl.cabecalho_tipo === "IMAGE" && headerImageUrl) {
+    if (tpl.cabecalho_tipo === "IMAGE" && (headerImageUrl || useMediaId)) {
       components.push({
         type: "header",
-        parameters: [{ type: "image", image: { link: headerImageUrl } }],
+        parameters: [{
+          type: "image",
+          image: useMediaId ? { id: templateMediaId } : { link: headerImageUrl },
+        }],
       });
     } else if (tpl.cabecalho_tipo === "VIDEO" && headerImageUrl) {
       components.push({
