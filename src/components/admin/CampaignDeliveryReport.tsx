@@ -61,7 +61,7 @@ export default function CampaignDeliveryReport({ campanhaId }: { campanhaId: str
     queryFn: async () => {
       const { data, error } = await supabase
         .from("whatsapp_campanhas")
-        .select("id, nome, status, total_publico, total_enviados, total_entregues, total_lidos, total_falhas, total_respondidos, iniciada_em, finalizada_em")
+        .select("id, nome, status, total_publico, total_enviados, total_entregues, total_lidos, total_falhas, total_respondidos, total_link_clicks, iniciada_em, finalizada_em")
         .eq("id", campanhaId)
         .single();
       if (error) throw error;
