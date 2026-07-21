@@ -211,14 +211,31 @@ export default function TemplatePickerDialog({
 
         {!selected ? (
           <>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Buscar template..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-9"
-              />
+            <div className="flex gap-2 items-center">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar template..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleSync}
+                disabled={syncing}
+                className="gap-2 shrink-0"
+                title="Puxa templates aprovados da Meta para o banco local"
+              >
+                {syncing ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCcw className="h-4 w-4" />
+                )}
+                Sincronizar Meta
+              </Button>
             </div>
             <ScrollArea className="flex-1 max-h-[55vh] pr-3">
               {isLoading ? (
@@ -226,9 +243,28 @@ export default function TemplatePickerDialog({
                   <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                 </div>
               ) : filtered.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-8">
-                  Nenhum template aprovado encontrado.
-                </p>
+                <div className="text-center py-8 space-y-3">
+                  <p className="text-sm text-muted-foreground">
+                    Nenhum template aprovado encontrado.
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Se o template já foi aprovado no Meta Business Manager mas não aparece aqui, clique em <strong>Sincronizar Meta</strong> acima.
+                  </p>
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={handleSync}
+                    disabled={syncing}
+                    className="gap-2"
+                  >
+                    {syncing ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <RefreshCcw className="h-4 w-4" />
+                    )}
+                    Sincronizar agora
+                  </Button>
+                </div>
               ) : (
                 <div className="space-y-2">
                   {filtered.map((t) => (
