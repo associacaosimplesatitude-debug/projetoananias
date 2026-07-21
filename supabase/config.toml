@@ -384,3 +384,6 @@ verify_jwt = false
 
 [functions.agente-teste-proxy]
 verify_jwt = true
+
+[functions.whatsapp-link-redirect]
+verify_jwt = false

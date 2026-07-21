@@ -61,7 +61,7 @@ export default function CampaignDeliveryReport({ campanhaId }: { campanhaId: str
     queryFn: async () => {
       const { data, error } = await supabase
         .from("whatsapp_campanhas")
-        .select("id, nome, status, total_publico, total_enviados, total_entregues, total_lidos, total_falhas, total_respondidos, iniciada_em, finalizada_em")
+        .select("id, nome, status, total_publico, total_enviados, total_entregues, total_lidos, total_falhas, total_respondidos, total_link_clicks, iniciada_em, finalizada_em")
         .eq("id", campanhaId)
         .single();
       if (error) throw error;
@@ -114,6 +114,7 @@ export default function CampaignDeliveryReport({ campanhaId }: { campanhaId: str
   const totalPublico = camp?.total_publico ?? 0;
   const enviadas     = camp?.total_enviados ?? 0;
   const entregues    = camp?.total_entregues ?? 0;
+  const linkClicks   = (camp as any)?.total_link_clicks ?? 0;
   const lidas        = camp?.total_lidos ?? 0;
   const falhas       = camp?.total_falhas ?? 0;
   const respostas    = camp?.total_respondidos ?? 0;
@@ -207,6 +208,7 @@ export default function CampaignDeliveryReport({ campanhaId }: { campanhaId: str
     { label: "Falhas",         valor: falhas,       sub: `${taxaFalha.toFixed(1)}%`,                      tone: "border-l-red-500", alert: taxaFalha > 5 },
     { label: "Respostas",      valor: respostas,    sub: `${pct(respostas, entregues).toFixed(1)}%`,      tone: "border-l-purple-500" },
     { label: "Opt-outs",       valor: optouts,      sub: null,                                            tone: "border-l-amber-500" },
+    { label: "Cliques no Link", valor: linkClicks,  sub: `${pct(linkClicks, entregues).toFixed(1)}% dos entregues`, tone: "border-l-cyan-500" },
   ];
 
   return (
