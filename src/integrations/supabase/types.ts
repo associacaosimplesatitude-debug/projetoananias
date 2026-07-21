@@ -9280,6 +9280,7 @@ export type Database = {
       }
       whatsapp_templates: {
         Row: {
+          botao_url_destino: string | null
           botoes: Json | null
           cabecalho_media_id: string | null
           cabecalho_media_id_atualizado_em: string | null
@@ -9301,6 +9302,7 @@ export type Database = {
           variaveis_usadas: string[] | null
         }
         Insert: {
+          botao_url_destino?: string | null
           botoes?: Json | null
           cabecalho_media_id?: string | null
           cabecalho_media_id_atualizado_em?: string | null
@@ -9322,6 +9324,7 @@ export type Database = {
           variaveis_usadas?: string[] | null
         }
         Update: {
+          botao_url_destino?: string | null
           botoes?: Json | null
           cabecalho_media_id?: string | null
           cabecalho_media_id_atualizado_em?: string | null
