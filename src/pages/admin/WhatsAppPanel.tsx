@@ -20,6 +20,7 @@ import { Navigate } from "react-router-dom";
 import WhatsAppTemplatesList from "@/components/admin/WhatsAppTemplatesList";
 import WhatsAppCampaigns from "@/components/admin/WhatsAppCampaigns";
 import WhatsAppPublicos from "@/components/admin/WhatsAppPublicos";
+import TemplatePickerDialog from "@/components/admin/whatsapp/TemplatePickerDialog";
 import { format } from "date-fns";
 
 const MESSAGE_TYPES = [
