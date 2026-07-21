@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, Search, FileText, ArrowLeft, Send } from "lucide-react";
+import { Loader2, Search, FileText, ArrowLeft, Send, RefreshCcw } from "lucide-react";
 
 interface Template {
   id: string;
