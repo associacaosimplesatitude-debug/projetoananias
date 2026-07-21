@@ -614,8 +614,61 @@ function SendMessageTab() {
     return <Clock className="h-4 w-4 text-muted-foreground" />;
   };
 
+  const [tplPhone, setTplPhone] = useState("");
+  const [tplName, setTplName] = useState("");
+  const [tplDialogOpen, setTplDialogOpen] = useState(false);
+
   return (
     <div className="space-y-6">
+      <Card className="border-primary/40">
+        <CardHeader>
+          <CardTitle className="text-lg flex items-center gap-2">
+            <FileText className="h-5 w-5" /> Enviar Template Aprovado (1:1)
+          </CardTitle>
+          <CardDescription>
+            Dispara um template já aprovado no Meta para um número específico, mesmo fora da janela de 24h. Ideal para testes e envios individuais.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Telefone (com DDD, sem +55)</Label>
+              <Input placeholder="11999999999" value={tplPhone} onChange={(e) => setTplPhone(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>Nome do Destinatário (opcional)</Label>
+              <Input placeholder="Ex.: Cleuton" value={tplName} onChange={(e) => setTplName(e.target.value)} />
+            </div>
+          </div>
+          <Button
+            onClick={() => {
+              const digits = tplPhone.replace(/\D/g, "");
+              if (digits.length < 10) {
+                toast.error("Informe um telefone válido com DDD.");
+                return;
+              }
+              setTplDialogOpen(true);
+            }}
+            disabled={!tplPhone}
+            className="gap-2"
+          >
+            <Send className="h-4 w-4" />
+            Escolher template e enviar
+          </Button>
+        </CardContent>
+      </Card>
+
+      <TemplatePickerDialog
+        open={tplDialogOpen}
+        onOpenChange={setTplDialogOpen}
+        telefone={tplPhone.replace(/\D/g, "")}
+        contactName={tplName || "Cliente"}
+        onSent={() => {
+          toast.success("Template enviado. Confira o histórico abaixo.");
+          queryClient.invalidateQueries({ queryKey: ["whatsapp-mensagens"] });
+        }}
+      />
+
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">Enviar Mensagem</CardTitle>
