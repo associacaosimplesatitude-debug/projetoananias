@@ -208,6 +208,7 @@ export default function CampaignDeliveryReport({ campanhaId }: { campanhaId: str
     { label: "Falhas",         valor: falhas,       sub: `${taxaFalha.toFixed(1)}%`,                      tone: "border-l-red-500", alert: taxaFalha > 5 },
     { label: "Respostas",      valor: respostas,    sub: `${pct(respostas, entregues).toFixed(1)}%`,      tone: "border-l-purple-500" },
     { label: "Opt-outs",       valor: optouts,      sub: null,                                            tone: "border-l-amber-500" },
+    { label: "Cliques no Link", valor: linkClicks,  sub: `${pct(linkClicks, entregues).toFixed(1)}% dos entregues`, tone: "border-l-cyan-500" },
   ];
 
   return (
