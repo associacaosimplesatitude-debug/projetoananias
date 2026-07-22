@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -52,6 +52,7 @@ interface VarConfig {
 
 export default function WhatsAppCampaigns() {
   const navigate = useNavigate();
+  const location = useLocation();
   const qc = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -180,7 +181,8 @@ export default function WhatsAppCampaigns() {
                 } else if (action === "cancelar") {
                   if (confirm("Cancelar esta campanha?")) updateStatus.mutate({ id: c.id, status: "cancelada" });
                 } else if (action === "relatorio") {
-                  navigate(`/admin/whatsapp/campanhas/${c.id}/rastreamento`);
+                  const base = location.pathname.startsWith("/admin/ebd") ? "/admin/ebd/marketing" : "/admin/whatsapp";
+                  navigate(`${base}/campanhas/${c.id}/rastreamento`);
                 }
               }}
             />
