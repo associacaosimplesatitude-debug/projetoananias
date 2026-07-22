@@ -214,15 +214,13 @@ export default function CampaignDeliveryReport({ campanhaId }: { campanhaId: str
     URL.revokeObjectURL(url);
   };
 
-  const kpis = [
+  const kpis: Array<{ label: string; valor: number; sub: string | null; tone: string; alert?: boolean; tooltip?: string }> = [
     { label: "Total Público",  valor: totalPublico, sub: null,                                            tone: "border-l-muted-foreground/40" },
     { label: "Enviadas",       valor: enviadas,     sub: `${pct(enviadas, totalPublico).toFixed(1)}%`,    tone: "border-l-slate-400" },
     { label: "Entregues",      valor: entregues,    sub: `${pct(entregues, enviadas).toFixed(1)}%`,       tone: "border-l-blue-500" },
-    { label: "Lidas",          valor: lidas,        sub: `${pct(lidas, entregues).toFixed(1)}%`,          tone: "border-l-green-500" },
+    { label: "Lidas",          valor: lidas,        sub: `${pct(lidas, entregues).toFixed(1)}%`,          tone: "border-l-green-500", tooltip: "Lidas apenas desta campanha (fonte: destinatários). No painel do Meta o número é agregado por template e pode incluir outras campanhas que usaram o mesmo template nas mesmas datas." },
     { label: "Falhas",         valor: falhas,       sub: `${taxaFalha.toFixed(1)}%`,                      tone: "border-l-red-500", alert: taxaFalha > 5 },
     { label: "Respostas",      valor: respostas,    sub: `${pct(respostas, entregues).toFixed(1)}%`,      tone: "border-l-purple-500" },
-    { label: "Opt-outs",       valor: optouts,      sub: null,                                            tone: "border-l-amber-500" },
-    { label: "Cliques no Link", valor: linkClicks,  sub: `${pct(linkClicks, entregues).toFixed(1)}% dos entregues`, tone: "border-l-cyan-500" },
   ];
 
   return (
