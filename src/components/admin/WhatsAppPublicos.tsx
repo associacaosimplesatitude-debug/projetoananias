@@ -803,6 +803,7 @@ function PublicoCard({ publico, onEdit, onClone, onDelete, onRecalculate, recalc
 export default function WhatsAppPublicos() {
   const { toast } = useToast();
   const qc = useQueryClient();
+  const { isSuperadmin } = useIsSuperadmin();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<PublicoRow | null>(null);
   const [cloneFrom, setCloneFrom] = useState<PublicoRow | null>(null);
