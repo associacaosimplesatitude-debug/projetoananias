@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { useIsSuperadmin } from "@/hooks/useIsSuperadmin";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -923,8 +924,8 @@ export default function WhatsAppPublicos() {
         </CardContent>
       </Card>
 
-      {/* Sub-bloco legado */}
-      <CompradoresRevistasPorMes />
+      {/* Sub-bloco legado - visível apenas para superadmin */}
+      {isSuperadmin && <CompradoresRevistasPorMes />}
 
       <PublicoDialog
         open={dialogOpen}
