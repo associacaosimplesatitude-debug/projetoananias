@@ -632,6 +632,7 @@ const App = () => (
                       <Route path="sorteio" element={<SorteioAdmin />} />
                       <Route path="retencao" element={<EbdRetencao />} />
                       <Route path="atendimento-whatsapp" element={<AtendimentoWhatsApp />} />
+                      <Route path="marketing" element={<MarketingPanel />} />
                     </Route>
                     <Route
                       path="/superadmin/branding"
