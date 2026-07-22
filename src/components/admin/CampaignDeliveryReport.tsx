@@ -253,7 +253,39 @@ export default function CampaignDeliveryReport({ campanhaId }: { campanhaId: str
             </CardContent>
           </Card>
         ))}
+        {/* Cliques no Botão (Meta) — agregado por template no período */}
+        <Card className="border-l-4 border-l-fuchsia-500">
+          <CardContent className="p-4">
+            <p className="text-xs text-muted-foreground flex items-center gap-1">
+              Cliques no Botão (Meta)
+              <TooltipProvider>
+                <UITooltip>
+                  <TooltipTrigger asChild>
+                    <button type="button" className="inline-flex"><Info className="h-3 w-3 text-muted-foreground" /></button>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs text-xs">
+                    Cliques agregados do Meta para este template no período da campanha. Pode incluir cliques de outras campanhas que usaram o mesmo template nas mesmas datas. Atualiza a cada poucos minutos.
+                  </TooltipContent>
+                </UITooltip>
+              </TooltipProvider>
+            </p>
+            {metaAnalytics?.enabled ? (
+              <>
+                <p className="text-2xl font-bold mt-1">{(metaAnalytics.clicked ?? 0).toLocaleString("pt-BR")}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">via Meta Template Analytics</p>
+              </>
+            ) : (
+              <>
+                <p className="text-2xl font-bold mt-1 text-muted-foreground">—</p>
+                <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
+                  {metaAnalytics?.message || "Habilite Template Analytics no Meta Business Suite para ver esta métrica."}
+                </p>
+              </>
+            )}
+          </CardContent>
+        </Card>
       </div>
+
 
       {/* Funil */}
       <Card>
