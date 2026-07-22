@@ -243,6 +243,16 @@ export default function CampaignDeliveryReport({ campanhaId }: { campanhaId: str
               <p className="text-xs text-muted-foreground flex items-center gap-1">
                 {k.label}
                 {k.alert && <AlertTriangle className="h-3 w-3 text-red-500" />}
+                {k.tooltip && (
+                  <TooltipProvider>
+                    <UITooltip>
+                      <TooltipTrigger asChild>
+                        <button type="button" className="inline-flex"><Info className="h-3 w-3 text-muted-foreground" /></button>
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-xs text-xs">{k.tooltip}</TooltipContent>
+                    </UITooltip>
+                  </TooltipProvider>
+                )}
               </p>
               <p className="text-2xl font-bold mt-1">{k.valor.toLocaleString("pt-BR")}</p>
               {k.sub && <p className="text-xs text-muted-foreground mt-0.5">{k.sub}</p>}
