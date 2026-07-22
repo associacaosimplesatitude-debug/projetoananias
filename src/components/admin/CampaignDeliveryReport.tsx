@@ -190,8 +190,8 @@ export default function CampaignDeliveryReport({ campanhaId }: { campanhaId: str
     { label: "Enviadas",      value: enviadas,     color: "bg-slate-400" },
     { label: "Entregues",     value: entregues,    color: "bg-blue-500" },
     { label: "Lidas",         value: lidas,        color: "bg-green-500" },
-    { label: "Respondidas",   value: respostas,    color: "bg-purple-500" },
   ];
+
   const maxFunil = Math.max(totalPublico, 1);
 
   const exportarCSV = () => {
