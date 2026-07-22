@@ -63,6 +63,8 @@ import TransferRequests from "./pages/admin/TransferRequests";
 import EBDSystemUsers from "./pages/admin/EBDSystemUsers";
 import WhatsAppPanel from "./pages/admin/WhatsAppPanel";
 import CampaignTracking from "./pages/admin/CampaignTracking";
+import MarketingPanel from "./pages/admin/MarketingPanel";
+import RequireCampaignReportAccess from "@/components/RequireCampaignReportAccess";
 import EbdRetencao from "./pages/admin/EbdRetencao";
 import SorteioAdmin from "./pages/admin/SorteioAdmin";
 import AtendimentoWhatsApp from "./pages/admin/AtendimentoWhatsApp";
