@@ -1,4 +1,4 @@
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useState, useEffect } from "react";
@@ -14,6 +14,7 @@ import CampaignDeliveryReport from "@/components/admin/CampaignDeliveryReport";
 export default function CampaignTracking() {
   const { campanha_id } = useParams<{ campanha_id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const [autoRefresh, setAutoRefresh] = useState(true);
 
   // Fetch campaign info
@@ -138,7 +139,7 @@ export default function CampaignTracking() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => navigate("/admin/whatsapp")}>
+          <Button variant="ghost" size="icon" onClick={() => navigate(location.pathname.startsWith("/admin/ebd") ? "/admin/ebd/marketing" : "/admin/whatsapp")}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
