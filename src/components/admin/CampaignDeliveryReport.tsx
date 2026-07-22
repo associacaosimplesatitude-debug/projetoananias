@@ -130,11 +130,9 @@ export default function CampaignDeliveryReport({ campanhaId }: { campanhaId: str
   const totalPublico = camp?.total_publico ?? 0;
   const enviadas     = camp?.total_enviados ?? 0;
   const entregues    = camp?.total_entregues ?? 0;
-  const linkClicks   = (camp as any)?.total_link_clicks ?? 0;
   const lidas        = camp?.total_lidos ?? 0;
   const falhas       = camp?.total_falhas ?? 0;
   const respostas    = camp?.total_respondidos ?? 0;
-  const optouts      = dests.filter((d) => d.status_envio === "cancelado_optout").length;
 
   const taxaFalha = pct(falhas, totalPublico);
 
