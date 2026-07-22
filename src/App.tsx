@@ -63,6 +63,8 @@ import TransferRequests from "./pages/admin/TransferRequests";
 import EBDSystemUsers from "./pages/admin/EBDSystemUsers";
 import WhatsAppPanel from "./pages/admin/WhatsAppPanel";
 import CampaignTracking from "./pages/admin/CampaignTracking";
+import MarketingPanel from "./pages/admin/MarketingPanel";
+import RequireCampaignReportAccess from "@/components/RequireCampaignReportAccess";
 import EbdRetencao from "./pages/admin/EbdRetencao";
 import SorteioAdmin from "./pages/admin/SorteioAdmin";
 import AtendimentoWhatsApp from "./pages/admin/AtendimentoWhatsApp";
@@ -564,7 +566,7 @@ const App = () => (
                       <Route path="apresentacao" element={<ApresentacaoScreenshots />} />
                       <Route path="implementacoes" element={<Implementacoes />} />
                       <Route path="whatsapp" element={<RequireSuperadmin><WhatsAppPanel /></RequireSuperadmin>} />
-                      <Route path="whatsapp/campanhas/:campanha_id/rastreamento" element={<RequireSuperadmin><CampaignTracking /></RequireSuperadmin>} />
+                      <Route path="whatsapp/campanhas/:campanha_id/rastreamento" element={<RequireCampaignReportAccess><CampaignTracking /></RequireCampaignReportAccess>} />
                       <Route path="stripe-teste" element={<StripeTeste />} />
                       <Route path="agente-teste" element={<RequireSuperadmin><AdminAgenteTeste /></RequireSuperadmin>} />
                       <Route path="agente-ia" element={<AgenteIALayout />}>
@@ -630,6 +632,7 @@ const App = () => (
                       <Route path="sorteio" element={<SorteioAdmin />} />
                       <Route path="retencao" element={<EbdRetencao />} />
                       <Route path="atendimento-whatsapp" element={<AtendimentoWhatsApp />} />
+                      <Route path="marketing" element={<MarketingPanel />} />
                     </Route>
                     <Route
                       path="/superadmin/branding"

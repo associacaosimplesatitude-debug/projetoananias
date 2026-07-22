@@ -34,6 +34,7 @@ import {
   Gift,
   MessageCircle,
   Shield,
+  Megaphone,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -319,6 +320,18 @@ function AdminSidebar() {
                   </RouterNavLink>
                 </SidebarMenuButton>
               </SidebarMenuItem>
+
+              {(isAdmin || isGerenteEbd) && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={isActive('/admin/ebd/marketing')}>
+                    <RouterNavLink to="/admin/ebd/marketing">
+                      <Megaphone className="h-4 w-4" />
+                      <span>Marketing</span>
+                    </RouterNavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
+
 
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={isActive('/admin/ebd/sorteio')}>
