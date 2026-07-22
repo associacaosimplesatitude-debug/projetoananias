@@ -132,7 +132,7 @@ export default function CampaignDeliveryReport({ campanhaId }: { campanhaId: str
   const entregues    = camp?.total_entregues ?? 0;
   const lidas        = camp?.total_lidos ?? 0;
   const falhas       = camp?.total_falhas ?? 0;
-  const respostas    = camp?.total_respondidos ?? 0;
+  
 
   const taxaFalha = pct(falhas, totalPublico);
 
