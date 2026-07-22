@@ -95,7 +95,22 @@ export default function CampaignDeliveryReport({ campanhaId }: { campanhaId: str
     refetchInterval: camp?.status === "processando" ? 30_000 : false,
   });
 
+  // Meta Template Analytics (cliques agregados no botão do template, por período)
+  const { data: metaAnalytics } = useQuery({
+    queryKey: ["wpp-camp-meta-analytics", campanhaId],
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke("whatsapp-template-analytics", {
+        body: { campanha_id: campanhaId },
+      });
+      if (error) return { enabled: false, message: "Não foi possível consultar o Meta." } as any;
+      return data as { enabled: boolean; clicked?: number; message?: string };
+    },
+    refetchInterval: 5 * 60_000,
+    retry: false,
+  });
+
   // Realtime opcional
+
   useEffect(() => {
     const ch = supabase
       .channel(`campanha-delivery-${campanhaId}`)
