@@ -269,12 +269,16 @@ export default function AdminEBDPropostasPage() {
     }
   });
 
-  const copyLink = async (token: string, clienteNome: string, vendedorNome?: string | null) => {
+  const [previewMensagemOpen, setPreviewMensagemOpen] = useState(false);
+  const [previewMensagemTexto, setPreviewMensagemTexto] = useState("");
+
+  const copyLink = (token: string, clienteNome: string, vendedorNome?: string | null) => {
     const link = `https://gestaoebd.com.br/proposta/${token}`;
     const mensagem = `Prezado(a) ${clienteNome},\n\nSegue a Proposta Digital de Pedido que preparamos especialmente para você.\n\nPor favor, clique no link abaixo para conferir todos os detalhes do pedido, incluindo produtos, quantidades, formas de entrega e condições de pagamento:\n\n${link}\n\nApós conferir todas as informações, clique no botão "CONFIRMAR COMPRA". Você será redirecionado automaticamente para a página de pagamento seguro, onde poderá finalizar sua compra.\n\nQualquer dúvida, estou à disposição!\n\nAtenciosamente,\n${vendedorNome || ""}`;
-    await navigator.clipboard.writeText(mensagem);
-    toast.success("Mensagem copiada!");
+    setPreviewMensagemTexto(mensagem);
+    setPreviewMensagemOpen(true);
   };
+
 
   const handleGeneratePaymentLink = async (proposta: Proposta) => {
     // B2B com faturamento: enviar para aprovação financeira
