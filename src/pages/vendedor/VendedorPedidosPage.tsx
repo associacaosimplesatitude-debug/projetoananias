@@ -801,6 +801,13 @@ export default function VendedorPedidosPage() {
           }}
         />
       )}
+
+      <PreviewMensagemDialog
+        open={previewMensagemOpen}
+        onOpenChange={setPreviewMensagemOpen}
+        mensagem={previewMensagemTexto}
+      />
     </div>
+
   );
 }
