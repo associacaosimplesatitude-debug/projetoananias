@@ -151,9 +151,9 @@ export function PropostasGeradasDialog({
 
         <DialogFooter className="gap-2">
           {isSplit && (
-            <Button variant="outline" onClick={copyAll}>
-              <Copy className="h-4 w-4 mr-2" />
-              Copiar todos
+            <Button variant="outline" onClick={() => openPreview(buildMensagemAll())}>
+              <Eye className="h-4 w-4 mr-2" />
+              Preview de todos
             </Button>
           )}
           <Button
@@ -166,6 +166,13 @@ export function PropostasGeradasDialog({
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      <PreviewMensagemDialog
+        open={previewOpen}
+        onOpenChange={setPreviewOpen}
+        mensagem={previewMensagem}
+      />
     </Dialog>
   );
 }
+
