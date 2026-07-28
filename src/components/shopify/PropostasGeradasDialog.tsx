@@ -44,30 +44,34 @@ export function PropostasGeradasDialog({
 }: PropostasGeradasDialogProps) {
   const isSplit = propostas.length > 1;
 
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewMensagem, setPreviewMensagem] = useState("");
+
   const buildMensagem = (link: string) =>
     `Prezado(a) ${clienteNome},\n\nSegue a Proposta Digital de Pedido que preparamos especialmente para você.\n\nPor favor, clique no link abaixo para conferir todos os detalhes do pedido, incluindo produtos, quantidades, formas de entrega e condições de pagamento:\n\n${link}\n\nApós conferir todas as informações, clique no botão "CONFIRMAR COMPRA". Você será redirecionado automaticamente para a página de pagamento seguro, onde poderá finalizar sua compra.\n\nQualquer dúvida, estou à disposição!\n\nAtenciosamente,\n${vendedorNome || ""}`;
 
-  const copyLink = async (link: string) => {
-    try {
-      await navigator.clipboard.writeText(buildMensagem(link));
-      toast.success("Mensagem copiada!");
-    } catch {
-      toast.error("Erro ao copiar mensagem");
-    }
-  };
-
-  const copyAll = async () => {
+  const buildMensagemAll = () => {
     const linksList = propostas
       .map((p) => `Depósito ${p.depositoNome} — ${p.totalItens} un.\n${p.link}`)
       .join("\n\n");
-    const text = `Prezado(a) ${clienteNome},\n\nSegue a Proposta Digital de Pedido que preparamos especialmente para você. Como o pedido foi dividido por depósito, seguem os links abaixo — cada um traz o frete calculado a partir da origem correspondente:\n\n${linksList}\n\nApós conferir todas as informações em cada link, clique no botão "CONFIRMAR COMPRA". Você será redirecionado automaticamente para a página de pagamento seguro, onde poderá finalizar sua compra.\n\nQualquer dúvida, estou à disposição!\n\nAtenciosamente,\n${vendedorNome || ""}`;
+    return `Prezado(a) ${clienteNome},\n\nSegue a Proposta Digital de Pedido que preparamos especialmente para você. Como o pedido foi dividido por depósito, seguem os links abaixo — cada um traz o frete calculado a partir da origem correspondente:\n\n${linksList}\n\nApós conferir todas as informações em cada link, clique no botão "CONFIRMAR COMPRA". Você será redirecionado automaticamente para a página de pagamento seguro, onde poderá finalizar sua compra.\n\nQualquer dúvida, estou à disposição!\n\nAtenciosamente,\n${vendedorNome || ""}`;
+  };
+
+  const openPreview = (mensagem: string) => {
+    setPreviewMensagem(mensagem);
+    setPreviewOpen(true);
+  };
+
+  const copyLinkOnly = async (link: string) => {
     try {
-      await navigator.clipboard.writeText(text);
-      toast.success("Mensagem copiada!");
+      await navigator.clipboard.writeText(link);
+      toast.success("Link copiado!");
     } catch {
-      toast.error("Erro ao copiar mensagem");
+      toast.error("Erro ao copiar link");
     }
   };
+
+
 
 
   return (
