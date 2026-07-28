@@ -1096,6 +1096,13 @@ export default function AdminEBDPropostasPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <PreviewMensagemDialog
+        open={previewMensagemOpen}
+        onOpenChange={setPreviewMensagemOpen}
+        mensagem={previewMensagemTexto}
+      />
     </div>
+
   );
 }
