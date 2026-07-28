@@ -58,6 +58,7 @@ export default function AdminEBDClientes() {
   const [vendedorFilter, setVendedorFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [clienteParaDesconto, setClienteParaDesconto] = useState<Cliente | null>(null);
+  const [clienteParaEmail, setClienteParaEmail] = useState<Cliente | null>(null);
 
   // Buscar todos os clientes
   const { data: clientes = [], isLoading, refetch } = useQuery({
