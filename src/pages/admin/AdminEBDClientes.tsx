@@ -11,9 +11,10 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Search, Users, FileText, AlertTriangle, CheckCircle, XCircle, Percent, MapPin, User, Building2, Calendar, UserCog } from "lucide-react";
+import { Search, Users, FileText, AlertTriangle, CheckCircle, XCircle, Percent, MapPin, User, Building2, Calendar, UserCog, Mail } from "lucide-react";
 import { useState } from "react";
 import { DescontoFaturamentoDialog } from "@/components/vendedor/DescontoFaturamentoDialog";
+import { AlterarEmailAcessoDialog } from "@/components/admin/AlterarEmailAcessoDialog";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
