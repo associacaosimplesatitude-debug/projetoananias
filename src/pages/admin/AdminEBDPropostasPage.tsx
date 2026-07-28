@@ -267,10 +267,11 @@ export default function AdminEBDPropostasPage() {
     }
   });
 
-  const copyLink = async (token: string) => {
+  const copyLink = async (token: string, clienteNome: string, vendedorNome?: string | null) => {
     const link = `https://gestaoebd.com.br/proposta/${token}`;
-    await navigator.clipboard.writeText(link);
-    toast.success("Link copiado!");
+    const mensagem = `Prezado(a) ${clienteNome},\n\nSegue a Proposta Digital de Pedido que preparamos especialmente para você.\n\nPor favor, clique no link abaixo para conferir todos os detalhes do pedido, incluindo produtos, quantidades, formas de entrega e condições de pagamento:\n\n${link}\n\nApós conferir todas as informações, clique no botão "CONFIRMAR COMPRA". Você será redirecionado automaticamente para a página de pagamento seguro, onde poderá finalizar sua compra.\n\nQualquer dúvida, estou à disposição!\n\nAtenciosamente,\n${vendedorNome || ""}`;
+    await navigator.clipboard.writeText(mensagem);
+    toast.success("Mensagem copiada!");
   };
 
   const handleGeneratePaymentLink = async (proposta: Proposta) => {
@@ -823,7 +824,7 @@ export default function AdminEBDPropostasPage() {
                           </Button>
                         )}
                         {(proposta.status === "PROPOSTA_PENDENTE" || proposta.status === "PROPOSTA_ACEITA") && (
-                          <Button variant="outline" size="sm" onClick={() => copyLink(proposta.token)}>
+                          <Button variant="outline" size="sm" onClick={() => copyLink(proposta.token, proposta.cliente_nome, proposta.vendedor?.nome || proposta.vendedor_nome)}>
                             <Copy className="h-4 w-4 mr-1" /> Link
                           </Button>
                         )}
@@ -883,7 +884,7 @@ export default function AdminEBDPropostasPage() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => copyLink(proposta.token)}
+                          onClick={() => copyLink(proposta.token, proposta.cliente_nome, proposta.vendedor?.nome || proposta.vendedor_nome)}
                         >
                           <Copy className="h-4 w-4 mr-1" />
                           Copiar Link
