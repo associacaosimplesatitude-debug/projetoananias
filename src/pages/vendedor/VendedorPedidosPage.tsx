@@ -15,6 +15,8 @@ import { categorizarProduto } from "@/constants/categoriasShopify";
 import { isClienteRepresentante, type DescontosCategoriaRepresentante } from "@/lib/descontosShopify";
 import { EditarPropostaDialog } from "@/components/vendedor/EditarPropostaDialog";
 import { CadastrarClienteDialog } from "@/components/vendedor/CadastrarClienteDialog";
+import { PreviewMensagemDialog } from "@/components/shopify/PreviewMensagemDialog";
+
 
 interface PropostaItem {
   variantId: string;
