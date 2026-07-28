@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -7,8 +8,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Copy, ExternalLink, FileText } from "lucide-react";
+import { Copy, ExternalLink, FileText, Eye } from "lucide-react";
 import { toast } from "sonner";
+import { PreviewMensagemDialog } from "./PreviewMensagemDialog";
+
 
 export interface PropostaGerada {
   token: string;
@@ -41,30 +44,34 @@ export function PropostasGeradasDialog({
 }: PropostasGeradasDialogProps) {
   const isSplit = propostas.length > 1;
 
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewMensagem, setPreviewMensagem] = useState("");
+
   const buildMensagem = (link: string) =>
     `Prezado(a) ${clienteNome},\n\nSegue a Proposta Digital de Pedido que preparamos especialmente para você.\n\nPor favor, clique no link abaixo para conferir todos os detalhes do pedido, incluindo produtos, quantidades, formas de entrega e condições de pagamento:\n\n${link}\n\nApós conferir todas as informações, clique no botão "CONFIRMAR COMPRA". Você será redirecionado automaticamente para a página de pagamento seguro, onde poderá finalizar sua compra.\n\nQualquer dúvida, estou à disposição!\n\nAtenciosamente,\n${vendedorNome || ""}`;
 
-  const copyLink = async (link: string) => {
-    try {
-      await navigator.clipboard.writeText(buildMensagem(link));
-      toast.success("Mensagem copiada!");
-    } catch {
-      toast.error("Erro ao copiar mensagem");
-    }
-  };
-
-  const copyAll = async () => {
+  const buildMensagemAll = () => {
     const linksList = propostas
       .map((p) => `Depósito ${p.depositoNome} — ${p.totalItens} un.\n${p.link}`)
       .join("\n\n");
-    const text = `Prezado(a) ${clienteNome},\n\nSegue a Proposta Digital de Pedido que preparamos especialmente para você. Como o pedido foi dividido por depósito, seguem os links abaixo — cada um traz o frete calculado a partir da origem correspondente:\n\n${linksList}\n\nApós conferir todas as informações em cada link, clique no botão "CONFIRMAR COMPRA". Você será redirecionado automaticamente para a página de pagamento seguro, onde poderá finalizar sua compra.\n\nQualquer dúvida, estou à disposição!\n\nAtenciosamente,\n${vendedorNome || ""}`;
+    return `Prezado(a) ${clienteNome},\n\nSegue a Proposta Digital de Pedido que preparamos especialmente para você. Como o pedido foi dividido por depósito, seguem os links abaixo — cada um traz o frete calculado a partir da origem correspondente:\n\n${linksList}\n\nApós conferir todas as informações em cada link, clique no botão "CONFIRMAR COMPRA". Você será redirecionado automaticamente para a página de pagamento seguro, onde poderá finalizar sua compra.\n\nQualquer dúvida, estou à disposição!\n\nAtenciosamente,\n${vendedorNome || ""}`;
+  };
+
+  const openPreview = (mensagem: string) => {
+    setPreviewMensagem(mensagem);
+    setPreviewOpen(true);
+  };
+
+  const copyLinkOnly = async (link: string) => {
     try {
-      await navigator.clipboard.writeText(text);
-      toast.success("Mensagem copiada!");
+      await navigator.clipboard.writeText(link);
+      toast.success("Link copiado!");
     } catch {
-      toast.error("Erro ao copiar mensagem");
+      toast.error("Erro ao copiar link");
     }
   };
+
+
 
 
   return (
@@ -112,10 +119,19 @@ export function PropostasGeradasDialog({
                   {p.link}
                 </code>
                 <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => openPreview(buildMensagem(p.link))}
+                  title="Ver preview da mensagem antes de copiar"
+                >
+                  <Eye className="h-4 w-4 mr-1" />
+                  Preview
+                </Button>
+                <Button
                   size="icon"
                   variant="outline"
-                  onClick={() => copyLink(p.link)}
-                  title="Copiar link"
+                  onClick={() => copyLinkOnly(p.link)}
+                  title="Copiar apenas o link"
                 >
                   <Copy className="h-4 w-4" />
                 </Button>
@@ -128,15 +144,16 @@ export function PropostasGeradasDialog({
                   <ExternalLink className="h-4 w-4" />
                 </Button>
               </div>
+
             </div>
           ))}
         </div>
 
         <DialogFooter className="gap-2">
           {isSplit && (
-            <Button variant="outline" onClick={copyAll}>
-              <Copy className="h-4 w-4 mr-2" />
-              Copiar todos
+            <Button variant="outline" onClick={() => openPreview(buildMensagemAll())}>
+              <Eye className="h-4 w-4 mr-2" />
+              Preview de todos
             </Button>
           )}
           <Button
@@ -149,6 +166,13 @@ export function PropostasGeradasDialog({
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      <PreviewMensagemDialog
+        open={previewOpen}
+        onOpenChange={setPreviewOpen}
+        mensagem={previewMensagem}
+      />
     </Dialog>
   );
 }
+
