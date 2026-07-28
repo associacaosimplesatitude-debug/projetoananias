@@ -378,6 +378,15 @@ export default function AdminEBDClientes() {
                     <Percent className="h-3 w-3 mr-1" />
                     Desconto
                   </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1"
+                    onClick={() => setClienteParaEmail(cliente)}
+                  >
+                    <Mail className="h-3 w-3 mr-1" />
+                    Alterar email
+                  </Button>
                 </div>
               </CardContent>
             </Card>
@@ -390,6 +399,14 @@ export default function AdminEBDClientes() {
         open={!!clienteParaDesconto}
         onOpenChange={(open) => !open && setClienteParaDesconto(null)}
         cliente={clienteParaDesconto}
+        onSuccess={() => refetch()}
+      />
+
+      {/* Dialog de alteração de email de acesso */}
+      <AlterarEmailAcessoDialog
+        open={!!clienteParaEmail}
+        onOpenChange={(open) => !open && setClienteParaEmail(null)}
+        cliente={clienteParaEmail}
         onSuccess={() => refetch()}
       />
     </div>
