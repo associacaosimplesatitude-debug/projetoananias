@@ -155,6 +155,7 @@ export default function ShopifyPedidos() {
   } | null>(null);
   const [showPropostasGeradasDialog, setShowPropostasGeradasDialog] = useState(false);
   const [propostasGeradas, setPropostasGeradas] = useState<PropostaGerada[]>([]);
+  const [propostaVendedorNome, setPropostaVendedorNome] = useState<string>("");
 
   // Fetch current user ID
   useEffect(() => {
@@ -926,6 +927,7 @@ export default function ShopifyPedidos() {
       } else {
         setPropostasGeradas(propostasResultado);
         setPropostaClienteNome(selectedCliente.nome_igreja);
+        setPropostaVendedorNome(vendedorParaProposta?.nome || vendedor?.nome || "");
         setShowPropostasGeradasDialog(true);
         toast.success(
           propostasResultado.length > 1
@@ -1858,11 +1860,13 @@ export default function ShopifyPedidos() {
         open={showPropostasGeradasDialog}
         onOpenChange={setShowPropostasGeradasDialog}
         clienteNome={propostaClienteNome}
+        vendedorNome={propostaVendedorNome}
         propostas={propostasGeradas}
         onClose={() => {
           setShowPropostasGeradasDialog(false);
           setPropostasGeradas([]);
           setPropostaClienteNome("");
+          setPropostaVendedorNome("");
           clearCart();
           setIsCartOpen(false);
         }}

@@ -22,6 +22,7 @@ interface PropostasGeradasDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   clienteNome: string;
+  vendedorNome?: string;
   propostas: PropostaGerada[];
   onClose: () => void;
 }
@@ -34,34 +35,37 @@ export function PropostasGeradasDialog({
   open,
   onOpenChange,
   clienteNome,
+  vendedorNome,
   propostas,
   onClose,
 }: PropostasGeradasDialogProps) {
   const isSplit = propostas.length > 1;
 
+  const buildMensagem = (link: string) =>
+    `Prezado(a) ${clienteNome},\n\nSegue a Proposta Digital de Pedido que preparamos especialmente para você.\n\nPor favor, clique no link abaixo para conferir todos os detalhes do pedido, incluindo produtos, quantidades, formas de entrega e condições de pagamento:\n\n${link}\n\nApós conferir todas as informações, clique no botão "CONFIRMAR COMPRA". Você será redirecionado automaticamente para a página de pagamento seguro, onde poderá finalizar sua compra.\n\nQualquer dúvida, estou à disposição!\n\nAtenciosamente,\n${vendedorNome || ""}`;
+
   const copyLink = async (link: string) => {
     try {
-      await navigator.clipboard.writeText(link);
-      toast.success("Link copiado!");
+      await navigator.clipboard.writeText(buildMensagem(link));
+      toast.success("Mensagem copiada!");
     } catch {
-      toast.error("Erro ao copiar link");
+      toast.error("Erro ao copiar mensagem");
     }
   };
 
   const copyAll = async () => {
-    const text = propostas
-      .map(
-        (p) =>
-          `Depósito ${p.depositoNome} — ${p.totalItens} un.\n${p.link}`,
-      )
+    const linksList = propostas
+      .map((p) => `Depósito ${p.depositoNome} — ${p.totalItens} un.\n${p.link}`)
       .join("\n\n");
+    const text = `Prezado(a) ${clienteNome},\n\nSegue a Proposta Digital de Pedido que preparamos especialmente para você. Como o pedido foi dividido por depósito, seguem os links abaixo — cada um traz o frete calculado a partir da origem correspondente:\n\n${linksList}\n\nApós conferir todas as informações em cada link, clique no botão "CONFIRMAR COMPRA". Você será redirecionado automaticamente para a página de pagamento seguro, onde poderá finalizar sua compra.\n\nQualquer dúvida, estou à disposição!\n\nAtenciosamente,\n${vendedorNome || ""}`;
     try {
       await navigator.clipboard.writeText(text);
-      toast.success("Todos os links copiados!");
+      toast.success("Mensagem copiada!");
     } catch {
-      toast.error("Erro ao copiar links");
+      toast.error("Erro ao copiar mensagem");
     }
   };
+
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
