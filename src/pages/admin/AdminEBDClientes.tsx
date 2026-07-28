@@ -11,9 +11,10 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Search, Users, FileText, AlertTriangle, CheckCircle, XCircle, Percent, MapPin, User, Building2, Calendar, UserCog } from "lucide-react";
+import { Search, Users, FileText, AlertTriangle, CheckCircle, XCircle, Percent, MapPin, User, Building2, Calendar, UserCog, Mail } from "lucide-react";
 import { useState } from "react";
 import { DescontoFaturamentoDialog } from "@/components/vendedor/DescontoFaturamentoDialog";
+import { AlterarEmailAcessoDialog } from "@/components/admin/AlterarEmailAcessoDialog";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -57,6 +58,7 @@ export default function AdminEBDClientes() {
   const [vendedorFilter, setVendedorFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [clienteParaDesconto, setClienteParaDesconto] = useState<Cliente | null>(null);
+  const [clienteParaEmail, setClienteParaEmail] = useState<Cliente | null>(null);
 
   // Buscar todos os clientes
   const { data: clientes = [], isLoading, refetch } = useQuery({
@@ -376,6 +378,15 @@ export default function AdminEBDClientes() {
                     <Percent className="h-3 w-3 mr-1" />
                     Desconto
                   </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1"
+                    onClick={() => setClienteParaEmail(cliente)}
+                  >
+                    <Mail className="h-3 w-3 mr-1" />
+                    Alterar email
+                  </Button>
                 </div>
               </CardContent>
             </Card>
@@ -388,6 +399,14 @@ export default function AdminEBDClientes() {
         open={!!clienteParaDesconto}
         onOpenChange={(open) => !open && setClienteParaDesconto(null)}
         cliente={clienteParaDesconto}
+        onSuccess={() => refetch()}
+      />
+
+      {/* Dialog de alteração de email de acesso */}
+      <AlterarEmailAcessoDialog
+        open={!!clienteParaEmail}
+        onOpenChange={(open) => !open && setClienteParaEmail(null)}
+        cliente={clienteParaEmail}
         onSuccess={() => refetch()}
       />
     </div>
