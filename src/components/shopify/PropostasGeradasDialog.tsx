@@ -119,10 +119,19 @@ export function PropostasGeradasDialog({
                   {p.link}
                 </code>
                 <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => openPreview(buildMensagem(p.link))}
+                  title="Ver preview da mensagem antes de copiar"
+                >
+                  <Eye className="h-4 w-4 mr-1" />
+                  Preview
+                </Button>
+                <Button
                   size="icon"
                   variant="outline"
-                  onClick={() => copyLink(p.link)}
-                  title="Copiar link"
+                  onClick={() => copyLinkOnly(p.link)}
+                  title="Copiar apenas o link"
                 >
                   <Copy className="h-4 w-4" />
                 </Button>
@@ -135,6 +144,7 @@ export function PropostasGeradasDialog({
                   <ExternalLink className="h-4 w-4" />
                 </Button>
               </div>
+
             </div>
           ))}
         </div>
