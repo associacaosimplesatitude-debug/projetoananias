@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -7,8 +8,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Copy, ExternalLink, FileText } from "lucide-react";
+import { Copy, ExternalLink, FileText, Eye } from "lucide-react";
 import { toast } from "sonner";
+import { PreviewMensagemDialog } from "./PreviewMensagemDialog";
+
 
 export interface PropostaGerada {
   token: string;
