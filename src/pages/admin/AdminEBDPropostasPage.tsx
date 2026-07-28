@@ -13,6 +13,8 @@ import { format, addDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { AdminPedidosTab } from "@/components/admin/AdminPedidosTab";
 import { useAuth } from "@/hooks/useAuth";
+import { PreviewMensagemDialog } from "@/components/shopify/PreviewMensagemDialog";
+
 import {
   AlertDialog,
   AlertDialogAction,
