@@ -784,6 +784,14 @@ serve(async (req) => {
       });
     }
 
+    // Herdar vendedor do pedido original (mesma lógica do loja/unidadeNegocio acima)
+    if (pedido.vendedor?.id) {
+      nfePayload.vendedor = { id: pedido.vendedor.id };
+      console.log(`[BLING-NFE] Vendedor herdado do pedido: id=${pedido.vendedor.id}`);
+    } else {
+      console.log(`[BLING-NFE] Pedido sem vendedor vinculado - NF-e sairá sem vendedor.`);
+    }
+
     // ========== ESCUDO DE AUTO-NUMERAÇÃO (CONSULTA AUTORIZADAS) ==========
     // CORRIGIDO: Para Penha, filtrar apenas faixa 019xxx (números < 30000)
     // Isso evita usar a sequência 030xxx que pertence à Matriz RJ
