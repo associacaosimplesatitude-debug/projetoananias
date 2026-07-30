@@ -763,10 +763,10 @@ async function provisionDigitalDireto(
   supabase: ReturnType<typeof createClient>,
   payload: any,
   lojaOrderRowId: string,
-): Promise<{ created: number; total_digital_items: number; error?: string }> {
+): Promise<{ created: number; already_licensed: number; total_digital_items: number; error?: string }> {
   try {
     const items: any[] = Array.isArray(payload.items) ? payload.items : [];
-    if (items.length === 0) return { created: 0, total_digital_items: 0 };
+    if (items.length === 0) return { created: 0, already_licensed: 0, total_digital_items: 0 };
 
     const customer = payload.customer ?? {};
     const email = (customer.email ?? "").trim().toLowerCase() || null;
@@ -779,11 +779,11 @@ async function provisionDigitalDireto(
 
     if (!phoneBr11 && !email) {
       console.warn(`${LOG_DIGITAL} sem telefone nem email — pulando`);
-      return { created: 0, total_digital_items: 0 };
+      return { created: 0, already_licensed: 0, total_digital_items: 0 };
     }
 
     const skus = [...new Set(items.map((it) => String(it?.sku ?? "")).filter(Boolean))];
-    if (skus.length === 0) return { created: 0, total_digital_items: 0 };
+    if (skus.length === 0) return { created: 0, already_licensed: 0, total_digital_items: 0 };
 
     // SKU → revista_digital_id
     const { data: mappings } = await supabase
@@ -794,35 +794,36 @@ async function provisionDigitalDireto(
     const revistaIds = [...new Set((mappings ?? [])
       .map((m: any) => m.revista_digital_id)
       .filter(Boolean))];
-    if (revistaIds.length === 0) return { created: 0, total_digital_items: 0 };
+    if (revistaIds.length === 0) return { created: 0, already_licensed: 0, total_digital_items: 0 };
 
-    // Filtrar SOMENTE infográficos (digital direto)
+    // Filtrar produtos digitais diretos: infográficos, revistas digitais e livros digitais
     const { data: revistas } = await supabase
       .from("revistas_digitais")
       .select("id, titulo, tipo_conteudo")
       .in("id", revistaIds);
 
-    const infograficos = new Map<string, { titulo: string }>();
+    const elegiveis = new Map<string, { titulo: string }>();
     for (const r of revistas ?? []) {
-      if (r.tipo_conteudo === "infografico") {
-        infograficos.set(r.id, { titulo: r.titulo ?? "Infográfico" });
+      if (["infografico", "revista", "livro_digital"].includes(r.tipo_conteudo)) {
+        elegiveis.set(r.id, { titulo: r.titulo ?? "Digital" });
       }
     }
-    if (infograficos.size === 0) return { created: 0, total_digital_items: 0 };
+    if (elegiveis.size === 0) return { created: 0, already_licensed: 0, total_digital_items: 0 };
 
     // Conjunto único (revista_id) a provisionar — qty>=1 já basta
     const revistasParaProvisionar = new Set<string>();
     for (const m of mappings ?? []) {
-      if (m.revista_digital_id && infograficos.has(m.revista_digital_id)) {
+      if (m.revista_digital_id && elegiveis.has(m.revista_digital_id)) {
         revistasParaProvisionar.add(m.revista_digital_id);
       }
     }
 
     let created = 0;
+    let already_licensed = 0;
     const whatsappKey = phoneBr11 || (email ?? "");
 
     for (const revistaId of revistasParaProvisionar) {
-      const titulo = infograficos.get(revistaId)!.titulo;
+      const titulo = elegiveis.get(revistaId)!.titulo;
 
       // Idempotência: verifica se já existe licença para este pedido+revista (ou cliente+revista)
       const { data: jaExiste } = await supabase
@@ -839,6 +840,7 @@ async function provisionDigitalDireto(
         .maybeSingle();
 
       if (jaExiste) {
+        already_licensed++;
         console.log(`${LOG_DIGITAL} licença já existe para revista=${revistaId} — skip`);
         continue;
       }
@@ -877,18 +879,18 @@ async function provisionDigitalDireto(
       }
     }
 
-    if (created > 0) {
+    if (created > 0 || already_licensed > 0) {
       await supabase
         .from("ebd_loja_pedidos_cg")
         .update({ provisionamento_status: "ok", provisionamento_erro: null })
         .eq("id", lojaOrderRowId);
     }
 
-    return { created, total_digital_items: revistasParaProvisionar.size };
+    return { created, already_licensed, total_digital_items: revistasParaProvisionar.size };
   } catch (err) {
     const msg = (err as Error).message ?? "erro desconhecido";
     console.error(`${LOG_DIGITAL} ERRO:`, msg, err);
-    return { created: 0, total_digital_items: 0, error: msg };
+    return { created: 0, already_licensed: 0, total_digital_items: 0, error: msg };
   }
 }
 
