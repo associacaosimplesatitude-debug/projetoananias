@@ -232,6 +232,7 @@ export default function VendedorPDV() {
           valor_total: totalComDesconto,
           observacoes: `PDV Balcão Penha - ${formaPagamento.toUpperCase()}${observacoes.trim() ? ` | ${observacoes.trim()}` : ''}`,
           vendedor_id: vendedor.id,
+          vendedor_email: vendedor.email_bling || vendedor.email,
         }
       });
 
