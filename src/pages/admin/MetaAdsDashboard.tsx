@@ -54,6 +54,8 @@ export default function MetaAdsDashboard() {
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["meta-ads-campaigns", period, startDate, endDate],
+    retry: false,
+    throwOnError: false,
     queryFn: async () => {
       const { data: sessionData } = await supabase.auth.getSession();
       const accessToken = sessionData.session?.access_token;
