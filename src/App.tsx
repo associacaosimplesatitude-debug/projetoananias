@@ -624,6 +624,7 @@ const App = () => (
                       <Route path="emails-ebd" element={<VendedorEmailsEBD isAdminView />} />
                       <Route path="integracoes" element={<VendedorIntegracoes />} />
                       <Route path="google-ads" element={<GoogleAdsDashboard />} />
+                      <Route path="meta-ads" element={<MetaAdsDashboard />} />
                       <Route path="google-ads-faturamento" element={<GoogleAdsFaturamento />} />
                       <Route path="google-ads-documentos" element={<GoogleAdsDocumentos />} />
                       <Route path="google-ads-integracoes" element={<GoogleAdsIntegracoes />} />
