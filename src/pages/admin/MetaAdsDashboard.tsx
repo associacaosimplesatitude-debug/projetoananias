@@ -58,7 +58,12 @@ export default function MetaAdsDashboard() {
       const res = await supabase.functions.invoke("meta-ads-dashboard", {
         body: { action: "campaigns", period, startDate, endDate },
       });
-      if (res.error) throw new Error(res.error.message);
+      if (res.error) {
+        console.error("[meta-ads-dashboard] error res:", res);
+        const body = await res.error.context?.json().catch(() => null);
+        const msg = body?.error || res.error.message || "Erro ao carregar métricas do Meta Ads";
+        throw new Error(msg);
+      }
       if (res.data?.error) throw new Error(res.data.error);
       return res.data;
     },
