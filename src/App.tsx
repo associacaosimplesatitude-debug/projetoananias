@@ -256,6 +256,7 @@ import Apresentacao from "./pages/Apresentacao";
 import ApresentacaoScreenshots from "./pages/admin/ApresentacaoScreenshots";
 import Implementacoes from "./pages/admin/Implementacoes";
 import GoogleAdsDashboard from "./pages/admin/GoogleAdsDashboard";
+import MetaAdsDashboard from "./pages/admin/MetaAdsDashboard";
 import GoogleAdsFaturamento from "./pages/admin/GoogleAdsFaturamento";
 import GoogleAdsDocumentos from "./pages/admin/GoogleAdsDocumentos";
 import GoogleAdsIntegracoes from "./pages/admin/GoogleAdsIntegracoes";
@@ -623,6 +624,7 @@ const App = () => (
                       <Route path="emails-ebd" element={<VendedorEmailsEBD isAdminView />} />
                       <Route path="integracoes" element={<VendedorIntegracoes />} />
                       <Route path="google-ads" element={<GoogleAdsDashboard />} />
+                      <Route path="meta-ads" element={<MetaAdsDashboard />} />
                       <Route path="google-ads-faturamento" element={<GoogleAdsFaturamento />} />
                       <Route path="google-ads-documentos" element={<GoogleAdsDocumentos />} />
                       <Route path="google-ads-integracoes" element={<GoogleAdsIntegracoes />} />
