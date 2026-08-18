@@ -716,6 +716,14 @@ function AdminSidebar() {
                           </RouterNavLink>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton asChild isActive={isActive('/admin/ebd/meta-ads')}>
+                          <RouterNavLink to="/admin/ebd/meta-ads">
+                            <Megaphone className="h-4 w-4" />
+                            <span>Meta Ads</span>
+                          </RouterNavLink>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
                     </SidebarMenuSub>
                   </CollapsibleContent>
                 </SidebarMenuItem>
