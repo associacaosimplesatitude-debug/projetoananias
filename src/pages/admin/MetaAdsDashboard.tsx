@@ -55,17 +55,27 @@ export default function MetaAdsDashboard() {
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["meta-ads-campaigns", period, startDate, endDate],
     queryFn: async () => {
-      const res = await supabase.functions.invoke("meta-ads-dashboard", {
-        body: { action: "campaigns", period, startDate, endDate },
-      });
-      if (res.error) {
-        console.error("[meta-ads-dashboard] error res:", res);
-        const body = await res.error.context?.json().catch(() => null);
-        const msg = body?.error || res.error.message || "Erro ao carregar métricas do Meta Ads";
-        throw new Error(msg);
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+      const resp = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/meta-ads-dashboard`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
+            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          },
+          body: JSON.stringify({ action: "campaigns", period, startDate, endDate }),
+        }
+      );
+      const json = await resp.json().catch(() => null);
+      if (!resp.ok || json?.error) {
+        throw new Error(
+          json?.error || `Erro ${resp.status} ao carregar métricas do Meta Ads`
+        );
       }
-      if (res.data?.error) throw new Error(res.data.error);
-      return res.data;
+      return json;
     },
   });
 
