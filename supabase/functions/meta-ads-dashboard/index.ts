@@ -15,7 +15,7 @@ interface MetaAdsCredentials {
 }
 
 async function getCredentials(supabaseClient: any): Promise<MetaAdsCredentials> {
-  const keys = ["whatsapp_access_token", "meta_ads_ad_account_id", "meta_ads_business_id"];
+  const keys = ["meta_ads_access_token", "meta_ads_ad_account_id", "meta_ads_business_id"];
 
   const { data, error } = await supabaseClient
     .from("system_settings")
@@ -29,12 +29,12 @@ async function getCredentials(supabaseClient: any): Promise<MetaAdsCredentials> 
     settings[row.key] = row.value;
   });
 
-  if (!settings.whatsapp_access_token || !settings.meta_ads_ad_account_id) {
+  if (!settings.meta_ads_access_token || !settings.meta_ads_ad_account_id) {
     throw new Error("Credenciais do Meta Ads incompletas. Configure o access token e o ID da conta de anúncios.");
   }
 
   return {
-    access_token: settings.whatsapp_access_token,
+    access_token: settings.meta_ads_access_token,
     ad_account_id: settings.meta_ads_ad_account_id.replace(/^act_/, ""),
     business_id: settings.meta_ads_business_id || undefined,
   };
