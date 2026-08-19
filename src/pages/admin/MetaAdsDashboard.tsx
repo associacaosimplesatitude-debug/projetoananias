@@ -82,6 +82,7 @@ export default function MetaAdsDashboard() {
   });
 
   const s = data?.summary;
+  const roasFmt = (v: number) => v > 0 ? `${Number(v).toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}x` : "—";
   const cards = [
     { label: "Investimento", value: s ? brl(s.spend) : "—", bg: "bg-blue-600" },
     { label: "Impressões", value: s ? num(s.impressions) : "—", bg: "bg-indigo-600" },
@@ -89,6 +90,8 @@ export default function MetaAdsDashboard() {
     { label: "CTR médio", value: s ? pct(s.ctr) : "—", bg: "bg-gray-600" },
     { label: "Resultados", value: s ? num(s.results) : "—", bg: "bg-emerald-600" },
     { label: "Custo por resultado", value: s ? brl(s.cost_per_result) : "—", bg: "bg-gray-700" },
+    { label: "Valor em Vendas", value: s ? brl(s.purchase_value) : "—", bg: "bg-green-700" },
+    { label: "ROAS", value: s ? roasFmt(s.roas) : "—", bg: "bg-green-800" },
   ];
 
   const campaigns = data?.campaigns || [];
@@ -166,6 +169,8 @@ export default function MetaAdsDashboard() {
                     <TableHead className="text-right">CTR</TableHead>
                     <TableHead className="text-right">Resultados</TableHead>
                     <TableHead className="text-right">Custo/result.</TableHead>
+                    <TableHead className="text-right">Valor vendas</TableHead>
+                    <TableHead className="text-right">ROAS</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -186,6 +191,8 @@ export default function MetaAdsDashboard() {
                       <TableCell className="text-right">{pct(c.ctr)}</TableCell>
                       <TableCell className="text-right">{num(c.results)}</TableCell>
                       <TableCell className="text-right">{c.results > 0 ? brl(c.cost_per_result) : "—"}</TableCell>
+                      <TableCell className="text-right">{brl(c.purchase_value)}</TableCell>
+                      <TableCell className="text-right">{roasFmt(c.roas)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
