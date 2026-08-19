@@ -74,6 +74,12 @@ function pickPurchase(list: any[] | undefined): number {
   return match ? Number(match.value || 0) : 0;
 }
 
+function pickPurchaseValue(list: any[] | undefined): number {
+  if (!Array.isArray(list)) return 0;
+  const match = list.find((a) => String(a.action_type || "").includes("purchase"));
+  return match ? Number(match.value || 0) : 0;
+}
+
 function translateStatus(status?: string, effectiveStatus?: string): string {
   const eff = effectiveStatus || status;
   switch (eff) {
@@ -99,7 +105,7 @@ async function handleCampaigns(creds: MetaAdsCredentials, period: string, startD
     ? `insights.date_preset(maximum)`
     : `insights.time_range({"since":"${startDate}","until":"${endDate}"})`;
 
-  const fields = `name,status,effective_status,daily_budget,lifetime_budget,objective,${insightsRange}{spend,impressions,clicks,ctr,cpc,actions,cost_per_action_type}`;
+  const fields = `name,status,effective_status,daily_budget,lifetime_budget,objective,${insightsRange}{spend,impressions,clicks,ctr,cpc,actions,action_values,cost_per_action_type}`;
 
   const url = `${GRAPH}/act_${creds.ad_account_id}/campaigns?fields=${encodeURIComponent(fields)}&limit=50&access_token=${encodeURIComponent(creds.access_token)}`;
 
@@ -112,6 +118,7 @@ async function handleCampaigns(creds: MetaAdsCredentials, period: string, startD
     const impressions = Number(ins.impressions || 0);
     const clicks = Number(ins.clicks || 0);
     const results = pickPurchase(ins.actions);
+    const purchaseValue = pickPurchaseValue(ins.action_values);
     const costPerResultApi = pickPurchase(ins.cost_per_action_type);
     const costPerResult = costPerResultApi > 0
       ? costPerResultApi
@@ -133,6 +140,8 @@ async function handleCampaigns(creds: MetaAdsCredentials, period: string, startD
       cpc: Number(ins.cpc || 0),
       results,
       cost_per_result: costPerResult,
+      purchase_value: purchaseValue,
+      roas: spend > 0 ? purchaseValue / spend : 0,
     };
   });
 
@@ -142,9 +151,10 @@ async function handleCampaigns(creds: MetaAdsCredentials, period: string, startD
       acc.impressions += c.impressions;
       acc.clicks += c.clicks;
       acc.results += c.results;
+      acc.purchase_value += c.purchase_value;
       return acc;
     },
-    { spend: 0, impressions: 0, clicks: 0, results: 0 }
+    { spend: 0, impressions: 0, clicks: 0, results: 0, purchase_value: 0 }
   );
 
   return {
@@ -156,6 +166,8 @@ async function handleCampaigns(creds: MetaAdsCredentials, period: string, startD
       ctr: totals.impressions > 0 ? (totals.clicks / totals.impressions) * 100 : 0,
       results: totals.results,
       cost_per_result: totals.results > 0 ? totals.spend / totals.results : 0,
+      purchase_value: totals.purchase_value,
+      roas: totals.spend > 0 ? totals.purchase_value / totals.spend : 0,
     },
     account_id: creds.ad_account_id,
   };
