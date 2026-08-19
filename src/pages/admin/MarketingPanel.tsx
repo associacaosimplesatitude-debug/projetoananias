@@ -2,6 +2,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Megaphone, Users } from "lucide-react";
 import WhatsAppCampaigns from "@/components/admin/WhatsAppCampaigns";
 import WhatsAppPublicos from "@/components/admin/WhatsAppPublicos";
+import MetaAdsDashboard from "@/pages/admin/MetaAdsDashboard";
 
 export default function MarketingPanel() {
   return (
@@ -26,12 +27,19 @@ export default function MarketingPanel() {
             <Users className="h-4 w-4" />
             Públicos
           </TabsTrigger>
+          <TabsTrigger value="metaads" className="flex items-center gap-2">
+            <Megaphone className="h-4 w-4" />
+            Meta Ads
+          </TabsTrigger>
         </TabsList>
         <TabsContent value="campanhas" className="mt-4">
           <WhatsAppCampaigns />
         </TabsContent>
         <TabsContent value="publicos" className="mt-4">
           <WhatsAppPublicos />
+        </TabsContent>
+        <TabsContent value="metaads" className="mt-4">
+          <MetaAdsDashboard />
         </TabsContent>
       </Tabs>
     </div>
