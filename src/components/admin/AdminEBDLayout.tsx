@@ -342,6 +342,15 @@ function AdminSidebar() {
                 </SidebarMenuButton>
               </SidebarMenuItem>
 
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={isActive('/admin/ebd/eventos')}>
+                  <RouterNavLink to="/admin/ebd/eventos">
+                    <CalendarDays className="h-4 w-4" />
+                    <span>Eventos</span>
+                  </RouterNavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+
               {/* Pedidos com submenu */}
               <Collapsible open={pedidosOpen} onOpenChange={setPedidosOpen} className="group/collapsible">
                 <SidebarMenuItem>
