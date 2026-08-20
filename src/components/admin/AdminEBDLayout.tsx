@@ -35,6 +35,7 @@ import {
   MessageCircle,
   Shield,
   Megaphone,
+  CalendarDays,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
