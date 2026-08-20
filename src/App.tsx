@@ -67,6 +67,7 @@ import MarketingPanel from "./pages/admin/MarketingPanel";
 import RequireCampaignReportAccess from "@/components/RequireCampaignReportAccess";
 import EbdRetencao from "./pages/admin/EbdRetencao";
 import SorteioAdmin from "./pages/admin/SorteioAdmin";
+import EventosAdmin from "./pages/admin/EventosAdmin";
 import AtendimentoWhatsApp from "./pages/admin/AtendimentoWhatsApp";
 import { AdminEBDLayout } from "@/components/admin/AdminEBDLayout";
 import { EBDLayout } from "@/components/ebd/EBDLayout";
@@ -632,6 +633,7 @@ const App = () => (
                       <Route path="google/recargas" element={<GoogleRecargas />} />
                       <Route path="sync-errors" element={<BlingSyncErrors />} />
                       <Route path="sorteio" element={<SorteioAdmin />} />
+                      <Route path="eventos" element={<EventosAdmin />} />
                       <Route path="retencao" element={<EbdRetencao />} />
                       <Route path="atendimento-whatsapp" element={<AtendimentoWhatsApp />} />
                       <Route path="marketing" element={<MarketingPanel />} />

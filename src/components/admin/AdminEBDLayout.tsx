@@ -35,6 +35,7 @@ import {
   MessageCircle,
   Shield,
   Megaphone,
+  CalendarDays,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -338,6 +339,15 @@ function AdminSidebar() {
                   <RouterNavLink to="/admin/ebd/sorteio">
                     <Gift className="h-4 w-4" />
                     <span>Sorteio & Embaixadoras</span>
+                  </RouterNavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={isActive('/admin/ebd/eventos')}>
+                  <RouterNavLink to="/admin/ebd/eventos">
+                    <CalendarDays className="h-4 w-4" />
+                    <span>Eventos</span>
                   </RouterNavLink>
                 </SidebarMenuButton>
               </SidebarMenuItem>
