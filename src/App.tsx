@@ -132,6 +132,7 @@ import AutorMeusResgates from "./pages/autor/MeusResgates";
 // Public Landing Pages
 import LivroLandingPage from "./pages/public/LivroLandingPage";
 import SorteioLanding from "./pages/public/SorteioLanding";
+import EventoLanding from "./pages/public/EventoLanding";
 import SorteioAge26Landing from "./pages/public/SorteioAge26Landing";
 import SorteioAge26Obrigado from "./pages/public/SorteioAge26Obrigado";
 import EmbaixadoraLanding from "./pages/public/EmbaixadoraLanding";
@@ -297,6 +298,7 @@ const App = () => (
               <Route path="/cadastro/revista/:churchId" element={<CadastroRevistaPublico />} />
               <Route path="/pagar/:codigo" element={<PagamentoRevistaPublico />} />
               <Route path="/livro/:slug" element={<LivroLandingPage />} />
+              <Route path="/evento/:slug" element={<EventoLanding />} />
               <Route path="/sorteio" element={<SorteioLanding />} />
               <Route path="/sorteio/age26" element={<SorteioAge26Landing />} />
               <Route path="/age26/obrigado" element={<SorteioAge26Obrigado />} />
