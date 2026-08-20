@@ -5181,6 +5181,154 @@ export type Database = {
           },
         ]
       }
+      eventos: {
+        Row: {
+          ativo: boolean
+          banner_url: string | null
+          campos_extra: Json
+          cor_primaria: string | null
+          created_at: string
+          created_by: string | null
+          data_fim: string | null
+          data_inicio: string | null
+          descricao: string | null
+          id: string
+          nome: string
+          slug: string
+          texto_botao_cta: string | null
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          banner_url?: string | null
+          campos_extra?: Json
+          cor_primaria?: string | null
+          created_at?: string
+          created_by?: string | null
+          data_fim?: string | null
+          data_inicio?: string | null
+          descricao?: string | null
+          id?: string
+          nome: string
+          slug: string
+          texto_botao_cta?: string | null
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          banner_url?: string | null
+          campos_extra?: Json
+          cor_primaria?: string | null
+          created_at?: string
+          created_by?: string | null
+          data_fim?: string | null
+          data_inicio?: string | null
+          descricao?: string | null
+          id?: string
+          nome?: string
+          slug?: string
+          texto_botao_cta?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      eventos_inscritos: {
+        Row: {
+          cidade: string | null
+          created_at: string
+          email: string | null
+          evento_id: string
+          id: string
+          ip_hash: string | null
+          nome: string
+          referrer: string | null
+          respostas_extra: Json
+          user_agent: string | null
+          utm_campaign: string | null
+          utm_medium: string | null
+          utm_source: string | null
+          whatsapp: string | null
+        }
+        Insert: {
+          cidade?: string | null
+          created_at?: string
+          email?: string | null
+          evento_id: string
+          id?: string
+          ip_hash?: string | null
+          nome: string
+          referrer?: string | null
+          respostas_extra?: Json
+          user_agent?: string | null
+          utm_campaign?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          whatsapp?: string | null
+        }
+        Update: {
+          cidade?: string | null
+          created_at?: string
+          email?: string | null
+          evento_id?: string
+          id?: string
+          ip_hash?: string | null
+          nome?: string
+          referrer?: string | null
+          respostas_extra?: Json
+          user_agent?: string | null
+          utm_campaign?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          whatsapp?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "eventos_inscritos_evento_id_fkey"
+            columns: ["evento_id"]
+            isOneToOne: false
+            referencedRelation: "eventos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      eventos_page_views: {
+        Row: {
+          created_at: string
+          evento_id: string
+          id: string
+          ip_hash: string | null
+          referrer: string | null
+          sessao_id: string | null
+          user_agent: string | null
+        }
+        Insert: {
+          created_at?: string
+          evento_id: string
+          id?: string
+          ip_hash?: string | null
+          referrer?: string | null
+          sessao_id?: string | null
+          user_agent?: string | null
+        }
+        Update: {
+          created_at?: string
+          evento_id?: string
+          id?: string
+          ip_hash?: string | null
+          referrer?: string | null
+          sessao_id?: string | null
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "eventos_page_views_evento_id_fkey"
+            columns: ["evento_id"]
+            isOneToOne: false
+            referencedRelation: "eventos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       financial_entries: {
         Row: {
           church_id: string
