@@ -155,8 +155,11 @@ export default function EventosAdmin() {
         .from("eventos-banners")
         .upload(path, file, { cacheControl: "3600", upsert: false });
       if (error) throw error;
-      const { data } = supabase.storage.from("eventos-banners").getPublicUrl(path);
-      setForm((f) => ({ ...f, banner_url: data.publicUrl }));
+      const { data, error: signErr } = await supabase.storage
+        .from("eventos-banners")
+        .createSignedUrl(path, 60 * 60 * 24 * 365 * 5);
+      if (signErr) throw signErr;
+      setForm((f) => ({ ...f, banner_url: data.signedUrl }));
       toast.success("Imagem enviada!");
     } catch (e: any) {
       toast.error(e.message || "Erro ao enviar imagem");
