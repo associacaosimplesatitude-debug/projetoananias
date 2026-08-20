@@ -85,3 +85,15 @@ export const pushPrimeiroLogin = (userId: string, userType: string) => {
   });
   console.log('[GTM] primeiro_login pushed:', { userId, userType });
 };
+
+// Push event registration (módulo Eventos)
+export const pushInscricaoEvento = (eventoId: string, eventoNome: string, eventoSlug: string) => {
+  initDataLayer();
+  window.dataLayer.push({
+    event: 'inscricao_evento',
+    evento_id: eventoId,
+    evento_nome: eventoNome,
+    evento_slug: eventoSlug,
+  });
+  console.log('[GTM] inscricao_evento pushed:', { eventoId, eventoNome, eventoSlug });
+};
