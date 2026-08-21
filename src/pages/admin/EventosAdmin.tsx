@@ -80,6 +80,9 @@ const emptyForm = {
   data_fim: "",
   ativo: true,
   campos_extra: [] as CampoExtra[],
+  conteudo_liberado_url: "",
+  conteudo_liberado_ate: "",
+  conteudo_liberado_label: "",
 };
 
 export default function EventosAdmin() {
