@@ -1,0 +1,1 @@
+ALTER TABLE public.eventos ADD COLUMN IF NOT EXISTS conteudo_liberado_url text, ADD COLUMN IF NOT EXISTS conteudo_liberado_ate timestamptz, ADD COLUMN IF NOT EXISTS conteudo_liberado_label text DEFAULT 'Baixar conteúdo';

@@ -5186,6 +5186,9 @@ export type Database = {
           ativo: boolean
           banner_url: string | null
           campos_extra: Json
+          conteudo_liberado_ate: string | null
+          conteudo_liberado_label: string | null
+          conteudo_liberado_url: string | null
           cor_primaria: string | null
           created_at: string
           created_by: string | null
@@ -5202,6 +5205,9 @@ export type Database = {
           ativo?: boolean
           banner_url?: string | null
           campos_extra?: Json
+          conteudo_liberado_ate?: string | null
+          conteudo_liberado_label?: string | null
+          conteudo_liberado_url?: string | null
           cor_primaria?: string | null
           created_at?: string
           created_by?: string | null
@@ -5218,6 +5224,9 @@ export type Database = {
           ativo?: boolean
           banner_url?: string | null
           campos_extra?: Json
+          conteudo_liberado_ate?: string | null
+          conteudo_liberado_label?: string | null
+          conteudo_liberado_url?: string | null
           cor_primaria?: string | null
           created_at?: string
           created_by?: string | null
