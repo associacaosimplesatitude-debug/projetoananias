@@ -33,6 +33,9 @@ type Evento = {
   cor_primaria: string | null;
   texto_botao_cta: string | null;
   campos_extra: CampoExtra[] | null;
+  conteudo_liberado_url: string | null;
+  conteudo_liberado_ate: string | null;
+  conteudo_liberado_label: string | null;
 };
 
 const getSessaoId = () => {
@@ -71,7 +74,7 @@ export default function EventoLanding() {
       setLoading(true);
       const { data } = await supabase
         .from("eventos")
-        .select("id,nome,slug,descricao,banner_url,cor_primaria,texto_botao_cta,campos_extra")
+        .select("id,nome,slug,descricao,banner_url,cor_primaria,texto_botao_cta,campos_extra,conteudo_liberado_url,conteudo_liberado_ate,conteudo_liberado_label")
         .eq("slug", slug ?? "")
         .eq("ativo", true)
         .maybeSingle();
@@ -185,6 +188,22 @@ export default function EventoLanding() {
                 <CheckCircle2 className="h-12 w-12 mx-auto" style={{ color: cor }} />
                 <h2 className="text-2xl font-semibold">Inscrição confirmada!</h2>
                 <p className="text-neutral-600">Recebemos seus dados. Em breve entraremos em contato.</p>
+                {evento.conteudo_liberado_url &&
+                  (evento.conteudo_liberado_ate && new Date() > new Date(evento.conteudo_liberado_ate) ? (
+                    <p className="text-sm text-neutral-500 italic">
+                      O período de degustação/acesso a este conteúdo encerrou.
+                    </p>
+                  ) : (
+                    <a
+                      href={evento.conteudo_liberado_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center justify-center w-full rounded-md px-4 py-3 text-white font-medium hover:opacity-90"
+                      style={{ backgroundColor: cor }}
+                    >
+                      {evento.conteudo_liberado_label || "Baixar conteúdo"}
+                    </a>
+                  ))}
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="space-y-4">

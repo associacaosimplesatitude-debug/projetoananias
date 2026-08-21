@@ -142,6 +142,9 @@ export default function EventosAdmin() {
       data_fim: ev.data_fim ? String(ev.data_fim).slice(0, 16) : "",
       ativo: ev.ativo ?? true,
       campos_extra: Array.isArray(ev.campos_extra) ? ev.campos_extra : [],
+      conteudo_liberado_url: ev.conteudo_liberado_url ?? "",
+      conteudo_liberado_ate: ev.conteudo_liberado_ate ? String(ev.conteudo_liberado_ate).slice(0, 16) : "",
+      conteudo_liberado_label: ev.conteudo_liberado_label ?? "",
     });
     setDialogOpen(true);
   };
@@ -187,6 +190,9 @@ export default function EventosAdmin() {
         data_fim: form.data_fim ? new Date(form.data_fim).toISOString() : null,
         ativo: form.ativo,
         campos_extra: form.campos_extra,
+        conteudo_liberado_url: form.conteudo_liberado_url.trim() || null,
+        conteudo_liberado_ate: form.conteudo_liberado_ate ? new Date(form.conteudo_liberado_ate).toISOString() : null,
+        conteudo_liberado_label: form.conteudo_liberado_label.trim() || null,
       };
       if (editing?.id) {
         const { error } = await supabase
@@ -467,6 +473,41 @@ export default function EventosAdmin() {
                 onCheckedChange={(v) => setForm((f) => ({ ...f, ativo: v }))}
               />
               <Label>Evento ativo</Label>
+            </div>
+
+            <div className="border-t pt-4 space-y-3">
+              <div>
+                <Label>Conteúdo liberado após inscrição (opcional)</Label>
+                <p className="text-xs text-muted-foreground">
+                  Libere um link (ex: PDF de degustação) na tela de confirmação, com validade opcional.
+                </p>
+              </div>
+              <div>
+                <Label>URL do conteúdo</Label>
+                <Input
+                  placeholder="https://..."
+                  value={form.conteudo_liberado_url}
+                  onChange={(e) => setForm((f) => ({ ...f, conteudo_liberado_url: e.target.value }))}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Disponível até</Label>
+                  <Input
+                    type="datetime-local"
+                    value={form.conteudo_liberado_ate}
+                    onChange={(e) => setForm((f) => ({ ...f, conteudo_liberado_ate: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <Label>Texto do botão</Label>
+                  <Input
+                    placeholder="Baixar conteúdo"
+                    value={form.conteudo_liberado_label}
+                    onChange={(e) => setForm((f) => ({ ...f, conteudo_liberado_label: e.target.value }))}
+                  />
+                </div>
+              </div>
             </div>
 
             <div className="border-t pt-4 space-y-3">
