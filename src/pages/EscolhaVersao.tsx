@@ -25,16 +25,6 @@ export default function EscolhaVersao() {
     video_desktop_leitor: null,
   });
 
-  // Chat state
-  const [chatOpen, setChatOpen] = useState(false);
-  const [chatMessages, setChatMessages] = useState<ChatMsg[]>([INITIAL_MSG]);
-  const [chatInput, setChatInput] = useState("");
-  const [chatLoading, setChatLoading] = useState(false);
-  const chatEndRef = useRef<HTMLDivElement>(null);
-
-  const userMsgCount = chatMessages.filter((m) => m.role === "user").length;
-  const chatLimitReached = userMsgCount >= MAX_USER_MSGS;
-
   useEffect(() => {
     const load = async () => {
       const promises: Promise<void>[] = [];
