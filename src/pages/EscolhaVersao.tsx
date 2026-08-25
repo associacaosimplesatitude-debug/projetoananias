@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, MessageCircle, X, Send } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
 interface Videos {
   video_celular_cg_digital: string | null;
@@ -9,18 +9,6 @@ interface Videos {
   video_celular_leitor: string | null;
   video_desktop_leitor: string | null;
 }
-
-interface ChatMsg {
-  role: "user" | "assistant";
-  content: string;
-}
-
-const INITIAL_MSG: ChatMsg = {
-  role: "assistant",
-  content: "Olá! Pode me perguntar qualquer coisa sobre as duas versões. Estou aqui para ajudar você a escolher a que melhor combina com o seu jeito de estudar a Palavra. 😊",
-};
-
-const MAX_USER_MSGS = 3;
 
 export default function EscolhaVersao() {
   const navigate = useNavigate();
