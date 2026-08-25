@@ -52,10 +52,6 @@ export default function EscolhaVersao() {
     load();
   }, [whatsapp]);
 
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [chatMessages, chatLoading]);
-
   const handleChoose = async (versao: "cg_digital" | "leitor_cg") => {
     setSaving(versao);
     try {
@@ -69,47 +65,6 @@ export default function EscolhaVersao() {
       console.error("[EscolhaVersao] Erro catch:", err);
     }
     navigate(versao === "cg_digital" ? "/revista/acesso" : "/leitor/acesso", { replace: true });
-  };
-
-  const handleSendChat = async () => {
-    const text = chatInput.trim();
-    if (!text || chatLoading || chatLimitReached) return;
-
-    const userMsg: ChatMsg = { role: "user", content: text };
-    const updated = [...chatMessages, userMsg];
-    setChatMessages(updated);
-    setChatInput("");
-    setChatLoading(true);
-
-    try {
-      // Send only user/assistant messages (skip the initial hardcoded one for context)
-      const apiMessages = updated
-        .filter((_, i) => i > 0) // skip initial greeting
-        .map((m) => ({ role: m.role, content: m.content }));
-
-      const { data, error } = await supabase.functions.invoke("chat-escolha-versao", {
-        body: { messages: apiMessages },
-      });
-
-      if (error || data?.error) {
-        setChatMessages((prev) => [
-          ...prev,
-          { role: "assistant", content: "Desculpe, não consegui responder agora. Tente novamente em instantes." },
-        ]);
-      } else {
-        setChatMessages((prev) => [
-          ...prev,
-          { role: "assistant", content: data.reply },
-        ]);
-      }
-    } catch {
-      setChatMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: "Desculpe, houve um erro. Tente novamente." },
-      ]);
-    } finally {
-      setChatLoading(false);
-    }
   };
 
   if (loading) {
