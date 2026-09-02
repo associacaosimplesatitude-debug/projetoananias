@@ -816,6 +816,20 @@ export default function RevistaLeitura() {
                 <p style={{ color: modoNoturno ? '#e8dcc8' : '#3d2b1f', padding: '40px', textAlign: 'center' }}>
                   Carregando páginas...
                 </p>
+              ) : revista.pdf_url ? (
+                <iframe
+                  src={`${revista.pdf_url}#toolbar=0&navpanes=0&scrollbar=1&view=FitH&zoom=page-width`}
+                  style={{
+                    border: 'none',
+                    width: '100%',
+                    height: '100%',
+                    minHeight: '100svh',
+                    background: modoNoturno ? '#1a1a1a' : '#f5f0e8',
+                    filter: modoNoturno ? 'invert(1) hue-rotate(180deg)' : 'none',
+                    display: 'block'
+                  }}
+                  title={revista?.titulo}
+                />
               ) : (
                 <p style={{ color: modoNoturno ? '#e8dcc8' : '#3d2b1f', padding: '40px', textAlign: 'center' }}>
                   Conteúdo não disponível no momento.
