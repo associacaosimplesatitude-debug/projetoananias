@@ -40,6 +40,10 @@ import { ptBR } from "date-fns/locale";
 
 const COLORS = ['#f4b328', '#e09a1a', '#c7850f', '#a87010', '#8a5c0d', '#6d490a', '#f4c958', '#f4d878'];
 
+// Promoção de cupom de aniversário temporariamente desativada (decisão de negócio — chamado #158).
+// Para reativar, mude para true.
+const BIRTHDAY_COUPON_ENABLED = false;
+
 // Saudação baseada na hora do dia
 function getSaudacao() {
   const hora = new Date().getHours();
@@ -177,7 +181,7 @@ export default function EBDDashboard() {
   const { totalDisponivel: creditosDisponiveis, totalUsado: creditosUsados } = useEbdCreditos(ebdClienteId);
 
   useEffect(() => {
-    if (birthdayInfo?.shouldShowModal) {
+    if (BIRTHDAY_COUPON_ENABLED && birthdayInfo?.shouldShowModal) {
       setShowBirthdayModal(true);
     }
   }, [birthdayInfo]);
@@ -1042,7 +1046,7 @@ export default function EBDDashboard() {
       />
 
       {/* Modal de Aniversário com Cupom */}
-      {birthdayInfo && (
+      {BIRTHDAY_COUPON_ENABLED && birthdayInfo && (
         <BirthdayCouponModal
           open={showBirthdayModal}
           onOpenChange={setShowBirthdayModal}
