@@ -4,6 +4,8 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { useDashboardUserContext } from '@/hooks/useDashboardUserContext';
+import { useChurchData } from '@/hooks/useChurchData';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 
@@ -33,46 +35,35 @@ export const EBDTrimesterBanner = () => {
   // Only show on EBD routes for clients
   const isEBDRoute = location.pathname.startsWith('/ebd');
   
-  // Fetch user profile for name and church_id
-  const { data: profile } = useQuery({
-    queryKey: ['profile-for-banner', user?.id],
-    queryFn: async () => {
-      if (!user?.id) return null;
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('full_name, church_id')
-        .eq('id', user.id)
-        .maybeSingle();
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!user?.id && isEBDRoute && role !== 'admin',
-  });
+  // Nome e igreja vindos do contexto compartilhado (sem consulta direta)
+  const { context, isLoading: contextLoading } = useDashboardUserContext();
+  const { churchId } = useChurchData();
+  const fullName = context?.profile?.full_name || null;
 
   // Check if banner was dismissed this trimester
   const { data: dismissal, isLoading: dismissalLoading } = useQuery({
-    queryKey: ['banner-dismissal', user?.id, profile?.church_id],
+    queryKey: ['banner-dismissal', user?.id, churchId],
     queryFn: async () => {
-      if (!user?.id || !profile?.church_id) return null;
+      if (!user?.id || !churchId) return null;
       const trimesterStart = getTrimesterStart();
       const { data, error } = await supabase
         .from('ebd_banner_dismissals')
         .select('id')
         .eq('user_id', user.id)
-        .eq('church_id', profile.church_id)
+        .eq('church_id', churchId)
         .eq('trimester_start', trimesterStart)
         .maybeSingle();
       if (error) throw error;
       return data;
     },
-    enabled: !!user?.id && !!profile?.church_id && isEBDRoute && role !== 'admin',
+    enabled: !!user?.id && !!churchId && isEBDRoute && role !== 'admin',
   });
 
   // Fetch planejamentos and escalas to calculate remaining lessons
   const { data: remainingLessons, isLoading: lessonsLoading } = useQuery({
-    queryKey: ['remaining-lessons-banner', profile?.church_id],
+    queryKey: ['remaining-lessons-banner', churchId],
     queryFn: async () => {
-      if (!profile?.church_id) return null;
+      if (!churchId) return null;
       
       const today = new Date();
       today.setHours(0, 0, 0, 0);

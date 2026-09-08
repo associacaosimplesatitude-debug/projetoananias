@@ -4,11 +4,13 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { useChurchData } from '@/hooks/useChurchData';
 import { useNavigate } from 'react-router-dom';
 
 export const PaymentBanner = () => {
   const { user, role } = useAuth();
   const navigate = useNavigate();
+  const { churchId, loading: churchLoading } = useChurchData();
   const [daysUntilDue, setDaysUntilDue] = useState<number | null>(null);
   const [isDismissed, setIsDismissed] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -32,14 +34,10 @@ export const PaymentBanner = () => {
         return;
       }
 
-      // Buscar o perfil do usuário para obter a igreja
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('church_id')
-        .eq('id', user.id)
-        .maybeSingle();
+      // Aguardar o contexto compartilhado resolver a igreja
+      if (churchLoading) return;
 
-      if (!profile?.church_id) {
+      if (!churchId) {
         setIsLoading(false);
         return;
       }
@@ -48,7 +46,7 @@ export const PaymentBanner = () => {
       const { data: receivables } = await supabase
         .from('accounts_receivable')
         .select('due_date, status')
-        .eq('church_id', profile.church_id)
+        .eq('church_id', churchId)
         .in('status', ['open', 'overdue'])
         .order('due_date', { ascending: true })
         .limit(1);
@@ -74,7 +72,7 @@ export const PaymentBanner = () => {
     };
 
     checkPaymentStatus();
-  }, [user, role, navigate]);
+  }, [user, role, navigate, churchId, churchLoading]);
 
   const handleDismiss = () => {
     const today = new Date().toDateString();
