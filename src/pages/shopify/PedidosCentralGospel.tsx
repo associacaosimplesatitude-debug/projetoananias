@@ -477,7 +477,7 @@ export default function PedidosCentralGospel() {
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
-                Sincroniza apenas pedidos da Shopify. Pedidos da Nova Loja chegam automaticamente via webhook.
+                Sincroniza apenas pedidos do E-commerce. Pedidos da Nova Loja chegam automaticamente via webhook.
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
