@@ -1,8 +1,6 @@
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
-import { useActiveModules } from '@/hooks/useActiveModules';
-import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { useDashboardUserContext } from '@/hooks/useDashboardUserContext';
 
 interface ModuleProtectedRouteProps {
   children: React.ReactNode;
@@ -11,147 +9,9 @@ interface ModuleProtectedRouteProps {
 
 export default function ModuleProtectedRoute({ children, requiredModule }: ModuleProtectedRouteProps) {
   const { user, role, loading } = useAuth();
-  const { data: activeModules, isLoading: modulesLoading } = useActiveModules();
+  const { context, isLoading, error, refetch } = useDashboardUserContext();
 
-  // Check if user is a student - this bypasses module check for EBD routes
-  const { data: isStudent, isLoading: studentLoading } = useQuery({
-    queryKey: ['is-student-check', user?.id],
-    queryFn: async () => {
-      if (!user?.id) return false;
-      
-      const { data, error } = await supabase
-        .from('ebd_alunos')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('is_active', true)
-        .maybeSingle();
-
-      if (error) {
-        console.error('Error checking student status:', error);
-        return false;
-      }
-      return !!data;
-    },
-    enabled: !!user?.id && !loading,
-  });
-
-  // Check if user is a professor (can have multiple rows, so avoid maybeSingle)
-  const { data: isProfessor, isLoading: professorLoading } = useQuery({
-    queryKey: ['is-professor-check', user?.id],
-    queryFn: async () => {
-      if (!user?.id) return false;
-
-      const { data, error } = await supabase
-        .from('ebd_professores')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('is_active', true)
-        .limit(1);
-
-      if (error) {
-        console.error('Error checking professor status:', error);
-        return false;
-      }
-
-      return !!(data && data.length > 0);
-    },
-    enabled: !!user?.id && !loading,
-  });
-
-  // Check if user is a vendedor - CASE INSENSITIVE
-  const { data: isVendedor, isLoading: vendedorLoading } = useQuery({
-    queryKey: ['is-vendedor-check', user?.email?.toLowerCase()],
-    queryFn: async () => {
-      if (!user?.email) return false;
-      
-      const userEmail = user.email.toLowerCase().trim();
-      
-      const { data, error } = await supabase
-        .from('vendedores')
-        .select('id')
-        .ilike('email', userEmail)
-        .maybeSingle();
-
-      if (error) {
-        console.error('Error checking vendedor status:', error);
-        return false;
-      }
-      return !!data;
-    },
-    enabled: !!user?.email && !loading,
-  });
-
-  // Check if user is a superintendent (from ebd_clientes)
-  const { data: isSuperintendente, isLoading: superintendenteLoading } = useQuery({
-    queryKey: ['is-superintendente-check', user?.id],
-    queryFn: async () => {
-      if (!user?.id) return false;
-      
-      // Use .limit(1) instead of .maybeSingle() to handle users with multiple clients
-      const { data, error } = await supabase
-        .from('ebd_clientes')
-        .select('id')
-        .eq('superintendente_user_id', user.id)
-        .eq('status_ativacao_ebd', true)
-        .limit(1);
-
-      if (error) {
-        console.error('Error checking superintendente status:', error);
-        return false;
-      }
-      return data && data.length > 0;
-    },
-    enabled: !!user?.id && !loading,
-  });
-
-  // Check if user is a superintendent via ebd_user_roles (promoted professor)
-  const { data: isSuperRoleUser, isLoading: superRoleLoading } = useQuery({
-    queryKey: ['is-super-role-check', user?.id],
-    queryFn: async () => {
-      if (!user?.id) return false;
-      
-      const { data, error } = await supabase
-        .from('ebd_user_roles')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('role', 'superintendente')
-        .limit(1);
-
-      if (error) {
-        console.error('Error checking super role status:', error);
-        return false;
-      }
-      return data && data.length > 0;
-    },
-    enabled: !!user?.id && !loading,
-  });
-
-  // Check if user is a lead de reativação - CASE INSENSITIVE
-  const { data: isLeadReativacao, isLoading: leadLoading } = useQuery({
-    queryKey: ['is-lead-reativacao-check', user?.email?.toLowerCase()],
-    queryFn: async () => {
-      if (!user?.email) return false;
-      
-      const userEmail = user.email.toLowerCase().trim();
-      
-      const { data, error } = await supabase
-        .from('ebd_leads_reativacao')
-        .select('id')
-        .ilike('email', userEmail)
-        .maybeSingle();
-
-      if (error) {
-        console.error('Error checking lead reativacao status:', error);
-        return false;
-      }
-      return !!data;
-    },
-    enabled: !!user?.email && !loading,
-  });
-
-  const isLoading = loading || modulesLoading || studentLoading || professorLoading || vendedorLoading || superintendenteLoading || leadLoading || superRoleLoading;
-
-  if (isLoading) {
+  if (loading || isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
@@ -163,38 +23,41 @@ export default function ModuleProtectedRoute({ children, requiredModule }: Modul
     return <Navigate to="/auth" replace />;
   }
 
+  if (error || !context) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-6 text-center">
+        <p className="text-muted-foreground">Não foi possível carregar seus dados. Tente novamente.</p>
+        <button
+          onClick={() => refetch()}
+          className="px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm"
+        >
+          Tentar novamente
+        </button>
+      </div>
+    );
+  }
+
   // Admins have access to everything
   if (role === 'admin') {
     return <>{children}</>;
   }
 
-  // Vendedores have access to EBD routes (carrinho, checkout, etc.)
-  if (isVendedor && requiredModule === 'REOBOTE EBD') {
-    return <>{children}</>;
-  }
+  const isEbd = requiredModule === 'REOBOTE EBD';
 
-  // Superintendents have access to EBD routes (from ebd_clientes OR ebd_user_roles)
-  if ((isSuperintendente || isSuperRoleUser) && requiredModule === 'REOBOTE EBD') {
-    return <>{children}</>;
-  }
-
-  // Leads de reativação have access to EBD routes
-  if (isLeadReativacao && requiredModule === 'REOBOTE EBD') {
-    return <>{children}</>;
-  }
-
-  // Students have access to EBD routes
-  if (isStudent && requiredModule === 'REOBOTE EBD') {
-    return <>{children}</>;
-  }
-
-  // Professors have access to EBD routes
-  if (isProfessor && requiredModule === 'REOBOTE EBD') {
+  // Vendedores, superintendentes, leads, alunos e professores acessam rotas EBD
+  if (
+    isEbd &&
+    (context.is_vendedor ||
+      context.is_superintendente ||
+      context.is_lead_reativacao ||
+      context.is_aluno ||
+      context.is_professor)
+  ) {
     return <>{children}</>;
   }
 
   // Check if user has the required module active
-  if (!activeModules?.includes(requiredModule)) {
+  if (!context.active_modules?.includes(requiredModule)) {
     return <Navigate to="/dashboard" replace />;
   }
 
