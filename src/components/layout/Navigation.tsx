@@ -5,14 +5,13 @@ import { Church, Users, TrendingUp, TrendingDown, LayoutDashboard, Building, Dol
 import logoAnanias from '@/assets/logo_ananias_horizontal.png';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/integrations/supabase/client';
 import { useChurchData } from '@/hooks/useChurchData';
+import { useDashboardUserContext } from '@/hooks/useDashboardUserContext';
 import { useClientType } from '@/hooks/useClientType';
 import { useBrandingSettings } from '@/hooks/useBrandingSettings';
 import { useDomainBranding } from '@/hooks/useDomainBranding';
 import { useActiveModules } from '@/hooks/useActiveModules';
 import ManualRegistrationDialog from '@/components/ebd/ManualRegistrationDialog';
-import { useQuery } from '@tanstack/react-query';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -27,82 +26,20 @@ export const Navigation = () => {
   const domainBranding = useDomainBranding();
   const { clientType } = useClientType();
   const { data: activeModules } = useActiveModules();
-  const [processStatus, setProcessStatus] = React.useState<string | null>(null);
+  const { context } = useDashboardUserContext();
+  const { church } = useChurchData();
   const [manualRegOpen, setManualRegOpen] = React.useState(false);
 
-  // Check if current user is a student
-  const { data: isAluno } = useQuery({
-    queryKey: ["is-aluno-nav", user?.id],
-    queryFn: async () => {
-      if (!user?.id) return false;
-      const { data, error } = await supabase
-        .from("ebd_alunos")
-        .select("id")
-        .eq("user_id", user.id)
-        .eq("is_active", true)
-        .maybeSingle();
-      
-      if (error) return false;
-      return !!data;
-    },
-    enabled: !!user?.id,
-  });
-
-  // Check if current user is a REVENDEDOR (from ebd_clientes)
-  const { data: ebdClienteTipo } = useQuery({
-    queryKey: ["ebd-cliente-tipo-nav", user?.id],
-    queryFn: async () => {
-      if (!user?.id) return null;
-      const { data, error } = await supabase
-        .from("ebd_clientes")
-        .select("tipo_cliente")
-        .eq("superintendente_user_id", user.id)
-        .eq("status_ativacao_ebd", true)
-        .maybeSingle();
-      if (error) return null;
-      return data?.tipo_cliente ?? null;
-    },
-    enabled: !!user?.id,
-  });
-
-  const isRevendedor = ebdClienteTipo === 'REVENDEDOR';
-
-  // Get church ID for EBD registration
-  const { data: churchData } = useQuery({
-    queryKey: ["user-church-nav", user?.id],
-    queryFn: async () => {
-      if (!user) return null;
-      const { data, error } = await supabase
-        .from("churches")
-        .select("id")
-        .eq("user_id", user.id)
-        .single();
-      if (error) return null;
-      return data;
-    },
-    enabled: !!user && activeModules?.includes('REOBOTE EBD') && !isAluno,
-  });
+  // Dados derivados do contexto compartilhado (sem consultas diretas)
+  const isAluno = context?.is_aluno ?? false;
+  const isRevendedor = context?.ebd_cliente?.tipo_cliente === 'REVENDEDOR';
+  const processStatus = role === 'client' ? (church?.process_status ?? null) : null;
+  const churchData = church?.id ? { id: church.id } : null;
 
   const hasReoboteIgrejas = role === 'admin' || activeModules?.includes('REOBOTE IGREJAS');
   const hasOnlyReoboteEBD = activeModules?.length === 1 && activeModules.includes('REOBOTE EBD');
 
   const membersLabel = clientType === 'associacao' ? 'Associados' : 'Membros';
-
-  React.useEffect(() => {
-    const fetchProcessStatus = async () => {
-      if (user && role === 'client') {
-        const { data: churchData } = await supabase
-          .from('churches')
-          .select('process_status')
-          .eq('user_id', user.id)
-          .single();
-        
-        setProcessStatus(churchData?.process_status || null);
-      }
-    };
-
-    fetchProcessStatus();
-  }, [user, role]);
 
   // EBD-only navigation items
   const ebdOnlyNavItems = [
