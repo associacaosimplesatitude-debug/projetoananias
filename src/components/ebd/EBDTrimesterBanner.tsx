@@ -82,7 +82,7 @@ export const EBDTrimesterBanner = () => {
             num_licoes
           )
         `)
-        .eq('church_id', profile.church_id)
+        .eq('church_id', churchId)
         .gte('data_termino', todayStr);
       
       if (error) throw error;
@@ -92,7 +92,7 @@ export const EBDTrimesterBanner = () => {
       const { data: escalas, error: escalasError } = await supabase
         .from('ebd_escalas')
         .select('id, data, turma_id, sem_aula')
-        .eq('church_id', profile.church_id)
+        .eq('church_id', churchId)
         .lte('data', todayStr);
       
       if (escalasError) throw escalasError;
