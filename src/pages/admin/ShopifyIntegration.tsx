@@ -250,7 +250,7 @@ export default function ShopifyIntegration() {
             <AlertTitle>Webhook orders/paid</AlertTitle>
             <AlertDescription>
               Este webhook é necessário para atualizar automaticamente o Kanban quando um pedido PIX é confirmado.
-              Clique no botão abaixo para registrar o webhook na Shopify.
+              Clique no botão abaixo para registrar o webhook no E-commerce.
             </AlertDescription>
           </Alert>
 
