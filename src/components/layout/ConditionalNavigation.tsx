@@ -1,9 +1,8 @@
 import React from 'react';
 import { useLocation } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
 import { Navigation } from '@/components/layout/Navigation';
 import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/integrations/supabase/client';
+import { useDashboardUserContext } from '@/hooks/useDashboardUserContext';
 
 interface ConditionalNavigationProps {
   children: React.ReactNode;
@@ -11,62 +10,14 @@ interface ConditionalNavigationProps {
 
 export function ConditionalNavigation({ children }: ConditionalNavigationProps) {
   const location = useLocation();
-  const { user, role } = useAuth();
+  const { role } = useAuth();
+  const { context } = useDashboardUserContext();
   const isGerenteEbd = role === 'gerente_ebd';
   const isFinanceiro = role === 'financeiro';
 
-  // Check if current user is a student
-  const { data: isAluno } = useQuery({
-    queryKey: ["is-aluno-conditional", user?.id],
-    queryFn: async () => {
-      if (!user?.id) return false;
-      const { data, error } = await supabase
-        .from("ebd_alunos")
-        .select("id")
-        .eq("user_id", user.id)
-        .eq("is_active", true)
-        .maybeSingle();
-      
-      if (error) return false;
-      return !!data;
-    },
-    enabled: !!user?.id,
-  });
-
-  // Check if current user is a professor
-  const { data: isProfessor } = useQuery({
-    queryKey: ["is-professor-conditional", user?.id],
-    queryFn: async () => {
-      if (!user?.id) return false;
-      const { data, error } = await supabase
-        .from("ebd_professores")
-        .select("id")
-        .eq("user_id", user.id)
-        .eq("is_active", true)
-        .maybeSingle();
-      
-      if (error) return false;
-      return !!data;
-    },
-    enabled: !!user?.id,
-  });
-
-  // Check if current user is a vendedor
-  const { data: isVendedor } = useQuery({
-    queryKey: ["is-vendedor-conditional", user?.email],
-    queryFn: async () => {
-      if (!user?.email) return false;
-      const { data, error } = await supabase
-        .from("vendedores")
-        .select("id")
-        .eq("email", user.email)
-        .maybeSingle();
-      
-      if (error) return false;
-      return !!data;
-    },
-    enabled: !!user?.email,
-  });
+  const isAluno = !!context?.is_aluno;
+  const isProfessor = !!context?.is_professor;
+  const isVendedor = !!context?.is_vendedor;
 
   // Check if we're on aluno, professor, vendedor, admin or admin EBD routes
   const isAlunoRoute = location.pathname.startsWith('/ebd/aluno');
@@ -76,24 +27,14 @@ export function ConditionalNavigation({ children }: ConditionalNavigationProps) 
   const isAdminEbdRoute = location.pathname.startsWith('/admin/ebd');
   const isRoyaltiesRoute = location.pathname.startsWith('/royalties');
   const isAutorRoute = location.pathname.startsWith('/autor');
-  
+
   // EBD superintendent routes (with sidebar layout)
-  const isEbdSuperintendentRoute = location.pathname.startsWith('/ebd/') && 
-    !isAlunoRoute && 
+  const isEbdSuperintendentRoute = location.pathname.startsWith('/ebd/') &&
+    !isAlunoRoute &&
     !isProfessorRoute;
- 
-  // Hide main navigation if:
-  // 1. User is aluno and on aluno routes
-  // 2. User is professor and on professor routes
-  // 3. User is vendedor and on vendedor routes
-  // 4. User is admin and on admin routes (has sidebar)
-  // 5. User is gerente EBD and on admin EBD routes
-  // 6. User is financeiro and on admin EBD routes
-  // 7. On EBD superintendent routes (dashboard, students, etc) - has sidebar layout
-  // 8. On Royalties routes (has its own sidebar layout)
-  // 9. On Autor routes (has its own sidebar layout)
-  const shouldHideNavigation = 
-    (isAluno && isAlunoRoute) || 
+
+  const shouldHideNavigation =
+    (isAluno && isAlunoRoute) ||
     (isProfessor && isProfessorRoute) ||
     (isVendedor && isVendedorRoute) ||
     (role === 'admin' && isAdminRoute) ||
