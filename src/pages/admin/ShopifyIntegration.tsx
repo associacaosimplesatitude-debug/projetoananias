@@ -111,7 +111,7 @@ export default function ShopifyIntegration() {
             Status da Integração
           </CardTitle>
           <CardDescription>
-            Verifique o status da conexão com a Shopify
+            Verifique o status da conexão com o E-commerce
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -250,7 +250,7 @@ export default function ShopifyIntegration() {
             <AlertTitle>Webhook orders/paid</AlertTitle>
             <AlertDescription>
               Este webhook é necessário para atualizar automaticamente o Kanban quando um pedido PIX é confirmado.
-              Clique no botão abaixo para registrar o webhook na Shopify.
+              Clique no botão abaixo para registrar o webhook no E-commerce.
             </AlertDescription>
           </Alert>
 
@@ -290,7 +290,7 @@ export default function ShopifyIntegration() {
             Produtos da Loja
           </CardTitle>
           <CardDescription>
-            Resumo dos produtos disponíveis na Shopify
+            Resumo dos produtos disponíveis no E-commerce
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -322,7 +322,7 @@ export default function ShopifyIntegration() {
                   <AlertTriangle className="h-4 w-4" />
                   <AlertTitle>Nenhum produto encontrado</AlertTitle>
                   <AlertDescription>
-                    Verifique se a loja Shopify tem produtos publicados e se o token de acesso tem as permissões corretas.
+                    Verifique se a loja E-commerce tem produtos publicados e se o token de acesso tem as permissões corretas.
                   </AlertDescription>
                 </Alert>
               )}
@@ -362,7 +362,7 @@ export default function ShopifyIntegration() {
               <AlertTriangle className="h-4 w-4" />
               <AlertTitle>Erro ao carregar produtos</AlertTitle>
               <AlertDescription>
-                Não foi possível carregar os produtos da Shopify. Verifique a conexão.
+                Não foi possível carregar os produtos do E-commerce. Verifique a conexão.
               </AlertDescription>
             </Alert>
           )}
