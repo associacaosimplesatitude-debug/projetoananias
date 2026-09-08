@@ -190,7 +190,7 @@ export const EBDTrimesterBanner = () => {
         <div className="flex items-center gap-3">
           <BookOpen className="h-5 w-5 text-white" />
           <AlertDescription className="text-white font-medium">
-            Paz do Senhor, <span className="font-bold">{fullName}</span>! 
+            Paz do Senhor, <span className="font-bold">{displayName}</span>! 
             O trimestre está chegando ao fim. Sua turma tem{' '}
             <span className="font-bold">{remainingLessons.remaining} {remainingLessons.remaining === 1 ? 'lição restante' : 'lições restantes'}</span>. 
             Não perca tempo, garanta o material para o próximo ciclo!
