@@ -1,6 +1,5 @@
-import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { User, Settings, Users, Palette, LogOut, RefreshCw } from 'lucide-react';
+import { User, Users, Palette, LogOut, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 
 async function forcarAtualizacaoApp() {
@@ -20,6 +19,7 @@ async function forcarAtualizacaoApp() {
   setTimeout(() => window.location.reload(), 400);
 }
 import { useAuth } from '@/hooks/useAuth';
+import { useDashboardUserContext } from '@/hooks/useDashboardUserContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
@@ -33,34 +33,17 @@ import {
 export function UserProfileDropdown() {
   const { user, role, signOut } = useAuth();
   const navigate = useNavigate();
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
-  const [fullName, setFullName] = useState<string>('');
+  const { context } = useDashboardUserContext();
 
-  useEffect(() => {
-    if (user) {
-      fetchProfile();
-    }
-  }, [user]);
+  const fullName = context?.profile?.full_name || '';
 
-  const fetchProfile = async () => {
-    if (!user) return;
-
-    const { data } = await supabase
-      .from('profiles')
-      .select('avatar_url, full_name')
-      .eq('id', user.id)
-      .single();
-
-    if (data) {
-      setFullName(data.full_name || '');
-      if (data.avatar_url) {
-        const { data: urlData } = supabase.storage
-          .from('profile-avatars')
-          .getPublicUrl(data.avatar_url);
-        setAvatarUrl(urlData.publicUrl);
-      }
-    }
-  };
+  let avatarUrl: string | null = null;
+  if (context?.profile?.avatar_url) {
+    const { data: urlData } = supabase.storage
+      .from('profile-avatars')
+      .getPublicUrl(context.profile.avatar_url);
+    avatarUrl = urlData.publicUrl;
+  }
 
   const getInitials = () => {
     if (fullName) {

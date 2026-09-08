@@ -4,6 +4,8 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { useDashboardUserContext } from '@/hooks/useDashboardUserContext';
+import { useChurchData } from '@/hooks/useChurchData';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 
@@ -33,46 +35,35 @@ export const EBDTrimesterBanner = () => {
   // Only show on EBD routes for clients
   const isEBDRoute = location.pathname.startsWith('/ebd');
   
-  // Fetch user profile for name and church_id
-  const { data: profile } = useQuery({
-    queryKey: ['profile-for-banner', user?.id],
-    queryFn: async () => {
-      if (!user?.id) return null;
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('full_name, church_id')
-        .eq('id', user.id)
-        .maybeSingle();
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!user?.id && isEBDRoute && role !== 'admin',
-  });
+  // Nome e igreja vindos do contexto compartilhado (sem consulta direta)
+  const { context, isLoading: contextLoading } = useDashboardUserContext();
+  const { churchId } = useChurchData();
+  const fullName = context?.profile?.full_name || null;
 
   // Check if banner was dismissed this trimester
   const { data: dismissal, isLoading: dismissalLoading } = useQuery({
-    queryKey: ['banner-dismissal', user?.id, profile?.church_id],
+    queryKey: ['banner-dismissal', user?.id, churchId],
     queryFn: async () => {
-      if (!user?.id || !profile?.church_id) return null;
+      if (!user?.id || !churchId) return null;
       const trimesterStart = getTrimesterStart();
       const { data, error } = await supabase
         .from('ebd_banner_dismissals')
         .select('id')
         .eq('user_id', user.id)
-        .eq('church_id', profile.church_id)
+        .eq('church_id', churchId)
         .eq('trimester_start', trimesterStart)
         .maybeSingle();
       if (error) throw error;
       return data;
     },
-    enabled: !!user?.id && !!profile?.church_id && isEBDRoute && role !== 'admin',
+    enabled: !!user?.id && !!churchId && isEBDRoute && role !== 'admin',
   });
 
   // Fetch planejamentos and escalas to calculate remaining lessons
   const { data: remainingLessons, isLoading: lessonsLoading } = useQuery({
-    queryKey: ['remaining-lessons-banner', profile?.church_id],
+    queryKey: ['remaining-lessons-banner', churchId],
     queryFn: async () => {
-      if (!profile?.church_id) return null;
+      if (!churchId) return null;
       
       const today = new Date();
       today.setHours(0, 0, 0, 0);
@@ -91,7 +82,7 @@ export const EBDTrimesterBanner = () => {
             num_licoes
           )
         `)
-        .eq('church_id', profile.church_id)
+        .eq('church_id', churchId)
         .gte('data_termino', todayStr);
       
       if (error) throw error;
@@ -101,7 +92,7 @@ export const EBDTrimesterBanner = () => {
       const { data: escalas, error: escalasError } = await supabase
         .from('ebd_escalas')
         .select('id, data, turma_id, sem_aula')
-        .eq('church_id', profile.church_id)
+        .eq('church_id', churchId)
         .lte('data', todayStr);
       
       if (escalasError) throw escalasError;
@@ -142,17 +133,17 @@ export const EBDTrimesterBanner = () => {
         total: activePlanWithMinRemaining.total,
       } : null;
     },
-    enabled: !!profile?.church_id && isEBDRoute && role !== 'admin',
+    enabled: !!churchId && isEBDRoute && role !== 'admin',
   });
 
   useEffect(() => {
-    if (!dismissalLoading && !lessonsLoading) {
+    if (!contextLoading && !dismissalLoading && !lessonsLoading) {
       setIsLoading(false);
     }
-  }, [dismissalLoading, lessonsLoading]);
+  }, [contextLoading, dismissalLoading, lessonsLoading]);
 
   const handleDismiss = async () => {
-    if (!user?.id || !profile?.church_id) return;
+    if (!user?.id || !churchId) return;
     
     const trimesterStart = getTrimesterStart();
     
@@ -161,7 +152,7 @@ export const EBDTrimesterBanner = () => {
         .from('ebd_banner_dismissals')
         .insert({
           user_id: user.id,
-          church_id: profile.church_id,
+          church_id: churchId,
           trimester_start: trimesterStart,
         });
       
@@ -191,7 +182,7 @@ export const EBDTrimesterBanner = () => {
   if (!remainingLessons || remainingLessons.remaining > 4) return null;
 
   // Get the user's full name
-  const fullName = profile?.full_name || 'Superintendente';
+  const displayName = fullName || 'Superintendente';
 
   return (
     <Alert className="rounded-none border-x-0 border-t-0 bg-orange-500 border-orange-600">
@@ -199,7 +190,7 @@ export const EBDTrimesterBanner = () => {
         <div className="flex items-center gap-3">
           <BookOpen className="h-5 w-5 text-white" />
           <AlertDescription className="text-white font-medium">
-            Paz do Senhor, <span className="font-bold">{fullName}</span>! 
+            Paz do Senhor, <span className="font-bold">{displayName}</span>! 
             O trimestre está chegando ao fim. Sua turma tem{' '}
             <span className="font-bold">{remainingLessons.remaining} {remainingLessons.remaining === 1 ? 'lição restante' : 'lições restantes'}</span>. 
             Não perca tempo, garanta o material para o próximo ciclo!

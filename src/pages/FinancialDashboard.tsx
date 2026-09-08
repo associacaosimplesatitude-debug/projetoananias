@@ -34,24 +34,13 @@ const FinancialDashboard = () => {
 
   useEffect(() => {
     const fetchMandate = async () => {
-      if (!user) return;
-
-      // Buscar o perfil do usuário para obter a igreja vinculada
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('church_id')
-        .eq('id', user.id)
-        .maybeSingle();
-
-      if (profileError || !profile?.church_id) {
-        return;
-      }
+      if (!churchId) return;
 
       // Buscar o mandato da igreja
       const { data: mandate } = await supabase
         .from('board_mandates')
         .select('end_date')
-        .eq('church_id', profile.church_id)
+        .eq('church_id', churchId)
         .maybeSingle();
 
       if (mandate) {
@@ -70,7 +59,7 @@ const FinancialDashboard = () => {
     };
 
     fetchMandate();
-  }, [user]);
+  }, [churchId]);
 
   // Buscar dados financeiros do banco
   useEffect(() => {
