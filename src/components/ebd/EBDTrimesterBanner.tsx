@@ -133,17 +133,17 @@ export const EBDTrimesterBanner = () => {
         total: activePlanWithMinRemaining.total,
       } : null;
     },
-    enabled: !!profile?.church_id && isEBDRoute && role !== 'admin',
+    enabled: !!churchId && isEBDRoute && role !== 'admin',
   });
 
   useEffect(() => {
-    if (!dismissalLoading && !lessonsLoading) {
+    if (!contextLoading && !dismissalLoading && !lessonsLoading) {
       setIsLoading(false);
     }
-  }, [dismissalLoading, lessonsLoading]);
+  }, [contextLoading, dismissalLoading, lessonsLoading]);
 
   const handleDismiss = async () => {
-    if (!user?.id || !profile?.church_id) return;
+    if (!user?.id || !churchId) return;
     
     const trimesterStart = getTrimesterStart();
     
@@ -152,7 +152,7 @@ export const EBDTrimesterBanner = () => {
         .from('ebd_banner_dismissals')
         .insert({
           user_id: user.id,
-          church_id: profile.church_id,
+          church_id: churchId,
           trimester_start: trimesterStart,
         });
       
@@ -182,7 +182,7 @@ export const EBDTrimesterBanner = () => {
   if (!remainingLessons || remainingLessons.remaining > 4) return null;
 
   // Get the user's full name
-  const fullName = profile?.full_name || 'Superintendente';
+  const displayName = fullName || 'Superintendente';
 
   return (
     <Alert className="rounded-none border-x-0 border-t-0 bg-orange-500 border-orange-600">
