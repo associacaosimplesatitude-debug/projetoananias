@@ -95,7 +95,18 @@ export default function CadastroAlunoPublico() {
         },
       });
 
-      if (error) throw error;
+      if (error) {
+        // Mensagens de erro vindas da função (ex.: e-mail já cadastrado)
+        let mensagem = error.message || "Erro ao realizar cadastro";
+        try {
+          const corpo = await (error as any)?.context?.json?.();
+          if (corpo?.error) mensagem = corpo.error;
+        } catch {
+          // sem corpo detalhado
+        }
+        toast.error(mensagem);
+        return;
+      }
 
       if (data?.error) {
         toast.error(data.error);
