@@ -253,9 +253,12 @@ export default function RevistaLeitura() {
     console.log('geo-ip data:', ipData);
 
     for (const licenca of licencasArr) {
-      const { data: record, error: insertError } = await supabase
+      // Id gerado no cliente: a tabela não permite mais leitura anônima
+      const geoId = crypto.randomUUID();
+      const { error: insertError } = await supabase
         .from('revista_acessos_geo' as any)
         .insert({
+          id: geoId,
           whatsapp: whatsappVal,
           revista_id: licenca.revista_id,
           ip: ipData.ip || null,
@@ -268,17 +271,13 @@ export default function RevistaLeitura() {
           user_agent: ua,
           is_mobile: isMobileDevice,
           screen_width: sw,
-        } as any)
-        .select('id')
-        .single();
+        } as any);
 
       if (insertError) {
         console.error('revista_acessos_geo insert error:', insertError);
-      } else {
-        console.log('revista_acessos_geo inserido:', record);
       }
 
-      if ((record as any)?.id && navigator.geolocation) {
+      if (!insertError && navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
           async (pos) => {
             const { error: gpsError } = await supabase
@@ -289,7 +288,7 @@ export default function RevistaLeitura() {
                 precisao_gps: pos.coords.accuracy,
                 fonte_localizacao: 'gps',
               } as any)
-              .eq('id', (record as any).id);
+              .eq('id', geoId);
             if (gpsError) {
               console.error('revista_acessos_geo GPS update error:', gpsError);
             } else {
