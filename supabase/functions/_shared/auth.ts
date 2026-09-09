@@ -15,10 +15,13 @@ export function getAdminClient() {
  * Requires a shared secret header that a browser never sends.
  */
 export function isInternalCall(req: Request): boolean {
-  const secret = Deno.env.get("INTERNAL_WEBHOOK_SECRET");
-  if (!secret) return false;
   const provided = req.headers.get("x-internal-secret") ?? req.headers.get("x-cron-secret");
-  return !!provided && provided === secret;
+  if (!provided) return false;
+  const accepted = [
+    Deno.env.get("INTERNAL_WEBHOOK_SECRET"),
+    Deno.env.get("CRON_SECRET"),
+  ].filter((s): s is string => !!s);
+  return accepted.some((s) => s === provided);
 }
 
 export type AuthedCaller = {
