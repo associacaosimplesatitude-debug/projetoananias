@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { requireRole, authErrorResponse } from "../_shared/auth.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -252,12 +253,12 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: "Não autorizado" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    // Bulk customer PII (nome, telefone, e-mail, CPF/CNPJ): requires a valid
+    // JWT AND an authorized role — a mere Authorization header is not enough.
+    try {
+      await requireRole(req, ["admin", "superadmin", "gerente_ebd", "financeiro"], supabase);
+    } catch (authErr) {
+      return authErrorResponse(authErr, corsHeaders);
     }
 
     const body = await req.json();
