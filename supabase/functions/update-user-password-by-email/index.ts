@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { isInternalCall, requireRole, authErrorResponse } from "../_shared/auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -18,26 +19,16 @@ serve(async (req) => {
       { auth: { persistSession: false } },
     );
 
-    const { oldEmail, newEmail, newPassword, internalCall } = await req.json();
+    const { oldEmail, newEmail, newPassword } = await req.json();
 
-    // Auth + permissão (admin/gerente_ebd) - skip if internal call
-    if (!internalCall) {
-      const authHeader = req.headers.get("Authorization");
-      if (!authHeader) throw new Error("Unauthorized");
-
-      const token = authHeader.replace("Bearer ", "");
-      const { data: { user: callerUser }, error: authError } = await supabaseAdmin.auth.getUser(token);
-      if (authError || !callerUser) throw new Error("Unauthorized");
-
-      const { data: roles, error: rolesError } = await supabaseAdmin
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", callerUser.id);
-
-      if (rolesError) throw rolesError;
-
-      const isAllowed = roles?.some((r) => r.role === "admin" || r.role === "gerente_ebd");
-      if (!isAllowed) throw new Error("Sem permissão para alterar senhas");
+    // Internal server-to-server calls must present a shared secret header.
+    // A body flag is attacker-controlled and is never trusted.
+    if (!isInternalCall(req)) {
+      try {
+        await requireRole(req, ["admin", "superadmin", "gerente_ebd"], supabaseAdmin);
+      } catch (authErr) {
+        return authErrorResponse(authErr, corsHeaders);
+      }
     }
 
     const emailCandidates = [oldEmail, newEmail]

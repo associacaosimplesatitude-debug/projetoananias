@@ -68,6 +68,7 @@ Deno.serve(async (req) => {
         "Content-Type": "application/json",
         Authorization: `Bearer ${serviceKey}`,
         apikey: Deno.env.get("SUPABASE_ANON_KEY")!,
+        "x-internal-secret": Deno.env.get("INTERNAL_WEBHOOK_SECRET") ?? "",
       },
       body: JSON.stringify({ campanha_id }),
     }).catch((e) => console.error("Erro ao iniciar primeiro lote:", e));

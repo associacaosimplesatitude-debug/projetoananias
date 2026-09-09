@@ -1,6 +1,7 @@
 // v2 - deploy fix 2026-02-06
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { requireRole, authErrorResponse } from "../_shared/auth.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -39,6 +40,12 @@ serve(async (req) => {
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
   try {
+    try {
+      await requireRole(req, ['admin', 'superadmin', 'financeiro', 'gerente_ebd'], supabase);
+    } catch (authErr) {
+      return authErrorResponse(authErr, corsHeaders);
+    }
+
     const { proposta_id } = await req.json() as AprovarFaturamentoRequest;
 
     if (!proposta_id) {

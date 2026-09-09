@@ -102,7 +102,10 @@ Deno.serve(async (req) => {
       try {
         const { data: invokeData, error: invokeErr } = await supabase.functions.invoke(
           "whatsapp-send-campaign",
-          { body: { campanha_id: c.id } }
+          {
+            body: { campanha_id: c.id },
+            headers: { "x-internal-secret": Deno.env.get("INTERNAL_WEBHOOK_SECRET") ?? "" },
+          }
         );
         if (invokeErr) {
           log("ERRO send-campaign", { id: c.id, err: invokeErr.message });

@@ -4,6 +4,7 @@
 // Não duplicar lógica — se precisar criar cliente em outro fluxo, use uma destas 3.
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { requireRole, authErrorResponse } from "../_shared/auth.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -22,17 +23,15 @@ serve(async (req) => {
       { auth: { persistSession: false } }
     );
 
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      console.error('Missing Authorization header');
-      throw new Error('Unauthorized');
-    }
-
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
-    if (authError || !user) {
-      console.error('Auth error in create-ebd-user:', authError);
-      throw new Error('Unauthorized');
+    let caller;
+    try {
+      caller = await requireRole(
+        req,
+        ['admin', 'superadmin', 'gerente_ebd', 'vendedor'],
+        supabaseAdmin,
+      );
+    } catch (authErr) {
+      return authErrorResponse(authErr, corsHeaders);
     }
 
     const { email, password, fullName, clienteId } = await req.json();
@@ -42,6 +41,35 @@ serve(async (req) => {
     }
 
     console.log(`Creating/updating user for email: ${email}, clienteId: ${clienteId || 'not provided'}`);
+
+    const isManager = caller.roles.some((r) =>
+      ['admin', 'superadmin', 'gerente_ebd'].includes(r)
+    );
+
+    // A vendedor may only manage clients assigned to them, and must inform the clienteId.
+    if (!isManager) {
+      if (!clienteId) {
+        return authErrorResponse(new Error('clienteId é obrigatório'), corsHeaders);
+      }
+      const { data: vendedorRow } = await supabaseAdmin
+        .from('vendedores')
+        .select('id')
+        .ilike('email', caller.email ?? '')
+        .maybeSingle();
+
+      const { data: ownership } = await supabaseAdmin
+        .from('ebd_clientes')
+        .select('vendedor_id')
+        .eq('id', clienteId)
+        .maybeSingle();
+
+      if (!vendedorRow?.id || !ownership || ownership.vendedor_id !== vendedorRow.id) {
+        return authErrorResponse(
+          new Error('Sem permissão para alterar credenciais deste cliente'),
+          corsHeaders,
+        );
+      }
+    }
 
     // If we have a clienteId, try to get the existing superintendente_user_id first
     let existingUserIdFromCliente: string | null = null;
@@ -59,6 +87,7 @@ serve(async (req) => {
         console.log(`Found existing superintendente_user_id: ${existingUserIdFromCliente}`);
       }
     }
+
 
     let userId: string;
 

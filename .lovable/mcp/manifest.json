@@ -3,7 +3,14 @@
   "sdk_version": "0.20.0",
   "path": "/functions/v1/mcp",
   "auth": {
-    "type": "none"
+    "type": "oauth",
+    "issuer": "https://nccyrvfnvjngfyfvgnww.supabase.co/auth/v1",
+    "resource": "https://nccyrvfnvjngfyfvgnww.supabase.co/functions/v1/mcp",
+    "resource_name": "Gestão EBD MCP",
+    "accepted_audiences": [
+      "authenticated"
+    ],
+    "jwks_uri": "https://nccyrvfnvjngfyfvgnww.supabase.co/auth/v1/.well-known/jwks.json"
   },
   "mcp": {
     "server": {

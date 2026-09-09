@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { signRevistaToken } from "../_shared/revista-token.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -112,13 +113,11 @@ serve(async (req) => {
         .eq("whatsapp", identificador)
         .eq("ativo", true);
 
-      const token = btoa(
-        JSON.stringify({
-          whatsapp: identificador,
-          exp: Date.now() + 86400000,
-          licencas: licencas.map((l: any) => l.revista_id),
-        })
-      );
+      const token = await signRevistaToken({
+        whatsapp: identificador,
+        exp: Date.now() + 30 * 24 * 60 * 60 * 1000,
+        licencas: licencas.map((l: any) => l.revista_id),
+      });
 
       const versaoPreferida = licencas[0]?.versao_preferida || "cg_digital";
 

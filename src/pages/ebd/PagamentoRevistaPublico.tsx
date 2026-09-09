@@ -29,14 +29,13 @@ export default function PagamentoRevistaPublico() {
     queryKey: ["public-licenca", codigo],
     queryFn: async () => {
       if (!codigo) return null;
+      // Consulta por função dedicada: exige o código exato (a tabela não é mais pública)
       const { data, error } = await supabase
-        .from("revista_licencas")
-        .select("id, superintendente_id, chave_pix, codigo_pagamento, quantidade_total, quantidade_usada, status, revista_aluno_id, revista_professor_id")
-        .eq("codigo_pagamento", codigo)
-        .eq("status", "ativa")
-        .maybeSingle();
+        .rpc("get_licenca_by_codigo" as any, { _codigo: codigo });
       if (error) throw error;
-      return data;
+      const row = Array.isArray(data) ? data[0] : data;
+      if (!row || (row as any).status !== "ativa") return null;
+      return row as any;
     },
     enabled: !!codigo,
   });

@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { requireRole, AuthError } from "../_shared/auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -49,8 +50,22 @@ serve(async (req) => {
     let userId: string;
 
     if (existingUser) {
+      // Resetting the password of an EXISTING account is an admin-only operation.
+      // Anonymous callers may only create brand new accounts.
+      let isAdmin = false;
+      try {
+        await requireRole(req, ["admin", "superadmin", "gerente_ebd"], supabaseAdmin);
+        isAdmin = true;
+      } catch (_e) {
+        isAdmin = false;
+      }
+
+      if (!isAdmin) {
+        throw new AuthError("Já existe uma conta com este e-mail. Faça login ou recupere sua senha.", 409);
+      }
+
       console.log("[CREATE-AUTH-USER-DIRECT] Usuário já existe, atualizando senha:", existingUser.id);
-      
+
       const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(existingUser.id, {
         password,
         email_confirm: true,
@@ -102,7 +117,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ success: false, error: errorMessage }),
       {
-        status: 400,
+        status: error instanceof AuthError ? error.status : 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       }
     );

@@ -3,7 +3,7 @@
 // supabase function: mcp
 // Bundled from src/lib/mcp/index.ts by @lovable.dev/mcp-js.
 // src/lib/mcp/index.ts
-import { defineMcp } from "npm:@lovable.dev/mcp-js@0.20.0";
+import { defineMcp, auth } from "npm:@lovable.dev/mcp-js@0.20.0";
 
 // src/lib/mcp/tools/echo.ts
 import { defineTool } from "npm:@lovable.dev/mcp-js@0.20.0";
@@ -20,17 +20,33 @@ var echo_default = defineTool({
     idempotentHint: true,
     openWorldHint: false
   },
-  handler: ({ text }) => ({
-    content: [{ type: "text", text }]
-  })
+  handler: ({ text }, ctx) => {
+    if (!ctx?.isAuthenticated) {
+      return {
+        isError: true,
+        content: [{ type: "text", text: "Unauthorized" }]
+      };
+    }
+    return { content: [{ type: "text", text }] };
+  }
 });
 
 // src/lib/mcp/index.ts
+var SUPABASE_URL = "https://nccyrvfnvjngfyfvgnww.supabase.co";
 var mcp_default = defineMcp({
   name: "gestaoebd-mcp",
   title: "Gest\xE3o EBD MCP",
   version: "0.1.0",
   instructions: "MCP server for the Gest\xE3o EBD app. Use the `echo` tool to verify connectivity. Additional tools can be added under src/lib/mcp/tools/.",
+  // Require a verified access token issued by the app's auth server.
+  // Anonymous callers can no longer reach any tool.
+  auth: auth.oauth.issuer({
+    issuer: `${SUPABASE_URL}/auth/v1`,
+    jwksUri: `${SUPABASE_URL}/auth/v1/.well-known/jwks.json`,
+    acceptedAudiences: "authenticated",
+    resource: `${SUPABASE_URL}/functions/v1/mcp`,
+    resourceName: "Gest\xE3o EBD MCP"
+  }),
   tools: [echo_default]
 });
 

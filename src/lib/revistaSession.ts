@@ -11,11 +11,16 @@ export const REVISTA_KEYS = {
   LICENCAS: "revista_licencas",
 } as const;
 
-const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
-
+/**
+ * Reads the (unverified) payload of a signed session token for display purposes.
+ * Format: base64url(payload).base64url(signature) — only the server can validate it.
+ */
 export function parseRevistaToken(token: string): RevistaTokenPayload | null {
   try {
-    return JSON.parse(atob(token)) as RevistaTokenPayload;
+    const body = token.split(".")[0];
+    const padded = body.replace(/-/g, "+").replace(/_/g, "/") +
+      "=".repeat((4 - (body.length % 4)) % 4);
+    return JSON.parse(atob(padded)) as RevistaTokenPayload;
   } catch {
     return null;
   }
@@ -35,18 +40,14 @@ export function getRevistaTokenExpiresAt(
     : null;
 }
 
+/**
+ * The token is signed by the server: it must be stored exactly as received.
+ * The expiry embedded by the server is authoritative — the client cannot extend it.
+ */
 export function persistRevistaToken(rawToken: string) {
   const payload = parseRevistaToken(rawToken);
   if (!payload) return null;
-
-  const nextPayload: RevistaTokenPayload = {
-    ...payload,
-    expires_at: Date.now() + THIRTY_DAYS_MS,
-  };
-
-  delete nextPayload.exp;
-
-  return btoa(JSON.stringify(nextPayload));
+  return rawToken;
 }
 
 /** Returns a valid session or null */

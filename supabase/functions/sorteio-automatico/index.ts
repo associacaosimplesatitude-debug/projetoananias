@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { isInternalCall, requireRole, authErrorResponse } from "../_shared/auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -15,6 +16,15 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, serviceRoleKey);
+
+    // Only the scheduler (shared secret) or an admin may trigger a draw.
+    if (!isInternalCall(req)) {
+      try {
+        await requireRole(req, ["admin", "superadmin", "gerente_sorteio"], supabase);
+      } catch (authErr) {
+        return authErrorResponse(authErr, corsHeaders);
+      }
+    }
 
     const now = new Date();
     const nowMs = now.getTime();
