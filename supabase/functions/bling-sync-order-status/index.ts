@@ -273,7 +273,8 @@ serve(async (req) => {
       console.log(`Triggering sync-comissoes-nfe for ${pedidosAtendidos.length} ATENDIDO orders:`, pedidosAtendidos);
       try {
         const { data: syncData, error: syncError } = await supabase.functions.invoke('sync-comissoes-nfe', {
-          body: { bling_order_ids: pedidosAtendidos }
+          body: { bling_order_ids: pedidosAtendidos },
+          headers: { 'x-internal-secret': Deno.env.get('INTERNAL_WEBHOOK_SECRET') ?? '' }
         });
         
         if (syncError) {

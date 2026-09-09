@@ -269,7 +269,18 @@ import GoogleRecargas from "./pages/admin/GoogleRecargas";
 import PropostaDigital from "./pages/PropostaDigital";
 import EBDLandingRedirect from "./components/EBDLandingRedirect";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      // Evita recarregar as mesmas listas a cada troca de aba/foco da janela.
+      // Ações que alteram dados continuam invalidando suas consultas.
+      staleTime: 2 * 60 * 1000,
+      gcTime: 10 * 60 * 1000,
+      refetchOnWindowFocus: false,
+      retry: 1,
+    },
+  },
+});
 
 const App = () => (
   <QueryClientProvider client={queryClient}>

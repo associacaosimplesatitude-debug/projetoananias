@@ -9649,6 +9649,7 @@ export type Database = {
       get_autor_id_by_user: { Args: { _user_id: string }; Returns: string }
       get_cliente_by_documento: { Args: { _documento: string }; Returns: Json }
       get_co_professor_ids: { Args: { p_user_id: string }; Returns: string[] }
+      get_dashboard_user_context: { Args: never; Returns: Json }
       get_funil_stage_counts: {
         Args: { p_vendedor_id?: string }
         Returns: Json
@@ -9656,6 +9657,20 @@ export type Database = {
       get_funil_stage_list: {
         Args: { p_limit?: number; p_stage?: string; p_vendedor_id?: string }
         Returns: Json
+      }
+      get_licenca_by_codigo: {
+        Args: { _codigo: string }
+        Returns: {
+          chave_pix: string
+          codigo_pagamento: string
+          id: string
+          quantidade_total: number
+          quantidade_usada: number
+          revista_aluno_id: string
+          revista_professor_id: string
+          status: string
+          superintendente_id: string
+        }[]
       }
       get_pedidos_sem_itens: {
         Args: { p_limit?: number }
@@ -9758,6 +9773,10 @@ export type Database = {
       is_vendedor: { Args: { _user_email: string }; Returns: boolean }
       normalizar_telefone_whatsapp: { Args: { input: string }; Returns: string }
       normalizar_termo_busca: { Args: { termo: string }; Returns: string }
+      owns_revista_progresso: {
+        Args: { _cliente_id: string }
+        Returns: boolean
+      }
       recalcular_royalties_pendentes: {
         Args: never
         Returns: {
