@@ -3,6 +3,7 @@
 // on whatsapp_templates.cabecalho_media_id. media_id is stable (~30 days) and avoids the
 // Meta re-downloading the asset from our Storage for every send.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { requireInternalOrRole, authErrorResponse } from "../_shared/auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -29,10 +30,42 @@ function guessMime(url: string, fallback = "image/jpeg"): string {
   return fallback;
 }
 
+/**
+ * Only allow downloading media from our own Supabase Storage (public or signed URLs).
+ * Prevents SSRF against internal addresses and blocks arbitrary third-party content.
+ */
+function isAllowedMediaUrl(raw: string): boolean {
+  let u: URL;
+  try {
+    u = new URL(raw);
+  } catch {
+    return false;
+  }
+  if (u.protocol !== "https:") return false;
+
+  const supabaseHost = (() => {
+    try {
+      return new URL(Deno.env.get("SUPABASE_URL") ?? "").host;
+    } catch {
+      return "";
+    }
+  })();
+
+  if (!supabaseHost || u.host !== supabaseHost) return false;
+  return u.pathname.startsWith("/storage/v1/object/");
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
+    // Somente administradores/marketing autenticados (ou chamada interna assinada)
+    try {
+      await requireInternalOrRole(req, ["admin", "superadmin", "gerente_ebd", "marketing"]);
+    } catch (authErr) {
+      return authErrorResponse(authErr, corsHeaders);
+    }
+
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
@@ -54,6 +87,9 @@ Deno.serve(async (req) => {
 
     const sourceUrl: string | null = image_url || tplRow.cabecalho_midia_url;
     if (!sourceUrl) return json({ error: "Template sem cabecalho_midia_url" }, 400);
+    if (!isAllowedMediaUrl(sourceUrl)) {
+      return json({ error: "URL de mídia não permitida: use um arquivo do armazenamento do próprio projeto" }, 400);
+    }
 
     // Meta credentials
     const { data: settings } = await supabase
