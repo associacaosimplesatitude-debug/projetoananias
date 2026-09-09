@@ -29,12 +29,13 @@ export default function PagamentoRevistaPublico() {
     queryKey: ["public-licenca", codigo],
     queryFn: async () => {
       if (!codigo) return null;
-      // Consulta por função dedicada: exige o código exato (a tabela não é mais pública)
-      const { data, error } = await supabase
-        .rpc("get_licenca_by_codigo" as any, { _codigo: codigo });
+      // Consulta via edge function dedicada: exige o código exato (a tabela e a função não são públicas)
+      const { data, error } = await supabase.functions.invoke("revista-licenca-publica", {
+        body: { codigo },
+      });
       if (error) throw error;
-      const row = Array.isArray(data) ? data[0] : data;
-      if (!row || (row as any).status !== "ativa") return null;
+      const row = (data as any)?.licenca;
+      if (!row || row.status !== "ativa") return null;
       return row as any;
     },
     enabled: !!codigo,
