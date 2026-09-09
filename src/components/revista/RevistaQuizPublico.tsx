@@ -78,7 +78,8 @@ export function RevistaQuizPublico({ licaoId, licaoTitulo, whatsapp, onFechar }:
 
     try {
       const { data, error } = await supabase.functions.invoke("salvar-quiz-publico", {
-        body: { quiz_id: quizId, licao_id: licaoId, whatsapp, respostas },
+        body: { quiz_id: quizId, licao_id: licaoId, respostas },
+        headers: { "x-revista-token": localStorage.getItem("revista_token") ?? "" },
       });
 
       if (error || !data) {

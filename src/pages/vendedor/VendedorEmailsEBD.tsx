@@ -15,6 +15,7 @@ import EmailMetricsTab from "@/components/admin/EmailMetricsTab";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import DOMPurify from "dompurify";
 
 interface Props {
   isAdminView?: boolean;
@@ -361,7 +362,7 @@ export default function VendedorEmailsEBD({ isAdminView = false }: Props) {
                   </div>
                   <div
                     className="bg-white p-0"
-                    dangerouslySetInnerHTML={{ __html: previewHtml }}
+                    dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(previewHtml) }}
                   />
                 </div>
               )}
@@ -585,7 +586,7 @@ export default function VendedorEmailsEBD({ isAdminView = false }: Props) {
           </DialogHeader>
           <div
             className="bg-white rounded-lg border p-0"
-            dangerouslySetInnerHTML={{ __html: emailContentHtml }}
+            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(emailContentHtml) }}
           />
         </DialogContent>
       </Dialog>

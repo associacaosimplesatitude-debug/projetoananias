@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { signRevistaToken } from "../_shared/revista-token.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -110,14 +111,12 @@ serve(async (req) => {
       });
     }
 
-    const sessionToken = btoa(
-      JSON.stringify({
-        whatsapp,
-        exp: Date.now() + 86400000,
-        licencas: licencas.map((l: any) => l.revista_id),
-        impersonated_by: userData.user.email || userData.user.id,
-      })
-    );
+    const sessionToken = await signRevistaToken({
+      whatsapp,
+      exp: Date.now() + 86400000,
+      licencas: licencas.map((l: any) => l.revista_id),
+      impersonated_by: userData.user.email || userData.user.id,
+    });
 
     const versaoPreferida = licencas[0]?.versao_preferida || "cg_digital";
 

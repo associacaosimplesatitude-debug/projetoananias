@@ -6,6 +6,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import DOMPurify from "dompurify";
 
 interface Template {
   id: string;
@@ -87,7 +88,7 @@ export function EmailPreviewDialog({ template, open, onOpenChange }: EmailPrevie
             </div>
             <div
               className="p-4 bg-white"
-              dangerouslySetInnerHTML={{ __html: previewBody }}
+              dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(previewBody) }}
             />
           </div>
         </div>

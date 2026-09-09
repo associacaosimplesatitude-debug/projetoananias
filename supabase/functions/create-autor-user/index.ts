@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { requireRole, authErrorResponse } from "../_shared/auth.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -18,17 +19,10 @@ serve(async (req) => {
       { auth: { persistSession: false } }
     );
 
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      console.error('Missing Authorization header');
-      throw new Error('Unauthorized');
-    }
-
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
-    if (authError || !user) {
-      console.error('Auth error in create-autor-user:', authError);
-      throw new Error('Unauthorized');
+    try {
+      await requireRole(req, ['admin', 'superadmin', 'gerente_royalties'], supabaseAdmin);
+    } catch (authErr) {
+      return authErrorResponse(authErr, corsHeaders);
     }
 
     const { email, password, fullName } = await req.json();

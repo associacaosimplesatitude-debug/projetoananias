@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { requireRole, isInternalCall, authErrorResponse } from "../_shared/auth.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -18,27 +19,15 @@ serve(async (req) => {
       { auth: { persistSession: false } }
     );
 
-    // Check if called by cron (no auth header) or by admin user
-    const authHeader = req.headers.get('Authorization');
-    const isCronJob = !authHeader || authHeader === `Bearer ${Deno.env.get('SUPABASE_ANON_KEY')}`;
-    
+    // Trusted cron/internal calls must present a shared secret header.
+    // The public anon key is NOT a trust signal.
+    const isCronJob = isInternalCall(req);
+
     if (!isCronJob) {
-      // Verify admin role for manual calls
-      const token = authHeader.replace('Bearer ', '');
-      const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
-      
-      if (authError || !user) {
-        throw new Error('Unauthorized');
-      }
-
-      const { data: roleData } = await supabaseAdmin
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', user.id)
-        .single();
-
-      if (roleData?.role !== 'admin') {
-        throw new Error('Only admins can create lead accounts');
+      try {
+        await requireRole(req, ['admin', 'superadmin'], supabaseAdmin);
+      } catch (authErr) {
+        return authErrorResponse(authErr, corsHeaders);
       }
     }
 

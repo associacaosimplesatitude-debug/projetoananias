@@ -538,8 +538,8 @@ export default function RevistaLeitura() {
       if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
       debounceTimerRef.current = setTimeout(() => {
         supabase.functions.invoke("salvar-progresso-revista", {
+          headers: { "x-revista-token": localStorage.getItem("revista_token") ?? "" },
           body: {
-            whatsapp: sessionWhatsapp,
             revista_id: selectedRevista,
             licao_id: licaoAberta.id,
             licao_numero: licaoAberta.numero,
@@ -631,8 +631,8 @@ export default function RevistaLeitura() {
     // Sync com banco em background
     if (sessionWhatsapp && selectedRevista) {
       supabase.functions.invoke("salvar-progresso-revista", {
+        headers: { "x-revista-token": localStorage.getItem("revista_token") ?? "" },
         body: {
-          whatsapp: sessionWhatsapp,
           revista_id: selectedRevista,
           licao_id: licao.id,
           licao_numero: licao.numero,

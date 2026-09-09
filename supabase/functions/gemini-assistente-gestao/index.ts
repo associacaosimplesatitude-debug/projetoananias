@@ -1,6 +1,7 @@
 // v2 - deploy fix 2026-02-05
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { requireRole, authErrorResponse } from "../_shared/auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -525,6 +526,13 @@ serve(async (req) => {
   }
 
   try {
+    // BI assistant runs privileged SQL — restrict to management roles only.
+    try {
+      await requireRole(req, ["admin", "superadmin", "gerente_ebd", "financeiro"]);
+    } catch (authErr) {
+      return authErrorResponse(authErr, corsHeaders);
+    }
+
     const { messages } = await req.json();
     
     if (!messages || !Array.isArray(messages)) {

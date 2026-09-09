@@ -1,8 +1,10 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 
+import { verifyRevistaToken } from "../_shared/revista-token.ts";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-revista-token",
 };
 
 Deno.serve(async (req) => {
@@ -11,9 +13,19 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { quiz_id, licao_id, whatsapp, respostas } = await req.json();
+    // A identidade vem SEMPRE do token assinado, nunca do corpo da requisição.
+    const session = await verifyRevistaToken(req.headers.get("x-revista-token"));
+    if (!session) {
+      return new Response(JSON.stringify({ error: "sessao_invalida" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const whatsapp = session.whatsapp;
 
-    if (!quiz_id || !licao_id || !whatsapp || !respostas) {
+    const { quiz_id, licao_id, respostas } = await req.json();
+
+    if (!quiz_id || !licao_id || !respostas) {
       return new Response(
         JSON.stringify({ error: "quiz_id, licao_id, whatsapp e respostas são obrigatórios" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }

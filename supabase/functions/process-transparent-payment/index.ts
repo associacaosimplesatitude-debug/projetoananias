@@ -1,5 +1,6 @@
 // v2 - deploy fix 2026-02-05
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -28,8 +29,56 @@ serve(async (req) => {
       shipping_cost = 0
     } = await req.json();
 
-    // Arredondar para 2 casas decimais (Mercado Pago exige exatamente 2 casas)
-    const roundedAmount = Math.round(transaction_amount * 100) / 100;
+    // ===== Recalcula o valor no servidor (nunca confiar no valor do cliente) =====
+    if (!Array.isArray(items) || items.length === 0) {
+      throw new Error('Itens do pedido são obrigatórios');
+    }
+
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+      { auth: { persistSession: false } },
+    );
+
+    const revistaIds = [...new Set(items.map((i: any) => i.id))];
+    const { data: revistasDb, error: revistasError } = await supabase
+      .from('ebd_revistas')
+      .select('id, preco_cheio')
+      .in('id', revistaIds);
+
+    if (revistasError) throw revistasError;
+
+    let subtotal = 0;
+    for (const item of items) {
+      const revista = revistasDb?.find((r: any) => r.id === item.id);
+      if (!revista) {
+        throw new Error('Item inválido no pedido');
+      }
+      const quantity = Number(item.quantity);
+      if (!Number.isInteger(quantity) || quantity < 1 || quantity > 1000) {
+        throw new Error('Quantidade inválida no pedido');
+      }
+      subtotal += Number(revista.preco_cheio || 0) * 0.7 * quantity;
+    }
+
+    const frete = Math.max(0, Number(shipping_cost) || 0);
+    const serverAmount = Math.round((subtotal + frete) * 100) / 100;
+
+    if (serverAmount <= 0) {
+      throw new Error('Valor do pedido inválido');
+    }
+
+    const clientAmount = Math.round((Number(transaction_amount) || 0) * 100) / 100;
+    if (Math.abs(clientAmount - serverAmount) > 0.01) {
+      console.error('[PAGAMENTO] Divergência de valor', { clientAmount, serverAmount });
+      return new Response(
+        JSON.stringify({ error: 'Valor do pedido divergente. Atualize a página e tente novamente.' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
+
+    // Cobra sempre o valor calculado no servidor
+    const roundedAmount = serverAmount;
 
     console.log('Processando pagamento transparente:', {
       payment_method,

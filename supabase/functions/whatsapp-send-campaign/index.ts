@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { isInternalCall, requireRole, authErrorResponse } from "../_shared/auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -24,13 +25,14 @@ Deno.serve(async (req) => {
   const supabase = createClient(supabaseUrl, serviceKey);
 
   try {
-    // Accept both user token auth and service-role internal calls
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: "Não autorizado" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    // Internal batch chaining uses a shared secret header; user calls must be
+    // a valid JWT belonging to an admin/gerente_ebd.
+    if (!isInternalCall(req)) {
+      try {
+        await requireRole(req, ["admin", "superadmin", "gerente_ebd"], supabase);
+      } catch (authErr) {
+        return authErrorResponse(authErr, corsHeaders);
+      }
     }
 
     const { campanha_id } = await req.json();
@@ -466,6 +468,7 @@ Deno.serve(async (req) => {
             "Content-Type": "application/json",
             Authorization: `Bearer ${serviceKey}`,
             apikey: Deno.env.get("SUPABASE_ANON_KEY")!,
+            "x-internal-secret": Deno.env.get("INTERNAL_WEBHOOK_SECRET") ?? "",
           },
           body: JSON.stringify({ campanha_id }),
         });

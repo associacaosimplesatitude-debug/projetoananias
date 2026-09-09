@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { isInternalCall, requireRole, authErrorResponse } from "../_shared/auth.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -18,19 +19,15 @@ serve(async (req) => {
       { auth: { persistSession: false } }
     );
 
-    const { userId, newPassword, internalCall } = await req.json();
-    
-    // Allow internal admin calls or authenticated admin users
-    const authHeader = req.headers.get('Authorization');
-    
-    if (!internalCall) {
-      if (!authHeader) {
-        throw new Error('Unauthorized');
-      }
-      const token = authHeader.replace('Bearer ', '');
-      const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
-      if (authError || !user) {
-        throw new Error('Unauthorized');
+    const { userId, newPassword } = await req.json();
+
+    // Internal server-to-server calls must present a shared secret header.
+    // A body flag is attacker-controlled and is never trusted.
+    if (!isInternalCall(req)) {
+      try {
+        await requireRole(req, ['admin', 'superadmin', 'gerente_ebd'], supabaseAdmin);
+      } catch (authErr) {
+        return authErrorResponse(authErr, corsHeaders);
       }
     }
 

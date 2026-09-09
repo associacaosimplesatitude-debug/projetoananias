@@ -13,7 +13,14 @@ export default defineTool({
     idempotentHint: true,
     openWorldHint: false,
   },
-  handler: ({ text }) => ({
-    content: [{ type: "text", text }],
-  }),
+  handler: ({ text }, ctx) => {
+    // Defence in depth: reject calls without a verified auth context.
+    if (!ctx?.isAuthenticated) {
+      return {
+        isError: true,
+        content: [{ type: "text" as const, text: "Unauthorized" }],
+      };
+    }
+    return { content: [{ type: "text" as const, text }] };
+  },
 });
