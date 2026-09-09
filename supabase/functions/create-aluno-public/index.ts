@@ -120,30 +120,41 @@ Deno.serve(async (req) => {
     });
 
     if (authError) {
-      // Se o email já existe, buscar o usuário existente
+      // Email ja existe: NUNCA redefinir a senha de uma conta existente a partir
+      // de um endpoint publico (permitiria tomada de conta). Vinculamos a conta
+      // existente apenas se o proprio dono estiver autenticado nesta requisicao.
       if (authError.message?.includes("already been registered") || authError.message?.includes("email_exists")) {
-        console.log("Email já existe, buscando usuário existente...");
-        
-        const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
-        const existingUser = existingUsers?.users?.find(
-          (u) => u.email?.toLowerCase() === email.toLowerCase()
-        );
+        const authHeader = req.headers.get("Authorization") ?? "";
+        const token = authHeader.replace("Bearer ", "").trim();
+        let callerId: string | null = null;
 
-        if (existingUser) {
-          userId = existingUser.id;
-          
-          // Atualizar senha do usuário existente
-          await supabaseAdmin.auth.admin.updateUserById(userId, {
-            password: senha,
-          });
-          
-          console.log("Usuário existente atualizado:", userId);
-        } else {
+        if (
+          token &&
+          token !== Deno.env.get("SUPABASE_ANON_KEY") &&
+          token !== Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")
+        ) {
+          const { data: callerData } = await supabaseAdmin.auth.getUser(token);
+          if (
+            callerData?.user &&
+            callerData.user.email?.toLowerCase() === email.toLowerCase()
+          ) {
+            callerId = callerData.user.id;
+          }
+        }
+
+        if (!callerId) {
           return new Response(
-            JSON.stringify({ error: "Email já cadastrado em outra conta" }),
-            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            JSON.stringify({
+              error:
+                "Já existe uma conta com este e-mail. Faça login com sua senha (ou use 'Esqueci minha senha') e depois conclua a inscrição.",
+              code: "email_exists",
+            }),
+            { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
         }
+
+        userId = callerId;
+        console.log("Conta existente vinculada pelo proprio dono autenticado:", userId);
       } else {
         console.error("Erro ao criar usuário:", authError);
         return new Response(
