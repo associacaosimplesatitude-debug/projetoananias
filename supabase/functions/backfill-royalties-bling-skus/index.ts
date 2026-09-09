@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { requireInternalOrRole, authErrorResponse } from "../_shared/auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -45,6 +46,12 @@ async function refreshBlingToken(supabase: any, config: any, configId: string): 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
+  }
+
+  try {
+    await requireInternalOrRole(req, ["admin", "superadmin", "financeiro", "gerente_royalties"]);
+  } catch (authErr) {
+    return authErrorResponse(authErr, corsHeaders);
   }
 
   try {
