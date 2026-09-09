@@ -5,4 +5,4 @@
 - [ ] Otimizar telas pesadas (colunas específicas + cache)
 - [x] Segurança: auth/cron-secret nas funções de comissão (unauth_commission_cron)
 - [x] Segurança: create-aluno-public (aluno_public_takeover)
-- [ ] Segurança: whatsapp-upload-template-media (wa_upload_media_ssrf) — aguardando decisão do usuário
+- [x] Segurança: whatsapp-upload-template-media (wa_upload_media_ssrf)
