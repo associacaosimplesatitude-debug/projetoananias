@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { requireInternalOrRole, authErrorResponse } from "../_shared/auth.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -172,6 +173,12 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+
+  try {
+    await requireInternalOrRole(req, ["admin", "superadmin", "financeiro", "gerente_ebd"]);
+  } catch (authErr) {
+    return authErrorResponse(authErr, corsHeaders);
+  }
   try {
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
