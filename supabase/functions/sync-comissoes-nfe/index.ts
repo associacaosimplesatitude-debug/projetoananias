@@ -1,5 +1,6 @@
 // v2 - deploy fix 2026-02-05
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { requireInternalOrRole, authErrorResponse } from "../_shared/auth.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -220,6 +221,13 @@ interface ParcelaRow {
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
+  }
+
+  // Rotina financeira sensivel: exige chamada interna (cron) ou papel autorizado.
+  try {
+    await requireInternalOrRole(req, ["admin", "superadmin", "financeiro", "gerente_ebd"]);
+  } catch (authErr) {
+    return authErrorResponse(authErr, corsHeaders);
   }
 
   try {
