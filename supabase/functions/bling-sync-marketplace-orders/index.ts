@@ -460,25 +460,20 @@ serve(async (req) => {
     console.log('=== BREAKDOWN POR MARKETPLACE ===');
     console.log(JSON.stringify(byMarketplace, null, 2));
 
-    // Upsert orders into database
+    // Upsert orders into database (em lote, apenas o que mudou)
     let syncedCount = 0;
     let errorCount = 0;
-    
-    for (const order of marketplaceOrders) {
-      // Rate limit delay every 10 orders
-      if (syncedCount > 0 && syncedCount % 10 === 0) {
-        await delay(50);
-      }
+    let skippedCount = 0;
 
-      // Aplicar classificação ADVECS para pedidos do Atacado (loja 205441191)
+    const nowIso = new Date().toISOString();
+    const rows = marketplaceOrders.map((order) => {
       let finalMarketplace = order.detected_marketplace;
       if (finalMarketplace === 'ATACADO') {
         const customerName = order.contato?.nome || order.contato?.razaoSocial || '';
         finalMarketplace = classifyAtacadoOrder(customerName);
-        console.log(`  Atacado -> ${finalMarketplace}: ${customerName?.substring(0, 50)}`);
       }
 
-      const orderData = {
+      return {
         bling_order_id: order.id,
         marketplace: finalMarketplace,
         order_number: order.numero || String(order.id),
@@ -492,22 +487,69 @@ serve(async (req) => {
         status_logistico: order.transporte?.etiqueta?.situacao || null,
         codigo_rastreio: order.transporte?.codigoRastreamento || null,
         url_rastreio: order.transporte?.urlRastreamento || null,
-        updated_at: new Date().toISOString(),
+        updated_at: nowIso,
       };
+    });
 
-      const { error: upsertError } = await supabase
+    // Carregar o estado atual para gravar somente registros novos ou alterados
+    const existingMap = new Map<number, Record<string, unknown>>();
+    const idChunk = 500;
+    for (let i = 0; i < rows.length; i += idChunk) {
+      const ids = rows.slice(i, i + idChunk).map((r) => r.bling_order_id);
+      const { data: existing } = await supabase
         .from('bling_marketplace_pedidos')
-        .upsert(orderData, { 
-          onConflict: 'bling_order_id',
-        });
-
-      if (upsertError) {
-        console.error(`Erro ao salvar pedido ${order.id}:`, upsertError.message);
-        errorCount++;
-      } else {
-        syncedCount++;
+        .select('bling_order_id, marketplace, order_number, order_date, customer_name, customer_email, customer_document, valor_total, valor_frete, status_pagamento, status_logistico, codigo_rastreio, url_rastreio')
+        .in('bling_order_id', ids);
+      for (const row of existing || []) {
+        existingMap.set(row.bling_order_id as number, row as Record<string, unknown>);
       }
     }
+
+    const isSame = (a: Record<string, unknown>, b: Record<string, unknown>) => {
+      for (const key of Object.keys(a)) {
+        if (key === 'updated_at') continue;
+        const av = a[key];
+        const bv = (b as Record<string, unknown>)[key];
+        if (key === 'valor_total' || key === 'valor_frete') {
+          if (Number(av || 0) !== Number(bv || 0)) return false;
+        } else if (key === 'order_date') {
+          const at = av ? new Date(String(av)).getTime() : null;
+          const bt = bv ? new Date(String(bv)).getTime() : null;
+          if (at !== bt) return false;
+        } else if ((av ?? null) !== (bv ?? null)) {
+          return false;
+        }
+      }
+      return true;
+    };
+
+    const changedRows = rows.filter((row) => {
+      const current = existingMap.get(row.bling_order_id);
+      if (!current) return true;
+      if (isSame(row, current)) {
+        skippedCount++;
+        return false;
+      }
+      return true;
+    });
+
+    console.log(`Pedidos sem alteração (ignorados): ${skippedCount} | a gravar: ${changedRows.length}`);
+
+    const upsertChunk = 200;
+    for (let i = 0; i < changedRows.length; i += upsertChunk) {
+      const batch = changedRows.slice(i, i + upsertChunk);
+      const { error: upsertError } = await supabase
+        .from('bling_marketplace_pedidos')
+        .upsert(batch, { onConflict: 'bling_order_id' });
+
+      if (upsertError) {
+        console.error(`Erro ao salvar lote ${i / upsertChunk + 1}:`, upsertError.message);
+        errorCount += batch.length;
+      } else {
+        syncedCount += batch.length;
+      }
+    }
+
 
     console.log(`=== SINCRONIZAÇÃO CONCLUÍDA ===`);
     console.log(`  Salvos: ${syncedCount}`);
