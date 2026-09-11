@@ -1,19 +1,12 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { verifyRevistaToken } from "../_shared/revista-token.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
-
-function decodeLeitorToken(token: string): { whatsapp?: string; licencas?: string[]; expires_at?: number; exp?: number } | null {
-  try {
-    return JSON.parse(atob(token));
-  } catch {
-    return null;
-  }
-}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -37,15 +30,9 @@ serve(async (req) => {
       });
     }
 
-    const decoded = decodeLeitorToken(token);
-    const expiresAt =
-      typeof decoded?.expires_at === "number"
-        ? decoded.expires_at
-        : typeof decoded?.exp === "number"
-        ? decoded.exp
-        : null;
+    const decoded = await verifyRevistaToken(token);
 
-    if (!decoded || !decoded.whatsapp || !expiresAt || expiresAt <= Date.now()) {
+    if (!decoded || !decoded.whatsapp) {
       return new Response(JSON.stringify({ error: "unauthenticated" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
