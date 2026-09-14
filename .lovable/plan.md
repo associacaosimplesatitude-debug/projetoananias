@@ -1,11 +1,8 @@
-# Corrigir autenticação do download de infográficos
+# Registrar permissão pública do resumo diário
 
 ## Alteração
-- Editar somente `supabase/functions/download-infografico/index.ts`.
-- Importar e usar `verifyRevistaToken()` do módulo compartilhado.
-- Remover o decoder local e a validação manual de expiração.
-- Manter inalteradas as consultas, validação de licença, URL assinada e respostas de erro.
+- Criar uma única migration contendo exatamente o `GRANT EXECUTE` da função `public.get_resumo_diario_publico(date)` para o papel público anônimo.
+- Não alterar a função, a página, rotas ou permissões de outras funções.
 
 ## Validação
-- Confirmar que o arquivo usa o token assinado no formato atual e que tokens inválidos continuam retornando `unauthenticated`.
-- Verificar o estado da compilação após a alteração.
+- Confirmar que a migration foi registrada no histórico do projeto e que a permissão continua ativa sem mudança de comportamento.
