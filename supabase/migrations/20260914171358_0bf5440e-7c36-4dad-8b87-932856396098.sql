@@ -1,0 +1,1 @@
+GRANT EXECUTE ON FUNCTION public.get_resumo_diario_publico(date) TO anon;
