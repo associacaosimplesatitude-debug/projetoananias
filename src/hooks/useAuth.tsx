@@ -75,48 +75,60 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setLoading(false);
   };
 
+  const registerLoginActivity = async (userId: string) => {
+    try {
+      const { data: clienteData, error: clienteError } = await supabase
+        .from('ebd_clientes')
+        .select('id, ultimo_login, email_superintendente')
+        .eq('superintendente_user_id', userId)
+        .maybeSingle();
+
+      if (clienteError) {
+        console.error('Error loading login activity:', clienteError);
+        return;
+      }
+
+      if (!clienteData) return;
+
+      const isFirstLogin = !clienteData.ultimo_login;
+
+      const { error: loginUpdateError } = await supabase
+        .from('ebd_clientes')
+        .update({ ultimo_login: new Date().toISOString() })
+        .eq('id', clienteData.id);
+
+      if (loginUpdateError) {
+        console.error('Error updating login activity:', loginUpdateError);
+      }
+
+      if (isFirstLogin && clienteData.email_superintendente) {
+        const { error: leadError } = await supabase
+          .from('ebd_leads_reativacao')
+          .update({ status_kanban: 'Logou' })
+          .eq('email', clienteData.email_superintendente)
+          .eq('created_via', 'landing_page_form')
+          .eq('status_kanban', 'Cadastrou');
+
+        if (leadError) {
+          console.error('Error updating lead kanban status:', leadError);
+        }
+      }
+    } catch (error) {
+      console.error('Error registering login activity:', error);
+    }
+  };
+
   const signIn = async (email: string, password: string) => {
     const { error, data } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
-    
-    // Update ultimo_login for ebd_clientes if this user is a superintendente
+
+    // Login activity is secondary and must never delay or block authentication.
     if (!error && data.user) {
-      // Get current cliente data to check if this is the first login
-      const { data: clienteData } = await supabase
-        .from('ebd_clientes')
-        .select('id, ultimo_login, email_superintendente')
-        .eq('superintendente_user_id', data.user.id)
-        .single();
-
-      const isFirstLogin = clienteData && !clienteData.ultimo_login;
-      
-      // Update ultimo_login
-      supabase
-        .from('ebd_clientes')
-        .update({ ultimo_login: new Date().toISOString() })
-        .eq('superintendente_user_id', data.user.id)
-        .then(() => {});
-
-      // If first login, update lead kanban status to "Logou"
-      if (isFirstLogin && clienteData?.email_superintendente) {
-        supabase
-          .from('ebd_leads_reativacao')
-          .update({ status_kanban: 'Logou' })
-          .eq('email', clienteData.email_superintendente)
-          .eq('created_via', 'landing_page_form')
-          .eq('status_kanban', 'Cadastrou') // Only move if currently in "Cadastrou"
-          .then(({ error: leadError }) => {
-            if (leadError) {
-              console.error('Error updating lead kanban status:', leadError);
-            } else {
-              console.log('Lead moved to "Logou" on first login');
-            }
-          });
-      }
+      void registerLoginActivity(data.user.id);
     }
-    
+
     return { error };
   };
 
