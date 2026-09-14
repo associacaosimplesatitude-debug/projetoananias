@@ -17,6 +17,17 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const AUTH_TIMEOUT_MS = 12_000;
+
+function withAuthTimeout<T>(request: PromiseLike<T>, message: string): Promise<T> {
+  return Promise.race([
+    Promise.resolve(request),
+    new Promise<T>((_, reject) => {
+      window.setTimeout(() => reject(new Error(message)), AUTH_TIMEOUT_MS);
+    }),
+  ]);
+}
+
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
@@ -55,24 +66,32 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const fetchUserRole = async (userId: string) => {
     const ROLE_PRIORITY: AppRole[] = ['admin', 'gerente_royalties', 'financeiro', 'gerente_ebd', 'gerente_sorteio', 'secretario', 'tesoureiro', 'representante', 'autor', 'client'];
-    
-    const { data, error } = await supabase
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', userId);
-    
-    if (error || !data || data.length === 0) {
-      console.warn('Role não encontrada para usuário:', userId);
+
+    try {
+      const { data, error } = await withAuthTimeout(
+        supabase
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', userId),
+        'A consulta de permissão demorou mais que o esperado.'
+      );
+
+      if (error || !data || data.length === 0) {
+        console.warn('Role não encontrada para usuário:', userId);
+        setRole(null);
+        return;
+      }
+
+      // If multiple roles, pick the highest priority one
+      const roles = data.map(d => d.role as AppRole);
+      const primaryRole = ROLE_PRIORITY.find(p => roles.includes(p)) || roles[0];
+      setRole(primaryRole);
+    } catch (error) {
+      console.error('Erro ao carregar permissão do usuário:', error);
       setRole(null);
+    } finally {
       setLoading(false);
-      return;
     }
-    
-    // If multiple roles, pick the highest priority one
-    const roles = data.map(d => d.role as AppRole);
-    const primaryRole = ROLE_PRIORITY.find(p => roles.includes(p)) || roles[0];
-    setRole(primaryRole);
-    setLoading(false);
   };
 
   const registerLoginActivity = async (userId: string) => {
@@ -119,10 +138,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const signIn = async (email: string, password: string) => {
-    const { error, data } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    const { error, data } = await withAuthTimeout(
+      supabase.auth.signInWithPassword({ email, password }),
+      'A conexão demorou mais que o esperado. Tente novamente.'
+    );
 
     // Login activity is secondary and must never delay or block authentication.
     if (!error && data.user) {
