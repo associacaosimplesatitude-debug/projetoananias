@@ -344,6 +344,13 @@ export default function Auth() {
           description: error.errors[0].message,
           variant: 'destructive',
         });
+      } else {
+        console.error('Erro inesperado no login:', error);
+        toast({
+          title: 'Não foi possível entrar',
+          description: 'A conexão demorou mais que o esperado. Tente novamente.',
+          variant: 'destructive',
+        });
       }
     } finally {
       setLoading(false);
