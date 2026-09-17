@@ -110,6 +110,7 @@ interface PedidoOnlineDetailDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   hideAttribution?: boolean;
+  disableExternalSync?: boolean;
 }
 
 export function PedidoOnlineDetailDialog({
@@ -117,6 +118,7 @@ export function PedidoOnlineDetailDialog({
   open,
   onOpenChange,
   hideAttribution = false,
+  disableExternalSync = false,
 }: PedidoOnlineDetailDialogProps) {
   const queryClient = useQueryClient();
   const [selectedVendedor, setSelectedVendedor] = useState<string>("");
@@ -194,11 +196,11 @@ export function PedidoOnlineDetailDialog({
 
   // Auto-sync when opening dialog if no items and not already attempted
   useEffect(() => {
-    if (open && pedido?.id && orderItems.length === 0 && !isLoadingItems && !autoSyncAttempted && !syncItemsMutation.isPending) {
+    if (!disableExternalSync && open && pedido?.id && orderItems.length === 0 && !isLoadingItems && !autoSyncAttempted && !syncItemsMutation.isPending) {
       setAutoSyncAttempted(true);
       syncItemsMutation.mutate();
     }
-  }, [open, pedido?.id, orderItems.length, isLoadingItems, autoSyncAttempted, syncItemsMutation.isPending]);
+  }, [disableExternalSync, open, pedido?.id, orderItems.length, isLoadingItems, autoSyncAttempted, syncItemsMutation.isPending]);
 
   // Reset auto-sync flag when dialog closes or pedido changes
   useEffect(() => {
@@ -211,7 +213,7 @@ export function PedidoOnlineDetailDialog({
   // IMPORTANT: do not overwrite user selections when clienteData arrives async.
   const [initializedPedidoId, setInitializedPedidoId] = useState<string | null>(null);
   useEffect(() => {
-    if (!open || !pedido) return;
+    if (disableExternalSync || !open || !pedido) return;
 
     if (initializedPedidoId !== pedido.id) {
       setInitializedPedidoId(pedido.id);
@@ -508,7 +510,7 @@ export function PedidoOnlineDetailDialog({
     };
 
     fetchDocumentoFromBling();
-  }, [open, pedido?.id, pedido?.customer_email, documentoFromPedido, documentoFromCliente]);
+  }, [disableExternalSync, open, pedido?.id, pedido?.customer_email, documentoFromPedido, documentoFromCliente]);
 
   if (!pedido) return null;
 
@@ -627,7 +629,7 @@ export function PedidoOnlineDetailDialog({
                 <ShoppingBag className="h-4 w-4" />
                 Produtos do Pedido
               </h4>
-              {orderItems.length === 0 && !isLoadingItems && !syncItemsMutation.isPending && (
+              {!disableExternalSync && orderItems.length === 0 && !isLoadingItems && !syncItemsMutation.isPending && (
                 <Button
                   variant="outline"
                   size="sm"
