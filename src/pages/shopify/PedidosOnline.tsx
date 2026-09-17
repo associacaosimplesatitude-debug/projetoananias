@@ -85,6 +85,11 @@ interface ShopifyPedido {
   } | null;
 }
 
+interface ShopifyPedidoItemSku {
+  pedido_id: string;
+  sku: string | null;
+}
+
 type DateFilter = "last_7_days" | "last_month" | "custom" | "all";
 
 type CanonicalFinancialStatus =
@@ -296,7 +301,7 @@ export default function PedidosOnline({ attributionMode = false }: PedidosOnline
   });
 
   const { data: pedidos, isLoading } = useQuery({
-    queryKey: ["ebd-shopify-pedidos-online"],
+    queryKey: ["ebd-shopify-pedidos-online", { attributionMode }],
     queryFn: async () => {
       // "Pedidos Online" = pedidos pagos (Shopify), não faturados
       // Removemos o filtro fixo de vendedor_id IS NULL para permitir filtros dinâmicos
@@ -314,7 +319,49 @@ export default function PedidosOnline({ attributionMode = false }: PedidosOnline
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      return (data as ShopifyPedido[]).filter((p) => isPaidStatus(p.status_pagamento));
+      const pedidosPagos = (data as ShopifyPedido[]).filter((p) => isPaidStatus(p.status_pagamento));
+
+      if (!attributionMode || pedidosPagos.length === 0) {
+        return pedidosPagos;
+      }
+
+      const pedidoIds = pedidosPagos.map((pedido) => pedido.id);
+      const itens: ShopifyPedidoItemSku[] = [];
+      const pedidosPorLote = 200;
+      const linhasPorPagina = 1000;
+
+      for (let loteInicio = 0; loteInicio < pedidoIds.length; loteInicio += pedidosPorLote) {
+        const idsDoLote = pedidoIds.slice(loteInicio, loteInicio + pedidosPorLote);
+
+        for (let paginaInicio = 0; ; paginaInicio += linhasPorPagina) {
+          const { data: itensPagina, error: itensError } = await supabase
+            .from("ebd_shopify_pedidos_itens")
+            .select("pedido_id, sku")
+            .in("pedido_id", idsDoLote)
+            .range(paginaInicio, paginaInicio + linhasPorPagina - 1);
+
+          if (itensError) throw itensError;
+
+          const pagina = (itensPagina ?? []) as ShopifyPedidoItemSku[];
+          itens.push(...pagina);
+
+          if (pagina.length < linhasPorPagina) break;
+        }
+      }
+
+      const possuiItem = new Set<string>();
+      const possuiItemNaoDigital = new Set<string>();
+
+      itens.forEach((item) => {
+        possuiItem.add(item.pedido_id);
+        if (typeof item.sku !== "string" || !item.sku.toUpperCase().startsWith("DIG-")) {
+          possuiItemNaoDigital.add(item.pedido_id);
+        }
+      });
+
+      return pedidosPagos.filter(
+        (pedido) => !possuiItem.has(pedido.id) || possuiItemNaoDigital.has(pedido.id)
+      );
     },
   });
 
