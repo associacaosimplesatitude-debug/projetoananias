@@ -213,7 +213,7 @@ export function PedidoOnlineDetailDialog({
   // IMPORTANT: do not overwrite user selections when clienteData arrives async.
   const [initializedPedidoId, setInitializedPedidoId] = useState<string | null>(null);
   useEffect(() => {
-    if (disableExternalSync || !open || !pedido) return;
+    if (!open || !pedido) return;
 
     if (initializedPedidoId !== pedido.id) {
       setInitializedPedidoId(pedido.id);
@@ -467,7 +467,7 @@ export function PedidoOnlineDetailDialog({
 
   // Buscar documento do Bling se não tiver no pedido/cliente
   useEffect(() => {
-    if (!open || !pedido) return;
+    if (disableExternalSync || !open || !pedido) return;
     
     // Se já temos documento, não buscar
     if (documentoFromPedido || documentoFromCliente) {
