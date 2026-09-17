@@ -8,3 +8,4 @@
 - [x] Segurança: create-aluno-public (aluno_public_takeover)
 - [x] Segurança: whatsapp-upload-template-media (wa_upload_media_ssrf)
 - [x] Corrigir login preso em “Processando...” sem bloquear por atualizações secundárias
+- [x] Corrigir rota e chamadas legadas de “Atribuir Clientes” (chamado #0184)

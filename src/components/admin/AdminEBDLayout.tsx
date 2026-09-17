@@ -442,8 +442,8 @@ function AdminSidebar() {
             <SidebarGroupContent>
               <SidebarMenu>
                 <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={isActive('/admin/ebd/pedidos-igrejas')}>
-                    <RouterNavLink to="/admin/ebd/pedidos-igrejas">
+                    <SidebarMenuButton asChild isActive={isActive('/admin/ebd/atribuir-clientes')}>
+                    <RouterNavLink to="/admin/ebd/atribuir-clientes">
                       <ShoppingBag className="h-4 w-4" />
                       <span>Atribuir Clientes</span>
                     </RouterNavLink>

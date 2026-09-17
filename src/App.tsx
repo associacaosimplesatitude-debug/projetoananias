@@ -59,6 +59,7 @@ import GestaoComissoes from "./pages/admin/GestaoComissoes";
 import ComissaoAlfaMarketing from "./pages/admin/ComissaoAlfaMarketing";
 import LeadsLandingPage from "./pages/admin/LeadsLandingPage";
 import AdminEBDClientes from "./pages/admin/AdminEBDClientes";
+import AtribuirClientes from "./pages/admin/AtribuirClientes";
 import TransferRequests from "./pages/admin/TransferRequests";
 import EBDSystemUsers from "./pages/admin/EBDSystemUsers";
 import WhatsAppPanel from "./pages/admin/WhatsAppPanel";
@@ -609,7 +610,8 @@ const App = () => (
                       <Route path="comissoes" element={<GestaoComissoes />} />
                       <Route path="comissao-alfamarketing" element={<ComissaoAlfaMarketing />} />
                       <Route path="registrar-webhook" element={<RegistrarWebhook />} />
-                      <Route path="pedidos-igrejas" element={<PedidosOnline />} />
+                      <Route path="pedidos-igrejas" element={<Navigate to="/admin/ebd/atribuir-clientes" replace />} />
+                      <Route path="atribuir-clientes" element={<AtribuirClientes />} />
                       <Route path="pedidos-online" element={<PedidosCentralGospel />} />
                       <Route path="pedidos-igreja-cpf" element={<PedidosIgrejaCPF />} />
                       <Route path="pedidos-igreja-cnpj" element={<PedidosIgrejaCNPJ />} />

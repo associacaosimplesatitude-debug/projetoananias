@@ -52,8 +52,7 @@ export function ClientesParaAtribuirCard() {
   });
 
   const handleClick = () => {
-    // Navegar para a página de pedidos online
-    navigate("/admin/ebd/pedidos-online");
+    navigate("/admin/ebd/atribuir-clientes");
   };
 
   return (

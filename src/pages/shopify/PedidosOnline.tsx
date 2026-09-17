@@ -129,7 +129,11 @@ const isPaidStatus = (statusRaw: string | null | undefined) => {
   return s === "paid";
 };
 
-export default function PedidosOnline() {
+interface PedidosOnlineProps {
+  attributionMode?: boolean;
+}
+
+export default function PedidosOnline({ attributionMode = false }: PedidosOnlineProps) {
   const queryClient = useQueryClient();
   const { isAdmin, canAccessAdminEBD } = useUserRole();
 
@@ -463,11 +467,17 @@ export default function PedidosOnline() {
     <div className="space-y-6">
       <header className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Pedidos Online</h1>
-          <p className="text-muted-foreground">Pedidos pagos finalizados via E-commerce</p>
+          <h1 className="text-2xl font-bold">
+            {attributionMode ? "Atribuir Clientes" : "Pedidos Online"}
+          </h1>
+          <p className="text-muted-foreground">
+            {attributionMode
+              ? "Clientes do E-commerce que aguardam atribuição de vendedor"
+              : "Pedidos pagos finalizados via E-commerce"}
+          </p>
         </div>
 
-        <div className="flex gap-2">
+        {!attributionMode && <div className="flex gap-2">
           {canAccessAdminEBD && (
             <>
               <Button
@@ -527,7 +537,7 @@ export default function PedidosOnline() {
             )}
             Registrar Webhook
           </Button>
-        </div>
+        </div>}
       </header>
 
       {/* Stats Cards */}
@@ -858,6 +868,7 @@ export default function PedidosOnline() {
         pedido={selectedPedido}
         open={detailDialogOpen}
         onOpenChange={setDetailDialogOpen}
+        disableExternalSync={attributionMode}
       />
     </div>
   );
