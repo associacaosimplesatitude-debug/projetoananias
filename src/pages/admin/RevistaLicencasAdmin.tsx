@@ -11,12 +11,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
-import { Plus, Search, Filter, Users, CreditCard, TrendingUp, Send, Ban, ShoppingCart, Trophy, Monitor, WifiOff, BookOpen, Mail, Loader2, CheckCircle2, XCircle, MessageSquare, MailIcon, Clock, User, Phone, AtSign, BookMarked, ShieldCheck, Hash, CalendarDays, Eye, MousePointerClick } from "lucide-react";
+import { Plus, Search, Filter, Users, CreditCard, TrendingUp, Send, Ban, ShoppingCart, Trophy, Monitor, WifiOff, BookOpen, Mail, Loader2, CheckCircle2, XCircle, MessageSquare, MailIcon, Clock, User, Phone, AtSign, BookMarked, ShieldCheck, Hash, CalendarDays, Eye, MousePointerClick, Check, ChevronsUpDown } from "lucide-react";
 import { saveRevistaSession, persistRevistaToken } from "@/lib/revistaSession";
 import { format } from "date-fns";
 
@@ -721,6 +723,8 @@ function ShopifyTab() {
   const [formNome, setFormNome] = useState("");
   const [formEmail, setFormEmail] = useState("");
   const [formRevistaId, setFormRevistaId] = useState("");
+  const [revistaComboboxOpen, setRevistaComboboxOpen] = useState(false);
+  const [revistaTipoFilter, setRevistaTipoFilter] = useState("todos");
   const [formExpira, setFormExpira] = useState("");
   const [selectedLicenca, setSelectedLicenca] = useState<ShopifyLicencaRow | null>(null);
 
@@ -759,7 +763,7 @@ function ShopifyTab() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("revistas_digitais")
-        .select("id, titulo, tipo, trimestre")
+        .select("id, titulo, tipo, trimestre, tipo_conteudo")
         .eq("ativo", true)
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -814,6 +818,11 @@ function ShopifyTab() {
   const toggleCardFilter = (f: CardFilterType) => {
     setCardFilter(prev => prev === f ? null : (f === "vendas" || f === "ativas" ? null : f));
   };
+
+  const revistaSelecionada = revistas.find((revista) => revista.id === formRevistaId);
+  const revistasFiltradas = revistaTipoFilter === "todos"
+    ? revistas
+    : revistas.filter((revista) => revista.tipo_conteudo === revistaTipoFilter);
 
   const cardStyle = (f: CardFilterType) =>
     cardFilter === f ? "cursor-pointer ring-2 ring-[#FFC107] border-[#FFC107]" : "cursor-pointer hover:shadow-md transition-shadow";
@@ -1081,10 +1090,53 @@ function ShopifyTab() {
             </div>
             <div>
               <Label>Revista</Label>
-              <Select value={formRevistaId} onValueChange={setFormRevistaId}>
-                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-                <SelectContent>{revistas.map((r) => (<SelectItem key={r.id} value={r.id}>{r.titulo}</SelectItem>))}</SelectContent>
-              </Select>
+              <Popover open={revistaComboboxOpen} onOpenChange={setRevistaComboboxOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={revistaComboboxOpen}
+                    className="w-full justify-between font-normal"
+                  >
+                    <span className={revistaSelecionada ? "truncate" : "truncate text-muted-foreground"}>
+                      {revistaSelecionada?.titulo || "Selecione"}
+                    </span>
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="Buscar por título..." />
+                    <Tabs value={revistaTipoFilter} onValueChange={setRevistaTipoFilter} className="border-b px-2 py-2">
+                      <TabsList className="grid h-auto w-full grid-cols-4">
+                        <TabsTrigger value="todos" className="px-2 text-xs">Todos</TabsTrigger>
+                        <TabsTrigger value="livro_digital" className="px-2 text-xs">Livros</TabsTrigger>
+                        <TabsTrigger value="revista" className="px-2 text-xs">Revistas</TabsTrigger>
+                        <TabsTrigger value="infografico" className="px-2 text-xs">Infográficos</TabsTrigger>
+                      </TabsList>
+                    </Tabs>
+                    <CommandList>
+                      <CommandEmpty>Nenhum material encontrado.</CommandEmpty>
+                      {revistasFiltradas.map((revista) => (
+                        <CommandItem
+                          key={revista.id}
+                          value={`${revista.titulo} ${revista.trimestre || ""}`}
+                          onSelect={() => {
+                            setFormRevistaId(revista.id);
+                            setRevistaComboboxOpen(false);
+                          }}
+                        >
+                          <Check className={`mr-2 h-4 w-4 ${formRevistaId === revista.id ? "opacity-100" : "opacity-0"}`} />
+                          <span className="truncate">{revista.titulo}</span>
+                          {revista.trimestre && (
+                            <span className="ml-auto shrink-0 pl-2 text-xs text-muted-foreground">{revista.trimestre}</span>
+                          )}
+                        </CommandItem>
+                      ))}
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
             <div>
               <Label>Data de expiração (opcional)</Label>
