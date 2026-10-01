@@ -48,6 +48,7 @@ interface Vendedor {
 interface PropostaFaturada {
   id: string;
   vendedor_id: string | null;
+  bling_order_id: number | null;
   valor_total: number;
   valor_frete: number | null;
   created_at: string;
@@ -355,6 +356,11 @@ export function VendedoresSummaryCards({
   // Ranking data per vendedor
   const rankingData = useMemo(() => {
     const activeVendedores = vendedores.filter(v => v.status === "Ativo");
+    const propostaBlingKeys = new Set(
+      propostasFaturadas
+        .filter(proposta => proposta.vendedor_id && proposta.bling_order_id != null)
+        .map(proposta => `${proposta.vendedor_id}:${proposta.bling_order_id}`),
+    );
     
     const vendedorSales = new Map<string, {
       vendedor: Vendedor;
@@ -381,7 +387,12 @@ export function VendedoresSummaryCards({
       if (!vendedorData) return;
 
       if (isWithinInterval(orderDate, { start: dateRange.start, end: dateRange.end })) {
-        vendedorData.vendas += Number(order.valor_total || 0);
+        const blingKey = order.bling_order_id != null
+          ? `${order.vendedor_id}:${order.bling_order_id}`
+          : null;
+        if (!blingKey || !propostaBlingKeys.has(blingKey)) {
+          vendedorData.vendas += Number(order.valor_total || 0);
+        }
         const clientKey = normalizeEmail(order.customer_email) || order.customer_name?.toLowerCase().trim();
         if (clientKey) vendedorData.clientesAtivos.add(clientKey);
       }

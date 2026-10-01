@@ -507,6 +507,7 @@ export default function AdminEBD() {
         .select(`
           id, 
           vendedor_id, 
+          bling_order_id,
           valor_total, 
           valor_frete, 
           created_at,
