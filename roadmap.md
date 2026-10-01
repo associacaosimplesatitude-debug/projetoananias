@@ -12,3 +12,4 @@
 - [x] Ocultar pedidos somente digitais em “Atribuir Clientes” sem afetar “Pedidos Online”
 - [x] Adicionar busca e filtro por tipo ao seletor de material da licença manual (chamado #197)
 - [x] Corrigir “% Meta” do card individual de vendedor para sempre arredondar para baixo
+- [x] Unir os itens do menu AdminEBD para usuários com múltiplos papéis

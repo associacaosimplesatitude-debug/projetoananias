@@ -41,7 +41,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { UserProfileDropdown } from "@/components/layout/UserProfileDropdown";
 import { ImplementacoesButton } from "@/components/implementacoes/ImplementacoesButton";
-import { useAuth } from "@/hooks/useAuth";
+import { useUserRole } from "@/hooks/useUserRole";
 import { useIsSuperadmin } from "@/hooks/useIsSuperadmin";
 import { NavLink as RouterNavLink } from "@/components/NavLink";
 import {
@@ -70,13 +70,12 @@ import { useState } from "react";
 import { BarChart3, Link2 } from "lucide-react";
 
 function AdminSidebar() {
-  const { role } = useAuth();
+  const { roles, isAdmin, isGerenteEbd, isFinanceiro } = useUserRole();
   const { isSuperadmin } = useIsSuperadmin();
   const location = useLocation();
-  const isGerenteEbd = role === 'gerente_ebd';
-  const isFinanceiro = role === 'financeiro';
-  const isAdmin = role === 'admin';
-  const isGerenteSorteio = role === 'gerente_sorteio';
+  const isGerenteSorteio = roles.includes('gerente_sorteio');
+  const hasStandardAdminMenu = isAdmin || isGerenteEbd || isFinanceiro;
+  const canSeeGerenteMenu = isAdmin || isGerenteEbd;
 
   const [pedidosOpen, setPedidosOpen] = useState(
     location.pathname.includes('/admin/ebd/pedidos')
@@ -110,7 +109,7 @@ function AdminSidebar() {
       return emailsUnicos.size;
     },
     staleTime: 1000 * 60 * 5,
-    enabled: !isFinanceiro, // Não carregar para financeiro
+    enabled: canSeeGerenteMenu,
   });
 
   // Query para contar solicitações de transferência pendentes
@@ -126,7 +125,7 @@ function AdminSidebar() {
       return count || 0;
     },
     staleTime: 1000 * 60 * 2,
-    enabled: !isFinanceiro,
+    enabled: canSeeGerenteMenu,
   });
 
   // Query para contar erros de sync Bling
@@ -143,7 +142,7 @@ function AdminSidebar() {
       return count || 0;
     },
     staleTime: 1000 * 60 * 2,
-    enabled: !isFinanceiro,
+    enabled: canSeeGerenteMenu,
   });
 
   const pedidosSubItems = [
@@ -163,7 +162,7 @@ function AdminSidebar() {
   };
 
   // Se for gerente_sorteio, mostrar apenas o menu Sorteio & Embaixadoras
-  if (isGerenteSorteio) {
+  if (isGerenteSorteio && !hasStandardAdminMenu) {
     return (
       <Sidebar collapsible="icon" className="border-r">
         <SidebarHeader className="border-b p-4">
@@ -435,8 +434,8 @@ function AdminSidebar() {
           </SidebarGroup>
         )}
 
-        {/* Operacional - não mostrar para financeiro */}
-        {!isFinanceiro && (
+        {/* Operacional - admin geral e gerente_ebd */}
+        {canSeeGerenteMenu && (
           <SidebarGroup>
             <SidebarGroupLabel>Operacional</SidebarGroupLabel>
             <SidebarGroupContent>
@@ -469,8 +468,8 @@ function AdminSidebar() {
           </SidebarGroup>
         )}
 
-        {/* Clientes - não mostrar para financeiro */}
-        {!isFinanceiro && (
+        {/* Clientes - admin geral e gerente_ebd */}
+        {canSeeGerenteMenu && (
           <SidebarGroup>
             <SidebarGroupLabel>Clientes</SidebarGroupLabel>
             <SidebarGroupContent>
@@ -535,7 +534,7 @@ function AdminSidebar() {
             <SidebarGroupLabel>Configurações</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                {!isGerenteEbd && (
+                {isAdmin && (
                   <>
                     <SidebarMenuItem>
                       <SidebarMenuButton asChild isActive={isActive('/admin/ebd/catalogo')}>
@@ -563,7 +562,7 @@ function AdminSidebar() {
                     </RouterNavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
-                {!isGerenteEbd && (
+                {isAdmin && (
                   <SidebarMenuItem>
                     <SidebarMenuButton asChild isActive={isActive('/admin/ebd/revistas-assinaturas')}>
                       <RouterNavLink to="/admin/ebd/revistas-assinaturas">
@@ -581,7 +580,7 @@ function AdminSidebar() {
                     </RouterNavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
-                {!isGerenteEbd && (
+                {isAdmin && (
                   <>
                     <SidebarMenuItem>
                       <SidebarMenuButton asChild isActive={isActive('/admin/ebd/revista-mapeamentos')}>
@@ -601,7 +600,7 @@ function AdminSidebar() {
                     </RouterNavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
-                {!isGerenteEbd && (
+                {isAdmin && (
                   <SidebarMenuItem>
                     <SidebarMenuButton asChild isActive={isActive('/admin/ebd/shopify')}>
                       <RouterNavLink to="/admin/ebd/shopify">
