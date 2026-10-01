@@ -280,7 +280,8 @@ function AdminSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {/* Vendas */}
+        {/* Vendas - admin geral e gerente_ebd */}
+        {canSeeGerenteMenu && (
         <SidebarGroup>
           <SidebarGroupLabel>Vendas</SidebarGroupLabel>
           <SidebarGroupContent>
@@ -388,6 +389,7 @@ function AdminSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+        )}
 
         {/* Financeiro - apenas para role financeiro ou admin */}
         {(isFinanceiro || isAdmin) && (
