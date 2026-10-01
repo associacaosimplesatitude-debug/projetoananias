@@ -1,18 +1,15 @@
-# Combobox de materiais na licença manual
+# Corrigir percentual da meta dos vendedores
 
 ## Implementação
-- Alterar somente o campo “Revista” do modal “Adicionar Licença Manual” em `RevistaLicencasAdmin.tsx`.
-- Incluir `tipo_conteudo` na consulta dos materiais ativos.
-- Substituir a lista simples por um combobox com busca por título usando `Popover` e `Command`.
-- Dentro do combobox, incluir os filtros “Todos”, “Livros”, “Revistas” e “Infográficos”.
-- Manter a seleção salvando o `id` escolhido em `formRevistaId` e exibir o título selecionado no botão.
-- Preservar todos os demais campos, páginas, dados e estilos.
+- Alterar somente a exibição de “% Meta” no card individual de vendedor em `VendedoresSummaryCards.tsx`.
+- Substituir o arredondamento atual por `Math.floor(item.percentAtingimento)`, preservando vendas, comissão, clientes, barra de progresso e demais percentuais.
 
 ## Validação
-- Confirmar busca parcial por título e filtragem por cada tipo de conteúdo.
-- Confirmar que a escolha atualiza `formRevistaId` e fecha a lista.
-- Verificar a compilação e a apresentação do modal em navegador.
+- Confirmar no banco a fórmula `floor(vendas / meta * 100)` com os mesmos canais somados pelo card.
+- Verificar a compilação após a alteração.
 
-## Detalhes técnicos
-- Usar os componentes shadcn/ui já existentes: `Command`, `Popover`, `Tabs` e `Button`.
-- Tratar `tipo_conteudo` estritamente como `livro_digital`, `revista` ou `infografico`, sem criar SKU ou alterar o banco.
+## Conferência realizada
+- O card existe neste projeto e é o bloco “Performance de Vendedores”.
+- Gloria Carreiro possui meta mensal de R$ 105.000,00.
+- Nos dados atuais do último mês completo disponível, as vendas somadas pelo card são R$ 116.304,83: percentual exato 110,7665%, `floor` 110% e arredondamento comum 111%.
+- O exemplo de R$ 104.727,70 sobre R$ 105.000,00 resulta em 99,74%, portanto será exibido como 99%.
