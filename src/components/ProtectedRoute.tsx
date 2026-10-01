@@ -1,5 +1,6 @@
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { useUserRole } from '@/hooks/useUserRole';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -10,9 +11,10 @@ interface ProtectedRouteProps {
 }
 
 export default function ProtectedRoute({ children, requireAdmin = false, allowGerenteEbd = false, allowFinanceiro = false, allowGerenteSorteio = false }: ProtectedRouteProps) {
-  const { user, role, loading } = useAuth();
+  const { user, loading: authLoading } = useAuth();
+  const { roles, loading: rolesLoading } = useUserRole();
 
-  if (loading) {
+  if (authLoading || (requireAdmin && rolesLoading)) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
@@ -25,10 +27,10 @@ export default function ProtectedRoute({ children, requireAdmin = false, allowGe
   }
 
   if (requireAdmin) {
-    const isAdmin = role === 'admin';
-    const isGerenteEbd = role === 'gerente_ebd';
-    const isFinanceiro = role === 'financeiro';
-    const isGerenteSorteio = role === 'gerente_sorteio';
+    const isAdmin = roles.includes('admin');
+    const isGerenteEbd = roles.includes('gerente_ebd');
+    const isFinanceiro = roles.includes('financeiro');
+    const isGerenteSorteio = roles.includes('gerente_sorteio');
     
     if (!isAdmin && !(allowGerenteEbd && isGerenteEbd) && !(allowFinanceiro && isFinanceiro) && !(allowGerenteSorteio && isGerenteSorteio)) {
       return <Navigate to="/" replace />;
