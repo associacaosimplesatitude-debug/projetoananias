@@ -603,7 +603,10 @@ export function VendedoresSummaryCards({
                           variant={item.percentAtingimento >= 100 ? "default" : item.percentAtingimento >= 70 ? "secondary" : "outline"}
                           className={`text-[10px] px-1.5 py-0 ${item.percentAtingimento >= 100 ? "bg-emerald-500" : ""}`}
                         >
-                          {Math.floor(item.percentAtingimento)}%
+                          {(Math.floor(item.percentAtingimento * 100) / 100).toLocaleString('pt-BR', {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}%
                         </Badge>
                       </div>
                     </div>
