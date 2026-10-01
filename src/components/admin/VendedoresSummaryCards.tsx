@@ -358,7 +358,11 @@ export function VendedoresSummaryCards({
     const activeVendedores = vendedores.filter(v => v.status === "Ativo");
     const propostaBlingKeys = new Set(
       propostasFaturadas
-        .filter(proposta => proposta.vendedor_id && proposta.bling_order_id != null)
+        .filter(proposta => {
+          if (!proposta.vendedor_id || proposta.bling_order_id == null || !proposta.created_at) return false;
+          const propostaDate = parseISO(proposta.created_at);
+          return isWithinInterval(propostaDate, { start: dateRange.start, end: dateRange.end });
+        })
         .map(proposta => `${proposta.vendedor_id}:${proposta.bling_order_id}`),
     );
     
