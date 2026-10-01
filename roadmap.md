@@ -14,3 +14,4 @@
 - [x] Corrigir “% Meta” do card individual de vendedor para sempre arredondar para baixo
 - [x] Unir os itens do menu AdminEBD para usuários com múltiplos papéis
 - [x] Remover duplicidade por `bling_order_id` no card Performance de Vendedores
+- [x] Corrigir guardas das rotas administrativas para usuários com múltiplos papéis
