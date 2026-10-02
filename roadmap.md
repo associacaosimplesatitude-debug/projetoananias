@@ -15,3 +15,4 @@
 - [x] Unir os itens do menu AdminEBD para usuários com múltiplos papéis
 - [x] Remover duplicidade por `bling_order_id` no card Performance de Vendedores
 - [x] Corrigir guardas das rotas administrativas para usuários com múltiplos papéis
+- [ ] Adicionar a aba Templates ao painel de Marketing

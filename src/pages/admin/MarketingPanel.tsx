@@ -1,6 +1,7 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Megaphone, Users, TrendingUp } from "lucide-react";
 import WhatsAppCampaigns from "@/components/admin/WhatsAppCampaigns";
+import WhatsAppTemplatesList from "@/components/admin/WhatsAppTemplatesList";
 import WhatsAppPublicos from "@/components/admin/WhatsAppPublicos";
 import MetaAdsDashboard from "@/pages/admin/MetaAdsDashboard";
 import GoogleAdsDashboard from "@/pages/admin/GoogleAdsDashboard";
@@ -24,6 +25,10 @@ export default function MarketingPanel() {
             <Megaphone className="h-4 w-4" />
             Campanhas
           </TabsTrigger>
+          <TabsTrigger value="templates" className="flex items-center gap-2">
+            <Megaphone className="h-4 w-4" />
+            Templates
+          </TabsTrigger>
           <TabsTrigger value="publicos" className="flex items-center gap-2">
             <Users className="h-4 w-4" />
             Públicos
@@ -39,6 +44,9 @@ export default function MarketingPanel() {
         </TabsList>
         <TabsContent value="campanhas" className="mt-4">
           <WhatsAppCampaigns />
+        </TabsContent>
+        <TabsContent value="templates" className="mt-4">
+          <WhatsAppTemplatesList />
         </TabsContent>
         <TabsContent value="publicos" className="mt-4">
           <WhatsAppPublicos />
