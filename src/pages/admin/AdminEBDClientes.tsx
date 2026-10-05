@@ -11,10 +11,12 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Search, Users, FileText, AlertTriangle, CheckCircle, XCircle, Percent, MapPin, User, Building2, Calendar, UserCog, Mail } from "lucide-react";
+import { Search, Users, FileText, AlertTriangle, CheckCircle, XCircle, Percent, MapPin, User, Building2, Calendar, UserCog, Mail, Pencil } from "lucide-react";
 import { useState } from "react";
 import { DescontoFaturamentoDialog } from "@/components/vendedor/DescontoFaturamentoDialog";
 import { AlterarEmailAcessoDialog } from "@/components/admin/AlterarEmailAcessoDialog";
+import { CadastrarClienteDialog } from "@/components/vendedor/CadastrarClienteDialog";
+import { useAuth } from "@/hooks/useAuth";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -25,10 +27,17 @@ interface Cliente {
   nome_superintendente: string | null;
   email_superintendente: string | null;
   telefone: string | null;
+  possui_cnpj: boolean | null;
+  endereco_cep: string | null;
+  endereco_rua: string | null;
+  endereco_numero: string | null;
+  endereco_complemento: string | null;
+  endereco_bairro: string | null;
   endereco_cidade: string | null;
   endereco_estado: string | null;
-  cnpj: string | null;
+  cnpj: string;
   cpf: string | null;
+  senha_temporaria: string | null;
   status_ativacao_ebd: boolean;
   tipo_cliente: string | null;
   onboarding_concluido: boolean | null;
@@ -54,11 +63,14 @@ interface Vendedor {
 }
 
 export default function AdminEBDClientes() {
+  const { role } = useAuth();
+  const podeEditarCadastro = role === "admin" || role === "gerente_ebd" || role === "financeiro";
   const [searchTerm, setSearchTerm] = useState("");
   const [vendedorFilter, setVendedorFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [clienteParaDesconto, setClienteParaDesconto] = useState<Cliente | null>(null);
   const [clienteParaEmail, setClienteParaEmail] = useState<Cliente | null>(null);
+  const [clienteParaEditar, setClienteParaEditar] = useState<Cliente | null>(null);
 
   // Buscar todos os clientes
   const { data: clientes = [], isLoading, refetch } = useQuery({
@@ -387,6 +399,17 @@ export default function AdminEBDClientes() {
                     <Mail className="h-3 w-3 mr-1" />
                     Alterar email
                   </Button>
+                  {podeEditarCadastro && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => setClienteParaEditar(cliente)}
+                    >
+                      <Pencil className="h-3 w-3 mr-1" />
+                      Editar Cadastro
+                    </Button>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -407,6 +430,15 @@ export default function AdminEBDClientes() {
         open={!!clienteParaEmail}
         onOpenChange={(open) => !open && setClienteParaEmail(null)}
         cliente={clienteParaEmail}
+        onSuccess={() => refetch()}
+      />
+
+      {/* Dialog de edição completa do cadastro */}
+      <CadastrarClienteDialog
+        open={!!clienteParaEditar}
+        onOpenChange={(open) => !open && setClienteParaEditar(null)}
+        vendedorId={clienteParaEditar?.vendedor_id || ""}
+        clienteParaEditar={clienteParaEditar}
         onSuccess={() => refetch()}
       />
     </div>
