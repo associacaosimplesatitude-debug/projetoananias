@@ -1,10 +1,12 @@
-# Adicionar aba Templates ao Marketing
+# Editar cadastro de clientes EBD
 
-## Alteração
-- Importar `WhatsAppTemplatesList` em `MarketingPanel.tsx`.
-- Inserir a aba **Templates** entre **Campanhas** e **Públicos**.
-- Renderizar `WhatsAppTemplatesList` no conteúdo da nova aba.
-- Reutilizar o botão **Novo Template** e o fluxo de edição já internos à lista, sem duplicar estado ou formulário.
+## Implementação
+- Alterar somente `src/pages/admin/AdminEBDClientes.tsx`.
+- Usar o papel retornado por `useAuth` para exibir “Editar Cadastro” a `admin`, `gerente_ebd` e `financeiro`.
+- Completar a interface local do cliente com os campos exigidos pelo formulário existente.
+- Abrir `CadastrarClienteDialog` em modo de edição com o cliente selecionado e seu vendedor.
+- Atualizar a lista após salvar, mantendo intactos os botões, filtros e demais áreas da tela.
 
 ## Validação
-- Confirmar que a compilação permanece válida e que as demais abas não foram alteradas.
+- Confirmar a compilação sem erros.
+- Verificar que o botão e o formulário aparecem apenas nos papéis solicitados, sem alterar o acesso dos demais.
