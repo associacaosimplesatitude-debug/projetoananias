@@ -16,3 +16,4 @@
 - [x] Remover duplicidade por `bling_order_id` no card Performance de Vendedores
 - [x] Corrigir guardas das rotas administrativas para usuários com múltiplos papéis
 - [x] Adicionar a aba Templates ao painel de Marketing
+- [x] Devolver os controles nativos de navegação ao PDF do Modo Kindle
