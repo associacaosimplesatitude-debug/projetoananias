@@ -817,7 +817,7 @@ export default function RevistaLeitura() {
                 </p>
               ) : revista.pdf_url ? (
                 <iframe
-                  src={`${revista.pdf_url}#toolbar=0&navpanes=0&scrollbar=1&view=FitH&zoom=page-width`}
+                  src={`${revista.pdf_url}#view=FitH&zoom=page-width`}
                   style={{
                     border: 'none',
                     width: '100%',
@@ -894,7 +894,7 @@ export default function RevistaLeitura() {
           }}>
             {revista.pdf_url ? (
               <iframe
-                src={`${revista.pdf_url}#toolbar=0&navpanes=0&scrollbar=1&view=FitH&zoom=page-width`}
+                src={`${revista.pdf_url}#view=FitH&zoom=page-width`}
                 style={{
                   border: 'none',
                   width: '100%',
