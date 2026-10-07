@@ -17,3 +17,4 @@
 - [x] Corrigir guardas das rotas administrativas para usuários com múltiplos papéis
 - [x] Adicionar a aba Templates ao painel de Marketing
 - [x] Devolver os controles nativos de navegação ao PDF do Modo Kindle
+- [x] Restaurar e validar abas de pendências, faturados e pedidos confirmados em Aprovação de Faturamento

@@ -20,6 +20,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { AdminPedidosTab } from "@/components/admin/AdminPedidosTab";
 
 interface PropostaItem {
   variantId: string;
@@ -94,8 +96,11 @@ export default function AprovacaoFaturamento() {
   const [selectedProposta, setSelectedProposta] = useState<Proposta | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
+  const [activeTab, setActiveTab] = useState("pendentes");
+  const [faturadasSearch, setFaturadasSearch] = useState("");
+  const [faturadasPage, setFaturadasPage] = useState(0);
 
-  const { data: propostas, isLoading, refetch } = useQuery({
+  const { data: propostas, isLoading, isError, refetch } = useQuery({
     queryKey: ["propostas-aguardando-aprovacao"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -130,6 +135,55 @@ export default function AprovacaoFaturamento() {
       return data as unknown as Proposta[];
     },
   });
+
+  const {
+    data: faturadas = [],
+    isLoading: faturadasLoading,
+    isError: faturadasError,
+    refetch: refetchFaturadas,
+  } = useQuery({
+    queryKey: ["aprovacao-faturamento-faturadas"],
+    enabled: activeTab === "faturadas",
+    queryFn: async () => {
+      type Faturada = Pick<Proposta, "id" | "cliente_nome" | "vendedor_nome" | "valor_total" | "created_at" | "bling_order_id" | "bling_order_number"> & {
+        vendedor: { nome: string } | null;
+      };
+      const rows: Faturada[] = [];
+      const pageSize = 1000;
+      for (let from = 0; ; from += pageSize) {
+        const { data, error } = await supabase
+          .from("vendedor_propostas")
+          .select("id, cliente_nome, vendedor_nome, valor_total, created_at, bling_order_id, bling_order_number, vendedor:vendedores(nome)")
+          .eq("status", "FATURADO")
+          .order("created_at", { ascending: false })
+          .order("id", { ascending: false })
+          .range(from, from + pageSize - 1);
+        if (error) throw error;
+        rows.push(...(data || []));
+        if (!data || data.length < pageSize) break;
+      }
+      return rows;
+    },
+  });
+
+  const { data: vendedores = [] } = useQuery({
+    queryKey: ["vendedores-list"],
+    enabled: activeTab === "pedidos",
+    queryFn: async () => {
+      const { data, error } = await supabase.from("vendedores").select("id, nome").order("nome");
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  const faturadasFiltradas = faturadas.filter((proposta) => {
+    const term = faturadasSearch.trim().toLowerCase();
+    return !term || [proposta.cliente_nome, proposta.vendedor?.nome, proposta.vendedor_nome, proposta.bling_order_number, proposta.bling_order_id]
+      .some((value) => String(value ?? "").toLowerCase().includes(term));
+  });
+  const faturadasTotalPages = Math.max(1, Math.ceil(faturadasFiltradas.length / 50));
+  const currentFaturadasPage = Math.min(faturadasPage, faturadasTotalPages - 1);
+  const faturadasVisiveis = faturadasFiltradas.slice(currentFaturadasPage * 50, (currentFaturadasPage + 1) * 50);
 
   /**
    * APROVAÇÃO ATÔMICA via Edge Function
@@ -198,6 +252,9 @@ export default function AprovacaoFaturamento() {
       });
 
       queryClient.invalidateQueries({ queryKey: ["propostas-aguardando-aprovacao"] });
+      queryClient.invalidateQueries({ queryKey: ["aprovacao-faturamento-faturadas"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-propostas-faturadas"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-all-shopify-pedidos"] });
       queryClient.invalidateQueries({ queryKey: ["vendedor-propostas-faturadas"] });
       queryClient.invalidateQueries({ queryKey: ["vendedor-propostas"] });
       queryClient.invalidateQueries({ queryKey: ["vendedor-vendas-mes"] });
@@ -285,6 +342,13 @@ export default function AprovacaoFaturamento() {
         <p className="text-muted-foreground">Aprovar ou reprovar pedidos B2B para faturamento</p>
       </div>
 
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="h-auto flex flex-wrap justify-start gap-1">
+          <TabsTrigger value="pendentes">Aprovação Pendente</TabsTrigger>
+          <TabsTrigger value="faturadas">Faturado</TabsTrigger>
+          <TabsTrigger value="pedidos">Pedidos Confirmados</TabsTrigger>
+        </TabsList>
+        <TabsContent value="pendentes" className="space-y-4 mt-4">
       <div className="flex items-center gap-2">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -302,12 +366,17 @@ export default function AprovacaoFaturamento() {
 
       {isLoading ? (
         <div className="text-center py-8 text-muted-foreground">Carregando...</div>
+      ) : isError ? (
+        <div role="alert" className="space-y-3 py-8 text-center">
+          <p className="text-destructive">Não foi possível carregar as aprovações pendentes.</p>
+          <Button variant="outline" onClick={() => refetch()}><RefreshCw className="mr-2 h-4 w-4" />Tentar novamente</Button>
+        </div>
       ) : filteredPropostas?.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <CheckCircle className="h-12 w-12 text-green-500 mb-4" />
-            <p className="text-lg font-medium">Nenhuma proposta aguardando aprovação</p>
-            <p className="text-muted-foreground">Todas as propostas B2B foram processadas</p>
+            <p className="text-lg font-medium">{searchTerm ? "Nenhuma proposta encontrada" : "Nenhuma proposta aguardando aprovação"}</p>
+            {!searchTerm && <p className="text-muted-foreground">Todas as propostas B2B foram processadas</p>}
           </CardContent>
         </Card>
       ) : (
@@ -448,6 +517,65 @@ export default function AprovacaoFaturamento() {
           ))}
         </div>
       )}
+
+        </TabsContent>
+        <TabsContent value="faturadas" className="space-y-4 mt-4">
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1 max-w-sm">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                aria-label="Buscar propostas faturadas"
+                placeholder="Buscar por cliente, vendedor ou pedido..."
+                value={faturadasSearch}
+                onChange={(event) => { setFaturadasSearch(event.target.value); setFaturadasPage(0); }}
+                className="pl-9"
+              />
+            </div>
+            {!faturadasLoading && !faturadasError && <Badge variant="outline">{faturadasFiltradas.length} faturadas</Badge>}
+          </div>
+          {faturadasLoading ? (
+            <div className="py-8 text-center text-muted-foreground">Carregando...</div>
+          ) : faturadasError ? (
+            <div role="alert" className="space-y-3 py-8 text-center">
+              <p className="text-destructive">Não foi possível carregar as propostas faturadas.</p>
+              <Button variant="outline" onClick={() => refetchFaturadas()}><RefreshCw className="mr-2 h-4 w-4" />Tentar novamente</Button>
+            </div>
+          ) : faturadasFiltradas.length === 0 ? (
+            <p className="py-8 text-center text-muted-foreground">{faturadasSearch ? "Nenhuma proposta encontrada" : "Nenhuma proposta faturada"}</p>
+          ) : (
+            <>
+              <div className="space-y-3">
+                {faturadasVisiveis.map((proposta) => (
+                  <Card key={proposta.id}>
+                    <CardContent className="p-4 space-y-2">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="font-semibold break-words">{proposta.cliente_nome}</span>
+                        <Badge variant="secondary"><FileText className="mr-1 h-3 w-3" />Faturado</Badge>
+                      </div>
+                      <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
+                        <span>Vendedor: {proposta.vendedor?.nome || proposta.vendedor_nome || "N/A"}</span>
+                        <span>Criado: {format(new Date(proposta.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}</span>
+                        <span>Pedido: {proposta.bling_order_number || proposta.bling_order_id || "N/A"}</span>
+                      </div>
+                      <p className="font-medium">{Number(proposta.valor_total).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</p>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="text-sm text-muted-foreground">Página {currentFaturadasPage + 1} de {faturadasTotalPages}</p>
+                <div className="flex gap-2">
+                  <Button variant="outline" disabled={currentFaturadasPage === 0} onClick={() => setFaturadasPage(currentFaturadasPage - 1)}>Anterior</Button>
+                  <Button variant="outline" disabled={currentFaturadasPage >= faturadasTotalPages - 1} onClick={() => setFaturadasPage(currentFaturadasPage + 1)}>Próxima</Button>
+                </div>
+              </div>
+            </>
+          )}
+        </TabsContent>
+        <TabsContent value="pedidos" className="mt-4">
+          {activeTab === "pedidos" && <AdminPedidosTab vendedores={vendedores} />}
+        </TabsContent>
+      </Tabs>
 
       {/* Dialog de Reprovação */}
       <AlertDialog open={rejectDialogOpen} onOpenChange={setRejectDialogOpen}>
