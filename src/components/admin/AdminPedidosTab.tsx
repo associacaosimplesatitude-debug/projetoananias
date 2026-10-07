@@ -288,14 +288,21 @@ export function AdminPedidosTab({ vendedores = [], hideStats = false }: AdminPed
   const { data: propostasFaturadas = [], isLoading: isLoadingFaturadas } = useQuery({
     queryKey: ["admin-propostas-faturadas"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("vendedor_propostas")
-        .select("*, vendedor:vendedores(nome)")
-        .in("status", ["FATURADO", "APROVADA_FATURAMENTO", "PAGO"])
-        .order("created_at", { ascending: false });
-      
-      if (error) throw error;
-      return (data || []) as PropostaFaturada[];
+      const rows: PropostaFaturada[] = [];
+      const pageSize = 1000;
+      for (let from = 0; ; from += pageSize) {
+        const { data, error } = await supabase
+          .from("vendedor_propostas")
+          .select("*, vendedor:vendedores(nome)")
+          .in("status", ["FATURADO", "APROVADA_FATURAMENTO", "PAGO"])
+          .order("created_at", { ascending: false })
+          .order("id", { ascending: false })
+          .range(from, from + pageSize - 1);
+        if (error) throw error;
+        rows.push(...((data || []) as PropostaFaturada[]));
+        if (!data || data.length < pageSize) break;
+      }
+      return rows;
     },
     refetchOnWindowFocus: true,
     staleTime: 30000,
@@ -305,14 +312,21 @@ export function AdminPedidosTab({ vendedores = [], hideStats = false }: AdminPed
   const { data: mercadoPagoPedidos = [], isLoading: isLoadingMP } = useQuery({
     queryKey: ["admin-mercadopago-pedidos"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("ebd_shopify_pedidos_mercadopago")
-        .select("*")
-        .in("payment_status", ["approved", "PAGO"])
-        .order("created_at", { ascending: false });
-      
-      if (error) throw error;
-      return (data || []) as MercadoPagoPedido[];
+      const rows: MercadoPagoPedido[] = [];
+      const pageSize = 1000;
+      for (let from = 0; ; from += pageSize) {
+        const { data, error } = await supabase
+          .from("ebd_shopify_pedidos_mercadopago")
+          .select("*")
+          .in("payment_status", ["approved", "PAGO"])
+          .order("created_at", { ascending: false })
+          .order("id", { ascending: false })
+          .range(from, from + pageSize - 1);
+        if (error) throw error;
+        rows.push(...((data || []) as MercadoPagoPedido[]));
+        if (!data || data.length < pageSize) break;
+      }
+      return rows;
     },
   });
 
@@ -320,14 +334,21 @@ export function AdminPedidosTab({ vendedores = [], hideStats = false }: AdminPed
   const { data: vendasBalcao = [], isLoading: isLoadingBalcao } = useQuery({
     queryKey: ["admin-vendas-balcao"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("vendas_balcao")
-        .select("*, vendedor:vendedores(nome)")
-        .eq("status", "finalizada")
-        .order("created_at", { ascending: false });
-      
-      if (error) throw error;
-      return (data || []) as VendaBalcao[];
+      const rows: VendaBalcao[] = [];
+      const pageSize = 1000;
+      for (let from = 0; ; from += pageSize) {
+        const { data, error } = await supabase
+          .from("vendas_balcao")
+          .select("*, vendedor:vendedores(nome)")
+          .eq("status", "finalizada")
+          .order("created_at", { ascending: false })
+          .order("id", { ascending: false })
+          .range(from, from + pageSize - 1);
+        if (error) throw error;
+        rows.push(...((data || []) as VendaBalcao[]));
+        if (!data || data.length < pageSize) break;
+      }
+      return rows;
     },
   });
 
