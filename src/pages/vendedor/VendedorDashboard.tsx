@@ -92,46 +92,87 @@ export default function VendedorDashboard() {
     queryKey: ["vendedor-vendas-mes", vendedor?.id],
     queryFn: async () => {
       if (!vendedor?.id) return 0;
-      const inicioMes = format(startOfMonth(new Date()), "yyyy-MM-dd'T'00:00:00");
-      const fimMes = format(endOfMonth(new Date()), "yyyy-MM-dd'T'23:59:59");
-      
-      // Buscar pedidos Shopify (qualquer status exceto reembolsado) do mês atual
-      const { data: shopifyOrders, error: shopifyError } = await supabase
-        .from("ebd_shopify_pedidos")
-        .select("valor_para_meta, status_pagamento")
-        .eq("vendedor_id", vendedor.id)
-        .neq("status_pagamento", "Reembolsado")
-        .gte("created_at", inicioMes)
-        .lte("created_at", fimMes);
-      
-      if (shopifyError) {
-        console.error("Error fetching shopify orders:", shopifyError);
-      }
-      
-      // Buscar propostas faturadas do mês atual
+      const inicioMes = startOfMonth(new Date());
+      const fimMes = endOfMonth(new Date());
+      const inicioMesStr = format(inicioMes, "yyyy-MM-dd'T'00:00:00");
+      const fimMesStr = format(fimMes, "yyyy-MM-dd'T'23:59:59");
+
+      // Mesmo filtro de status da tela da gestão (VendedoresSummaryCards.isPaidStatus)
+      const isPaidStatus = (status: string | null | undefined): boolean => {
+        if (!status) return false;
+        const s = status.toLowerCase();
+        return s === "paid" || s === "pago" || s === "aprovado" || s === "approved" || s === "faturado";
+      };
+
+      // Buscar propostas faturadas do mês atual (também usadas para deduplicar pedidos Shopify)
       const { data: propostasFaturadas, error: propostasError } = await supabase
         .from("vendedor_propostas")
-        .select("valor_total, valor_frete")
+        .select("bling_order_id, valor_total, valor_frete")
         .eq("vendedor_id", vendedor.id)
         .in("status", ["FATURADO", "PAGO"])
-        .gte("created_at", inicioMes)
-        .lte("created_at", fimMes);
-      
+        .gte("created_at", inicioMesStr)
+        .lte("created_at", fimMesStr);
+
       if (propostasError) {
         console.error("Error fetching propostas faturadas:", propostasError);
       }
-      
-      // Somar valor_para_meta de todos os pedidos válidos (Pago, Faturado, etc.)
-      const totalShopify = (shopifyOrders || []).reduce((sum, order) => 
-        sum + Number(order.valor_para_meta || 0), 0
+
+      // Chaves vendedor:bling_order_id das propostas do mês (mesma regra da gestão)
+      const propostaBlingKeys = new Set(
+        (propostasFaturadas || [])
+          .filter((p) => p.bling_order_id != null)
+          .map((p) => `${vendedor.id}:${p.bling_order_id}`),
       );
-      
+
+      // Buscar pedidos Shopify do vendedor; filtro por order_date (data real da venda),
+      // igual à tela da gestão. Filtragem de data feita em JS para replicar exatamente
+      // a mesma semântica (parseISO + isWithinInterval).
+      const { data: shopifyOrders, error: shopifyError } = await supabase
+        .from("ebd_shopify_pedidos")
+        .select("valor_para_meta, status_pagamento, bling_order_id, order_date")
+        .eq("vendedor_id", vendedor.id);
+
+      if (shopifyError) {
+        console.error("Error fetching shopify orders:", shopifyError);
+      }
+
+      // Somar valor_para_meta dos pedidos válidos do mês, excluindo os que já têm
+      // proposta FATURADO/PAGO com o mesmo bling_order_id (deduplicação da gestão)
+      const totalShopify = (shopifyOrders || []).reduce((sum, order) => {
+        if (!isPaidStatus(order.status_pagamento)) return sum;
+        if (!order.order_date) return sum;
+        const orderDate = parseISO(order.order_date);
+        if (orderDate < inicioMes || orderDate > fimMes) return sum;
+        const blingKey = order.bling_order_id != null ? `${vendedor.id}:${order.bling_order_id}` : null;
+        if (blingKey && propostaBlingKeys.has(blingKey)) return sum;
+        return sum + Number(order.valor_para_meta || 0);
+      }, 0);
+
       // Somar valor das propostas faturadas (valor_total - valor_frete)
-      const totalPropostas = (propostasFaturadas || []).reduce((sum, proposta) => 
+      const totalPropostas = (propostasFaturadas || []).reduce((sum, proposta) =>
         sum + (Number(proposta.valor_total || 0) - Number(proposta.valor_frete || 0)), 0
       );
-      
-      return totalShopify + totalPropostas;
+
+      // Vendas pagas via Mercado Pago (PIX/cartão) vinculadas a propostas.
+      // Campo de valor: valor_produtos (sem frete), equivalente ao "valor para meta";
+      // fallback para valor_total quando valor_produtos for nulo.
+      const { data: mpOrders, error: mpError } = await supabase
+        .from("ebd_shopify_pedidos_mercadopago")
+        .select("valor_produtos, valor_total")
+        .eq("vendedor_id", vendedor.id)
+        .eq("payment_status", "approved")
+        .gte("created_at", inicioMesStr)
+        .lte("created_at", fimMesStr);
+
+      if (mpError) {
+        console.error("Error fetching mercadopago orders:", mpError);
+      }
+
+      const totalMercadoPago = (mpOrders || []).reduce((sum, order) =>
+        sum + Number(order.valor_produtos ?? order.valor_total ?? 0), 0
+      );
+
+      return totalShopify + totalPropostas + totalMercadoPago;
     },
     enabled: !!vendedor?.id,
   });
