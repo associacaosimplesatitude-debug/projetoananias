@@ -58,6 +58,35 @@ import {
 } from "lucide-react";
 import { useImpersonation } from "@/contexts/ImpersonationContext";
 import { AdminPedidosTab } from "@/components/admin/AdminPedidosTab";
+
+// Busca todos os registros em lotes de 1.000 para contornar o limite padrão do PostgREST.
+// Ordenação estável por created_at + id; propaga erro de qualquer lote.
+const PAGINATION_PAGE_SIZE = 1000;
+async function fetchAllPaginated(
+  table: string,
+  select: string,
+  applyFilters?: (q: any) => any,
+  orderColumn = "created_at",
+): Promise<any[]> {
+  const all: any[] = [];
+  let from = 0;
+  for (let page = 0; page < 50; page++) {
+    let q: any = supabase
+      .from(table as any)
+      .select(select)
+      .order(orderColumn, { ascending: false })
+      .order("id", { ascending: false })
+      .range(from, from + PAGINATION_PAGE_SIZE - 1);
+    if (applyFilters) q = applyFilters(q);
+    const { data, error } = await q;
+    if (error) throw error;
+    const rows = data || [];
+    all.push(...rows);
+    if (rows.length < PAGINATION_PAGE_SIZE) break;
+    from += PAGINATION_PAGE_SIZE;
+  }
+  return all;
+}
 import { ImportLeadsDialog } from "@/components/admin/ImportLeadsDialog";
 import { AIAssistantChat } from "@/components/admin/AIAssistantChat";
 import { LeadScoringKPIs } from "@/components/leads/LeadScoringKPIs";
