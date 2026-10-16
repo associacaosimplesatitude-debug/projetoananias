@@ -238,13 +238,14 @@ export function VendedoresSummaryCards({
 
       // Current period
       if (isWithinInterval(orderDate, { start: dateRange.start, end: dateRange.end })) {
-        vendedorData.vendasPeriodo += Number(order.valor_total || 0);
+        // valor_para_meta (sem frete) — mesma base usada na tela do vendedor
+        vendedorData.vendasPeriodo += Number(order.valor_para_meta || 0);
         if (clientKey) vendedorData.clientesAtivos.add(clientKey);
       }
 
       // Previous period
       if (isWithinInterval(orderDate, { start: dateRange.prevStart, end: dateRange.prevEnd })) {
-        vendedorData.vendasPeriodoAnterior += Number(order.valor_total || 0);
+        vendedorData.vendasPeriodoAnterior += Number(order.valor_para_meta || 0);
       }
     });
 
@@ -282,12 +283,13 @@ export function VendedoresSummaryCards({
       const clientKey = normalizeEmail(order.customer_email) || order.customer_name?.toLowerCase().trim();
 
       if (isWithinInterval(orderDate, { start: dateRange.start, end: dateRange.end })) {
-        vendasPeriodo += Number(order.valor_total || 0);
+        // valor_para_meta (sem frete) — mesma base usada na tela do vendedor
+        vendasPeriodo += Number(order.valor_para_meta || 0);
         if (clientKey) clientesAtivos.add(clientKey);
       }
 
       if (isWithinInterval(orderDate, { start: dateRange.prevStart, end: dateRange.prevEnd })) {
-        vendasPeriodoAnterior += Number(order.valor_total || 0);
+        vendasPeriodoAnterior += Number(order.valor_para_meta || 0);
         if (clientKey) clientesAnterior.add(clientKey);
       }
     });
@@ -397,7 +399,8 @@ export function VendedoresSummaryCards({
           ? `${order.vendedor_id}:${order.bling_order_id}`
           : null;
         if (!blingKey || !propostaBlingKeys.has(blingKey)) {
-          vendedorData.vendas += Number(order.valor_total || 0);
+          // valor_para_meta (sem frete) — mesma base usada na tela do vendedor
+          vendedorData.vendas += Number(order.valor_para_meta || 0);
         }
         const clientKey = normalizeEmail(order.customer_email) || order.customer_name?.toLowerCase().trim();
         if (clientKey) vendedorData.clientesAtivos.add(clientKey);
@@ -432,7 +435,9 @@ export function VendedoresSummaryCards({
       if (!vendedorData) return;
 
       if (isWithinInterval(orderDate, { start: dateRange.start, end: dateRange.end })) {
-        vendedorData.vendas += Number(order.valor_total || 0);
+        // valor_produtos (sem frete) = equivalente ao "valor para meta" nesta tabela;
+        // fallback para valor_total quando valor_produtos for nulo
+        vendedorData.vendas += Number(order.valor_produtos ?? order.valor_total ?? 0);
       }
     });
 
