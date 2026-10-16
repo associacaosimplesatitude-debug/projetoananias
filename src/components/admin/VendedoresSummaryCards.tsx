@@ -61,6 +61,8 @@ interface MercadoPagoOrder {
   id: string;
   vendedor_id: string | null;
   valor_total: number | null;
+  // valor_produtos = valor sem frete, equivalente ao "valor para meta" nesta tabela
+  valor_produtos?: number | null;
   created_at: string | null;
   payment_status: string | null;
 }
