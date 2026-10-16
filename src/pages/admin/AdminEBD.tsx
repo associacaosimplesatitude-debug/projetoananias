@@ -58,6 +58,35 @@ import {
 } from "lucide-react";
 import { useImpersonation } from "@/contexts/ImpersonationContext";
 import { AdminPedidosTab } from "@/components/admin/AdminPedidosTab";
+
+// Busca todos os registros em lotes de 1.000 para contornar o limite padrão do PostgREST.
+// Ordenação estável por created_at + id; propaga erro de qualquer lote.
+const PAGINATION_PAGE_SIZE = 1000;
+async function fetchAllPaginated(
+  table: string,
+  select: string,
+  applyFilters?: (q: any) => any,
+  orderColumn = "created_at",
+): Promise<any[]> {
+  const all: any[] = [];
+  let from = 0;
+  for (let page = 0; page < 50; page++) {
+    let q: any = supabase
+      .from(table as any)
+      .select(select)
+      .order(orderColumn, { ascending: false })
+      .order("id", { ascending: false })
+      .range(from, from + PAGINATION_PAGE_SIZE - 1);
+    if (applyFilters) q = applyFilters(q);
+    const { data, error } = await q;
+    if (error) throw error;
+    const rows = data || [];
+    all.push(...rows);
+    if (rows.length < PAGINATION_PAGE_SIZE) break;
+    from += PAGINATION_PAGE_SIZE;
+  }
+  return all;
+}
 import { ImportLeadsDialog } from "@/components/admin/ImportLeadsDialog";
 import { AIAssistantChat } from "@/components/admin/AIAssistantChat";
 import { LeadScoringKPIs } from "@/components/leads/LeadScoringKPIs";
@@ -305,12 +334,7 @@ export default function AdminEBD() {
   const { data: shopifyOrders = [] } = useQuery({
     queryKey: ["admin-shopify-orders"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("ebd_shopify_pedidos")
-        .select("*, cliente:ebd_clientes(cnpj, tipo_cliente)")
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data || [];
+      return fetchAllPaginated("ebd_shopify_pedidos", "*, cliente:ebd_clientes(cnpj, tipo_cliente)");
     },
   });
 
@@ -333,12 +357,7 @@ export default function AdminEBD() {
   const { data: marketplacePedidos = [] } = useQuery({
     queryKey: ["admin-marketplace-pedidos"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("bling_marketplace_pedidos")
-        .select("*")
-        .order("order_date", { ascending: false });
-      if (error) throw error;
-      return data || [];
+      return fetchAllPaginated("bling_marketplace_pedidos", "*", undefined, "order_date");
     },
   });
 
@@ -346,12 +365,7 @@ export default function AdminEBD() {
   const { data: mercadoPagoOrders = [] } = useQuery({
     queryKey: ["admin-mercadopago-orders"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("ebd_shopify_pedidos_mercadopago")
-        .select("id, vendedor_id, valor_total, created_at, payment_status")
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data || [];
+      return fetchAllPaginated("ebd_shopify_pedidos_mercadopago", "id, vendedor_id, valor_total, created_at, payment_status");
     },
   });
 
@@ -502,20 +516,19 @@ export default function AdminEBD() {
   const { data: propostasFaturadasMeta = [] } = useQuery({
     queryKey: ['propostas-faturadas-meta'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('vendedor_propostas')
-        .select(`
-          id, 
-          vendedor_id, 
+      return fetchAllPaginated(
+        'vendedor_propostas',
+        `
+          id,
+          vendedor_id,
           bling_order_id,
-          valor_total, 
-          valor_frete, 
+          valor_total,
+          valor_frete,
           created_at,
           cliente:ebd_clientes(tipo_cliente)
-        `)
-        .in('status', ['FATURADO', 'PAGO']);
-      if (error) throw error;
-      return data || [];
+        `,
+        (q) => q.in('status', ['FATURADO', 'PAGO']),
+      );
     },
   });
 
