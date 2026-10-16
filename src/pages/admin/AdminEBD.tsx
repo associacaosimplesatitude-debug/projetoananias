@@ -334,12 +334,7 @@ export default function AdminEBD() {
   const { data: shopifyOrders = [] } = useQuery({
     queryKey: ["admin-shopify-orders"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("ebd_shopify_pedidos")
-        .select("*, cliente:ebd_clientes(cnpj, tipo_cliente)")
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data || [];
+      return fetchAllPaginated("ebd_shopify_pedidos", "*, cliente:ebd_clientes(cnpj, tipo_cliente)");
     },
   });
 
@@ -362,12 +357,7 @@ export default function AdminEBD() {
   const { data: marketplacePedidos = [] } = useQuery({
     queryKey: ["admin-marketplace-pedidos"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("bling_marketplace_pedidos")
-        .select("*")
-        .order("order_date", { ascending: false });
-      if (error) throw error;
-      return data || [];
+      return fetchAllPaginated("bling_marketplace_pedidos", "*", undefined, "order_date");
     },
   });
 
@@ -375,12 +365,7 @@ export default function AdminEBD() {
   const { data: mercadoPagoOrders = [] } = useQuery({
     queryKey: ["admin-mercadopago-orders"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("ebd_shopify_pedidos_mercadopago")
-        .select("id, vendedor_id, valor_total, created_at, payment_status")
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data || [];
+      return fetchAllPaginated("ebd_shopify_pedidos_mercadopago", "id, vendedor_id, valor_total, created_at, payment_status");
     },
   });
 
@@ -531,20 +516,19 @@ export default function AdminEBD() {
   const { data: propostasFaturadasMeta = [] } = useQuery({
     queryKey: ['propostas-faturadas-meta'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('vendedor_propostas')
-        .select(`
-          id, 
-          vendedor_id, 
+      return fetchAllPaginated(
+        'vendedor_propostas',
+        `
+          id,
+          vendedor_id,
           bling_order_id,
-          valor_total, 
-          valor_frete, 
+          valor_total,
+          valor_frete,
           created_at,
           cliente:ebd_clientes(tipo_cliente)
-        `)
-        .in('status', ['FATURADO', 'PAGO']);
-      if (error) throw error;
-      return data || [];
+        `,
+        (q) => q.in('status', ['FATURADO', 'PAGO']),
+      );
     },
   });
 
