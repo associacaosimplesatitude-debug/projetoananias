@@ -365,7 +365,7 @@ export default function AdminEBD() {
   const { data: mercadoPagoOrders = [] } = useQuery({
     queryKey: ["admin-mercadopago-orders"],
     queryFn: async () => {
-      return fetchAllPaginated("ebd_shopify_pedidos_mercadopago", "id, vendedor_id, valor_total, created_at, payment_status");
+      return fetchAllPaginated("ebd_shopify_pedidos_mercadopago", "id, vendedor_id, valor_total, valor_produtos, created_at, payment_status");
     },
   });
 
