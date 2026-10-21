@@ -47,7 +47,7 @@ export default function WhatsAppCampaigns() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("whatsapp_campanhas")
-        .select("*, whatsapp_templates(nome, corpo), whatsapp_publicos(nome, total_calculado)")
+        .select("*, whatsapp_templates(nome, corpo, status), whatsapp_publicos(nome, total_calculado)")
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data || [];
@@ -174,11 +174,12 @@ export default function WhatsAppCampaigns() {
         </div>
       )}
 
-      <NovaCampanhaDialog
+      <NovaCampanhaWizard
         open={dialogOpen}
         onClose={() => setDialogOpen(false)}
         quietHours={quietHours}
         onCreated={() => qc.invalidateQueries({ queryKey: ["whatsapp-campanhas-v2"] })}
+        onGoToPublicos={() => window.dispatchEvent(new CustomEvent("marketing:goto-publicos"))}
       />
     </div>
   );
@@ -206,6 +207,11 @@ function CampaignCard({ campanha: c, onAction }: { campanha: any; onAction: (a: 
             <div className="flex items-center gap-2 flex-wrap">
               <span className="font-semibold truncate">{c.nome}</span>
               <Badge variant={st.variant} className="text-xs">{st.label}</Badge>
+              {c.whatsapp_templates?.status === "PENDENTE" && (
+                <Badge variant="outline" className="text-xs gap-1">
+                  <Hourglass className="h-3 w-3" /> Aguardando aprovação da mensagem
+                </Badge>
+              )}
             </div>
             <p className="text-xs text-muted-foreground">
               Público: {c.whatsapp_publicos?.nome || "—"} · Template: {c.whatsapp_templates?.nome || "—"}
