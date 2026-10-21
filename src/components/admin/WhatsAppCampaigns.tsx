@@ -1,31 +1,22 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
-} from "@/components/ui/dialog";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Progress } from "@/components/ui/progress";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
   Plus, RefreshCw, Loader2, MoreVertical, Play, Pause, X, BarChart3,
-  Target, Send, Calendar, AlertTriangle,
+  Target, Calendar, Hourglass,
 } from "lucide-react";
+import NovaCampanhaWizard from "@/components/admin/whatsapp-wizard/NovaCampanhaWizard";
 
 const STATUS_MAP: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
   rascunho: { label: "Rascunho", variant: "secondary" },
@@ -42,13 +33,6 @@ const STATUS_MAP: Record<string, { label: string; variant: "default" | "secondar
   enviada: { label: "Enviada", variant: "default" },
   ativa: { label: "Ativa", variant: "default" },
 };
-
-const DIAS_LABEL = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
-
-interface VarConfig {
-  tipo: "fixo" | "campo";
-  valor: string;
-}
 
 export default function WhatsAppCampaigns() {
   const navigate = useNavigate();
