@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Megaphone, Users, TrendingUp } from "lucide-react";
 import WhatsAppCampaigns from "@/components/admin/WhatsAppCampaigns";
@@ -7,6 +8,15 @@ import MetaAdsDashboard from "@/pages/admin/MetaAdsDashboard";
 import GoogleAdsDashboard from "@/pages/admin/GoogleAdsDashboard";
 
 export default function MarketingPanel() {
+  const [tab, setTab] = useState("campanhas");
+
+  // O assistente de nova campanha dispara este evento no link "Criar um público novo"
+  useEffect(() => {
+    const handler = () => setTab("publicos");
+    window.addEventListener("marketing:goto-publicos", handler);
+    return () => window.removeEventListener("marketing:goto-publicos", handler);
+  }, []);
+
   return (
     <div className="p-6 space-y-6">
       <div>
@@ -19,7 +29,7 @@ export default function MarketingPanel() {
         </p>
       </div>
 
-      <Tabs defaultValue="campanhas" className="w-full">
+      <Tabs value={tab} onValueChange={setTab} className="w-full">
         <TabsList>
           <TabsTrigger value="campanhas" className="flex items-center gap-2">
             <Megaphone className="h-4 w-4" />
