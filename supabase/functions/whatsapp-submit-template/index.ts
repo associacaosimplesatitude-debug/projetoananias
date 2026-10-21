@@ -294,10 +294,26 @@ Deno.serve(async (req) => {
         newStatus = "PENDENTE";
       }
 
-      await supabase.from("whatsapp_templates").update({
+      const { error: tplUpdateErr } = await supabase.from("whatsapp_templates").update({
         status: newStatus,
         meta_rejection_reason: rejectionReason,
       }).eq("id", template_id);
+
+      // Promover campanhas vinculadas: template APROVADO + campanha em rascunho
+      // com agendamento preenchido → status 'agendada' (o cron assume o resto).
+      if (newStatus === "APROVADO" && !tplUpdateErr) {
+        const { error: promoteErr } = await supabase
+          .from("whatsapp_campanhas")
+          .update({ status: "agendada" })
+          .eq("template_id", template_id)
+          .eq("status", "rascunho")
+          .not("agendada_para", "is", null);
+        if (promoteErr) {
+          console.error("[check-status] Falha ao promover campanhas rascunho:", promoteErr.message);
+        } else {
+          console.log("[check-status] Campanhas rascunho promovidas para 'agendada' (template APROVADO)");
+        }
+      }
 
       return new Response(JSON.stringify({
         success: true,
