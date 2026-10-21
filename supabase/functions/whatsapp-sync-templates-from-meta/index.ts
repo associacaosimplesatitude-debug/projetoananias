@@ -160,19 +160,38 @@ Deno.serve(async (req) => {
           .eq("nome", nome)
           .maybeSingle();
 
+        let savedId: string | null = null;
+        let saveError: string | null = null;
+
         if (existente) {
-          const { error: updateErr } = await supabase
+          const { data: updated, error: updateErr } = await supabase
             .from("whatsapp_templates")
             .update(registro)
-            .eq("id", existente.id);
-          if (updateErr) resultados.erros.push({ template: nome, erro: updateErr.message });
-          else resultados.atualizados++;
+            .eq("id", existente.id)
+            .select("id");
+          if (updateErr) saveError = updateErr.message;
+          else { resultados.atualizados++; savedId = updated?.[0]?.id || existente.id; }
         } else {
-          const { error: insertErr } = await supabase
+          const { data: inserted, error: insertErr } = await supabase
             .from("whatsapp_templates")
-            .insert(registro);
-          if (insertErr) resultados.erros.push({ template: nome, erro: insertErr.message });
-          else resultados.inseridos++;
+            .insert(registro)
+            .select("id");
+          if (insertErr) saveError = insertErr.message;
+          else { resultados.inseridos++; savedId = inserted?.[0]?.id || null; }
+        }
+
+        // Template APROVADO vindo do Meta: promover campanhas vinculadas em
+        // 'rascunho' com agendamento preenchido para 'agendada' (o cron assume).
+        if (status === "APROVADO" && !saveError && savedId) {
+          const { error: promoteErr } = await supabase
+            .from("whatsapp_campanhas")
+            .update({ status: "agendada" })
+            .eq("template_id", savedId)
+            .eq("status", "rascunho")
+            .not("agendada_para", "is", null);
+          if (promoteErr) {
+            resultados.erros.push({ template: nome, erro: `Promoção de campanhas: ${promoteErr.message}` });
+          }
         }
       } catch (e: any) {
         resultados.erros.push({ template: tpl?.name || "?", erro: e?.message || String(e) });
