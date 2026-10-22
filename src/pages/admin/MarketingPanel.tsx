@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Megaphone, Users, TrendingUp } from "lucide-react";
 import WhatsAppCampaigns from "@/components/admin/WhatsAppCampaigns";
-import WhatsAppTemplatesList from "@/components/admin/WhatsAppTemplatesList";
 import WhatsAppPublicos from "@/components/admin/WhatsAppPublicos";
 import MetaAdsDashboard from "@/pages/admin/MetaAdsDashboard";
 import GoogleAdsDashboard from "@/pages/admin/GoogleAdsDashboard";
