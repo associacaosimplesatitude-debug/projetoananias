@@ -50,9 +50,6 @@ export default function MarketingPanel() {
         <TabsContent value="campanhas" className="mt-4">
           <WhatsAppCampaigns />
         </TabsContent>
-        <TabsContent value="templates" className="mt-4">
-          <WhatsAppTemplatesList />
-        </TabsContent>
         <TabsContent value="publicos" className="mt-4">
           <WhatsAppPublicos />
         </TabsContent>
