@@ -34,10 +34,6 @@ export default function MarketingPanel() {
             <Megaphone className="h-4 w-4" />
             Campanhas
           </TabsTrigger>
-          <TabsTrigger value="templates" className="flex items-center gap-2">
-            <Megaphone className="h-4 w-4" />
-            Templates
-          </TabsTrigger>
           <TabsTrigger value="publicos" className="flex items-center gap-2">
             <Users className="h-4 w-4" />
             Públicos
