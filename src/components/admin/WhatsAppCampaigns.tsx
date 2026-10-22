@@ -13,10 +13,16 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
   Plus, RefreshCw, Loader2, MoreVertical, Play, Pause, X, BarChart3,
-  Target, Calendar, Hourglass,
+  Target, Calendar, Hourglass, ChevronDown, MessageSquare,
 } from "lucide-react";
 import NovaCampanhaWizard from "@/components/admin/whatsapp-wizard/NovaCampanhaWizard";
+import WhatsAppTemplatesList from "@/components/admin/WhatsAppTemplatesList";
 
 const STATUS_MAP: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
   rascunho: { label: "Rascunho", variant: "secondary" },
@@ -172,6 +178,24 @@ export default function WhatsAppCampaigns() {
             />
           ))}
         </div>
+      )}
+
+      {!loadingCampaigns && (
+        <Collapsible className="rounded-lg border bg-card">
+          <CollapsibleTrigger className="group flex w-full items-center justify-between gap-3 p-4 text-left">
+            <span className="flex items-center gap-2 text-sm font-semibold">
+              <MessageSquare className="h-4 w-4 text-muted-foreground" />
+              Histórico de mensagens
+              <span className="font-normal text-xs text-muted-foreground">
+                (modelos criados, aprovados e rejeitados)
+              </span>
+            </span>
+            <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
+          </CollapsibleTrigger>
+          <CollapsibleContent className="px-4 pb-4">
+            <WhatsAppTemplatesList />
+          </CollapsibleContent>
+        </Collapsible>
       )}
 
       <NovaCampanhaWizard
