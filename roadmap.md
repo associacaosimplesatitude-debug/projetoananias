@@ -20,3 +20,4 @@
 - [x] Restaurar e validar abas de pendências, faturados e pedidos confirmados em Aprovação de Faturamento
 - [x] Corrigir e validar totais limitados a 1.000 em Pedidos Confirmados
 - [x] Assistente passo a passo de nova campanha WhatsApp (wizard com preview ao vivo)
+- [x] Mover o histórico de mensagens para dentro da aba Campanhas como seção retrátil
