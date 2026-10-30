@@ -1371,6 +1371,48 @@ export type Database = {
           },
         ]
       }
+      clientes_cupom_fidelidade: {
+        Row: {
+          coupon_code: string
+          cpf: string
+          criado_em: string
+          email: string | null
+          expires_at: string | null
+          id: string
+          nome: string | null
+          telefone: string | null
+          usado: boolean
+          usado_em: string | null
+          whatsapp_enviado_em: string | null
+        }
+        Insert: {
+          coupon_code: string
+          cpf: string
+          criado_em?: string
+          email?: string | null
+          expires_at?: string | null
+          id?: string
+          nome?: string | null
+          telefone?: string | null
+          usado?: boolean
+          usado_em?: string | null
+          whatsapp_enviado_em?: string | null
+        }
+        Update: {
+          coupon_code?: string
+          cpf?: string
+          criado_em?: string
+          email?: string | null
+          expires_at?: string | null
+          id?: string
+          nome?: string | null
+          telefone?: string | null
+          usado?: boolean
+          usado_em?: string | null
+          whatsapp_enviado_em?: string | null
+        }
+        Relationships: []
+      }
       comissao_lotes_pagamento: {
         Row: {
           created_at: string | null
