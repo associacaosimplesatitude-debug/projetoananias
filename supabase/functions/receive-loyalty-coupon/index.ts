@@ -33,6 +33,7 @@ function formatDateBR(iso: string | null): string {
 // Lê o cabeçalho do modelo aprovado no Meta. Se for mídia (IMAGE/VIDEO/DOCUMENT),
 // copia a mídia de exemplo para o bucket permanente campaign-assets (uma única vez)
 // e devolve o componente "header" com o link público.
+let copyCodeIndexes: number[] = [];
 async function resolveHeaderComponent(supabase: any, wabaId: string | undefined, token: string) {
   if (!wabaId) { console.warn("[loyalty] whatsapp_business_account_id ausente — enviando sem cabeçalho"); return null; }
   const r = await fetch(`https://graph.facebook.com/${GRAPH_VERSION}/${wabaId}/message_templates?name=${TEMPLATE_NAME}&fields=name,language,status,components`, {
@@ -40,6 +41,8 @@ async function resolveHeaderComponent(supabase: any, wabaId: string | undefined,
   });
   if (!r.ok) { console.warn(`[loyalty] falha ao ler modelo [${r.status}]: ${await r.text()}`); return null; }
   const tpl = ((await r.json())?.data || []).find((t: any) => t.name === TEMPLATE_NAME && t.language === "pt_BR");
+  const btns = tpl?.components?.find((c: any) => c.type === "BUTTONS")?.buttons || [];
+  copyCodeIndexes = btns.map((b: any, i: number) => (b.type === "COPY_CODE" ? i : -1)).filter((i: number) => i >= 0);
   const h = tpl?.components?.find((c: any) => c.type === "HEADER");
   if (!h || !["IMAGE", "VIDEO", "DOCUMENT"].includes(h.format)) return null;
   const kind = h.format.toLowerCase();
@@ -85,6 +88,9 @@ async function sendWhatsApp(supabase: any, phone11: string, nome: string, code: 
       { type: "text", text: validade || "-" },
     ],
   });
+  for (const i of copyCodeIndexes) {
+    components.push({ type: "button", sub_type: "copy_code", index: String(i), parameters: [{ type: "coupon_code", coupon_code: code }] });
+  }
   const res = await fetch(`https://graph.facebook.com/${GRAPH_VERSION}/${phoneNumberId}/messages`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
