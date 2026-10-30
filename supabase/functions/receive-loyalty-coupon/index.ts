@@ -30,11 +30,43 @@ function formatDateBR(iso: string | null): string {
   return d.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" });
 }
 
+// Lê o cabeçalho do modelo aprovado no Meta. Se for mídia (IMAGE/VIDEO/DOCUMENT),
+// copia a mídia de exemplo para o bucket permanente campaign-assets (uma única vez)
+// e devolve o componente "header" com o link público.
+async function resolveHeaderComponent(supabase: any, wabaId: string | undefined, token: string) {
+  if (!wabaId) { console.warn("[loyalty] whatsapp_business_account_id ausente — enviando sem cabeçalho"); return null; }
+  const r = await fetch(`https://graph.facebook.com/${GRAPH_VERSION}/${wabaId}/message_templates?name=${TEMPLATE_NAME}&fields=name,language,status,components`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!r.ok) { console.warn(`[loyalty] falha ao ler modelo [${r.status}]: ${await r.text()}`); return null; }
+  const tpl = ((await r.json())?.data || []).find((t: any) => t.name === TEMPLATE_NAME && t.language === "pt_BR");
+  const h = tpl?.components?.find((c: any) => c.type === "HEADER");
+  if (!h || !["IMAGE", "VIDEO", "DOCUMENT"].includes(h.format)) return null;
+  const kind = h.format.toLowerCase();
+  const ext = kind === "image" ? "jpg" : kind === "video" ? "mp4" : "pdf";
+  const path = `templates/${TEMPLATE_NAME}.${ext}`;
+  const { data: pub } = supabase.storage.from("campaign-assets").getPublicUrl(path);
+  const publicUrl = pub.publicUrl;
+  const head = await fetch(publicUrl, { method: "HEAD" });
+  if (!head.ok) {
+    const exampleUrl = h.example?.header_handle?.[0];
+    if (!exampleUrl) throw new Error(`Modelo exige ${h.format} no cabeçalho mas não há mídia de exemplo`);
+    const media = await fetch(exampleUrl);
+    if (!media.ok) throw new Error(`Falha ao baixar mídia do modelo [${media.status}]`);
+    const bytes = new Uint8Array(await media.arrayBuffer());
+    const contentType = media.headers.get("content-type") || (kind === "image" ? "image/jpeg" : kind === "video" ? "video/mp4" : "application/pdf");
+    const { error } = await supabase.storage.from("campaign-assets").upload(path, bytes, { contentType, upsert: true });
+    if (error) throw new Error(`Falha ao salvar mídia do modelo: ${error.message}`);
+    console.log(`[loyalty] mídia do cabeçalho copiada para campaign-assets/${path}`);
+  }
+  return { type: "header", parameters: [{ type: kind, [kind]: { link: publicUrl } }] };
+}
+
 async function sendWhatsApp(supabase: any, phone11: string, nome: string, code: string, validade: string) {
   const { data: settings } = await supabase
     .from("system_settings")
     .select("key, value")
-    .in("key", ["whatsapp_phone_number_id", "whatsapp_access_token"]);
+    .in("key", ["whatsapp_phone_number_id", "whatsapp_access_token", "whatsapp_business_account_id"]);
   const map: Record<string, string> = {};
   (settings || []).forEach((s: any) => (map[s.key] = s.value));
   const phoneNumberId = map["whatsapp_phone_number_id"];
@@ -42,6 +74,17 @@ async function sendWhatsApp(supabase: any, phone11: string, nome: string, code: 
   if (!phoneNumberId || !token) {
     return { ok: false, error: "Credenciais WhatsApp (system_settings) não configuradas" };
   }
+  const components: any[] = [];
+  const header = await resolveHeaderComponent(supabase, map["whatsapp_business_account_id"], token);
+  if (header) components.push(header);
+  components.push({
+    type: "body",
+    parameters: [
+      { type: "text", text: nome || "Cliente" },
+      { type: "text", text: code },
+      { type: "text", text: validade || "-" },
+    ],
+  });
   const res = await fetch(`https://graph.facebook.com/${GRAPH_VERSION}/${phoneNumberId}/messages`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
@@ -52,14 +95,7 @@ async function sendWhatsApp(supabase: any, phone11: string, nome: string, code: 
       template: {
         name: TEMPLATE_NAME,
         language: { code: "pt_BR" },
-        components: [{
-          type: "body",
-          parameters: [
-            { type: "text", text: nome || "Cliente" },
-            { type: "text", text: code },
-            { type: "text", text: validade || "-" },
-          ],
-        }],
+        components,
       },
     }),
   });
